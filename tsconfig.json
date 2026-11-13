@@ -12,6 +12,7 @@
     "noUnusedParameters": true,
     "resolveJsonModule": true,
     "paths": {
+      "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/cjs/*"],
       "@pointersh/highlight": ["./packages/highlight/src/index.ts"],
       "@pointersh/highlight/react": ["./packages/highlight/src/react.tsx"]
     },

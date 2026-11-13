@@ -521,9 +521,11 @@
     "esbuild": "^0.21.5",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
-    "typescript": "^4.7.4"
+    "typescript": "^5.7.3"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "@pointersh/highlight": "0.1.0",
     "@tiptap/extension-image": "^2.11.7",
     "@tiptap/extension-mention": "^2.5.9",
     "@tiptap/extension-placeholder": "^2.5.9",
@@ -542,8 +544,7 @@
     "react-markdown": "^9.0.1",
     "react-virtuoso": "^4.12.3",
     "remark-gfm": "^4.0.0",
-    "tippy.js": "^6.3.7",
-    "@pointersh/highlight": "0.1.0"
+    "tippy.js": "^6.3.7"
   },
   "os": [
     "darwin",
