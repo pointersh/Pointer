@@ -2,12 +2,11 @@ import { createHash, randomUUID } from "crypto"
 import fs from "fs"
 import path from "path"
 
-import { FileChangeView, ReplyChangesView } from "../../common/types"
+import { FileChangeView } from "../../common/types"
 import { diffLines } from "../edit/diff"
 import { looksBinary } from "../indexable"
 
 export const MAX_KEPT_FILE_BYTES = 1024 * 1024
-export const MAX_KEPT_REPLIES = 50
 const PENDING_WAIT_MS = 5000
 
 export type FileState = string | null | undefined
@@ -120,92 +119,5 @@ export class ReplyChanges {
     if (!files.length) return undefined
     files.sort((a, b) => a.path.localeCompare(b.path))
     return { id: this.id, root: this.root, createdAt: Date.now(), files }
-  }
-}
-
-export const viewOf = (record: ChangeRecord): ReplyChangesView => ({
-  id: record.id,
-  files: record.files.map(({ path: file, status, added, removed, undone, noUndo }) => ({
-    path: file,
-    status,
-    added,
-    removed,
-    ...(undone ? { undone } : {}),
-    ...(noUndo ? { noUndo } : {})
-  }))
-})
-
-export interface UndoStep {
-  path: string
-  absolute: string
-  restore: string | null
-  drifted: boolean
-}
-
-export const planUndo = async (
-  record: ChangeRecord,
-  paths: string[] | undefined,
-  open?: (file: string) => Promise<string | undefined>
-): Promise<UndoStep[]> => {
-  const steps: UndoStep[] = []
-  for (const file of record.files) {
-    if (file.undone || file.noUndo || (paths && !paths.includes(file.path))) continue
-    const absolute = path.join(record.root, ...file.path.split("/"))
-    const now = await readState(absolute, open)
-    steps.push({
-      path: file.path,
-      absolute,
-      restore: file.before,
-      drifted: now === undefined || hashOf(now) !== file.afterHash
-    })
-  }
-  return steps
-}
-
-export class ChangeStore {
-  constructor(
-    private readonly _dir: string,
-    private readonly _max = MAX_KEPT_REPLIES
-  ) {}
-
-  private fileOf(id: string) {
-    if (!/^[\w-]+$/.test(id)) throw new Error("Not a change id.")
-    return path.join(this._dir, `${id}.json`)
-  }
-
-  save(record: ChangeRecord): void {
-    fs.mkdirSync(this._dir, { recursive: true })
-    fs.writeFileSync(this.fileOf(record.id), JSON.stringify(record))
-    this.prune()
-  }
-
-  load(id: string): ChangeRecord | undefined {
-    try {
-      return JSON.parse(fs.readFileSync(this.fileOf(id), "utf8")) as ChangeRecord
-    } catch {
-      return undefined
-    }
-  }
-
-  markUndone(id: string, paths: string[]): ChangeRecord | undefined {
-    const record = this.load(id)
-    if (!record) return undefined
-    for (const file of record.files) if (paths.includes(file.path)) file.undone = true
-    fs.writeFileSync(this.fileOf(id), JSON.stringify(record))
-    return record
-  }
-
-  private prune() {
-    let names: string[]
-    try {
-      names = fs.readdirSync(this._dir).filter((name) => name.endsWith(".json"))
-    } catch {
-      return
-    }
-    if (names.length <= this._max) return
-    const aged = names
-      .map((name) => ({ name, at: fs.statSync(path.join(this._dir, name)).mtimeMs }))
-      .sort((a, b) => b.at - a.at)
-    for (const { name } of aged.slice(this._max)) fs.rmSync(path.join(this._dir, name), { force: true })
   }
 }

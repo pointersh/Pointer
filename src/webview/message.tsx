@@ -3,7 +3,6 @@ import Markdown, { Components } from "react-markdown"
 import Mention from "@tiptap/extension-mention"
 import { Editor, EditorContent, Extension, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
-import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import DOMPurify from "dompurify"
 import remarkGfm from "remark-gfm"
 import { Markdown as TiptapMarkdown } from "tiptap-markdown"
@@ -20,6 +19,7 @@ import {
 } from "../common/types"
 
 import { useSuggestion } from "./hooks/useSuggestion"
+import { Button } from "./button"
 import CodeBlock from "./code-block"
 import { createCustomImageExtension } from "./image-extension"
 import { MentionExtension } from "./mention-extention"
@@ -579,7 +579,7 @@ export const Message: React.FC<MessageProps> = ({
 
   const options = (
     <div className={styles.messageOptions}>
-      <VSCodeButton
+      <Button
         title={t("copy-code")}
         onClick={() => {
           navigator.clipboard.writeText(messageContent)
@@ -588,54 +588,54 @@ export const Message: React.FC<MessageProps> = ({
         appearance="icon"
       >
         <span className="codicon codicon-copy"></span>
-      </VSCodeButton>
+      </Button>
       {editing && !isAssistant && (
         <>
-          <VSCodeButton
+          <Button
             title={t("cancel-edit")}
             appearance="icon"
             onClick={handleToggleCancel}
           >
             <span className="codicon codicon-close" />
-          </VSCodeButton>
-          <VSCodeButton
+          </Button>
+          <Button
             title={t("save-edit")}
             appearance="icon"
             onClick={handleToggleSave}
           >
             <span className="codicon codicon-check" />
-          </VSCodeButton>
+          </Button>
         </>
       )}
       {!editing && !isAssistant && (
         <>
-          <VSCodeButton
+          <Button
             disabled={isLoading}
             title={t("edit-message")}
             appearance="icon"
             onClick={handleToggleEditing}
           >
             <span className="codicon codicon-edit" />
-          </VSCodeButton>
-          <VSCodeButton
+          </Button>
+          <Button
             disabled={isLoading || conversationLength <= 2}
             title={t("delete-message")}
             appearance="icon"
             onClick={handleDelete}
           >
             <span className="codicon codicon-trash" />
-          </VSCodeButton>
+          </Button>
         </>
       )}
       {!editing && isAssistant && (
-        <VSCodeButton
+        <Button
           disabled={isLoading}
           title={t("regenerate-message")}
           appearance="icon"
           onClick={handleRegenerate}
         >
           <span className="codicon codicon-sync" />
-        </VSCodeButton>
+        </Button>
       )}
     </div>
   )

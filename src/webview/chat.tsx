@@ -4,10 +4,7 @@ import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
 import { Editor, EditorContent, JSONContent, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
-import { VSCodeButton, VSCodePanelView } from "@vscode/webview-ui-toolkit/react"
-import * as cheerio from "cheerio"
 import cx from "classnames"
-import { v4 as uuidv4 } from "uuid"
 
 import { ASSISTANT, EVENT_NAME, USER } from "../common/constants"
 import {
@@ -29,6 +26,7 @@ import { useToolSteps } from "./hooks/useToolSteps"
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext"
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch"
 import AgentSettings from "./agent-settings"
+import { Button } from "./button"
 import { EmptyChat } from "./empty-chat"
 import { createCustomImageExtension } from "./image-extension"
 import MessageItem from "./message-item"
@@ -68,12 +66,11 @@ interface QueuedMessage {
   steer?: boolean
 }
 
+const htmlText = (html: string) =>
+  (new DOMParser().parseFromString(html, "text/html").body.textContent ?? "").trim()
+
 const steeringText = (input: string) =>
-  cheerio
-    .load(input.replace(/<br\s*\/?>/g, "\n"))
-    .root()
-    .text()
-    .trim()
+  htmlText(input.replace(/<br\s*\/?>/g, "\n"))
 
 interface ChatProps {
   fullScreen?: boolean
@@ -288,7 +285,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
     clearSearchReport()
     clearToolSteps()
     setActiveConversation({
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       title: t("chat-new-conversation-title"),
       messages: []
     })
@@ -557,7 +554,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
     clearSearchReport()
     clearToolSteps()
 
-    const conversationId = conversation?.id || uuidv4()
+    const conversationId = conversation?.id || crypto.randomUUID()
 
     setMessages((prevMessages) => {
       const updatedMessages: ChatCompletionMessage[] = [
@@ -597,16 +594,12 @@ export const Chat = (props: ChatProps): JSX.Element => {
       .replace(/<\/p>/g, "<br>")
       .replace(/<br>$/, "")
 
-    const text = cheerio
-      .load(input || "")
-      .root()
-      .text()
-      .trim()
+    const text = htmlText(input || "")
 
     if (!text || !input || chatDisabled) return
 
     const message: QueuedMessage = {
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       html,
       input,
       text,
@@ -669,7 +662,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
 
   const handleNewConversation = useCallback(() => {
     setActiveConversation({
-      id: uuidv4(),
+      id: crypto.randomUUID(),
       title: t("chat-new-conversation-title"),
       messages: []
     })
@@ -1059,25 +1052,25 @@ export const Chat = (props: ChatProps): JSX.Element => {
   )
 
   return (
-    <VSCodePanelView>
+    <div>
       <div className={styles.container}>
         {!!fullScreen && (
           <div className={styles.fullScreenActions}>
-            <VSCodeButton
+            <Button
               onClick={handleNewConversation}
               appearance="icon"
               title={t("new-conversation")}
             >
               <i className="codicon codicon-comment-discussion" />
-            </VSCodeButton>
-            <VSCodeButton
+            </Button>
+            <Button
               onClick={handleOpenAsMarkdown}
               appearance="icon"
               disabled={!messages.length}
               title={t("open-as-markdown")}
             >
               <i className="codicon codicon-markdown" />
-            </VSCodeButton>
+            </Button>
           </div>
         )}
         {!!contextItems.length && (
@@ -1105,14 +1098,14 @@ export const Chat = (props: ChatProps): JSX.Element => {
         <div className={styles.chatOptions}>
           <div>
             {!isBottom && messages.length > 0 && !(following && isLoading) && (
-              <VSCodeButton
+              <Button
                 appearance="icon"
                 className={styles.scrollDown}
                 onClick={scrollToBottom}
                 title={t("scroll-to-bottom")}
               >
                 <i className="codicon codicon-arrow-down" />
-              </VSCodeButton>
+              </Button>
             )}
           </div>
           {hint ? (
@@ -1250,7 +1243,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
                 )}
               </div>
               <div className={styles.chatButtons}>
-                <VSCodeButton
+                <Button
                   appearance="icon"
                   role="button"
                   disabled={chatDisabled}
@@ -1258,9 +1251,9 @@ export const Chat = (props: ChatProps): JSX.Element => {
                   title={t("upload-image")}
                 >
                   <span className="codicon codicon-device-camera" />
-                </VSCodeButton>
+                </Button>
                 {generatingRef.current ? (
-                  <VSCodeButton
+                  <Button
                     appearance="icon"
                     role="button"
                     className={cx(styles.sendButton, styles.stopButton)}
@@ -1269,9 +1262,9 @@ export const Chat = (props: ChatProps): JSX.Element => {
                     aria-label={t("stop-generation")}
                   >
                     <span className="codicon codicon-debug-stop"></span>
-                  </VSCodeButton>
+                  </Button>
                 ) : (
-                  <VSCodeButton
+                  <Button
                     appearance="icon"
                     role="button"
                     disabled={chatDisabled}
@@ -1280,13 +1273,13 @@ export const Chat = (props: ChatProps): JSX.Element => {
                     title={t("send")}
                   >
                     <span className="codicon codicon-arrow-up"></span>
-                  </VSCodeButton>
+                  </Button>
                 )}
               </div>
             </div>
           </form>
         </div>
       </div>
-    </VSCodePanelView>
+    </div>
   )
 }

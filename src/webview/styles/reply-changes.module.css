@@ -1,8 +1,3 @@
-/*
- * The files a reply changed, under it: a soft card in small type, with
- * git's added and removed counts, and undo as a quiet word that brightens
- * on hover.
- */
 .panel {
   margin: 12px 0 0;
   padding: 6px 10px;
@@ -11,14 +6,12 @@
   font-size: var(--tw-fs-xs);
   letter-spacing: var(--tw-track);
 }
-
 .head {
   display: flex;
   align-items: center;
   gap: 8px;
   min-height: 20px;
 }
-
 .toggle {
   display: flex;
   flex: 1 1 auto;
@@ -35,22 +28,17 @@
   text-align: left;
   cursor: pointer;
 }
-
-.toggle:hover,
-.toggle:focus-visible {
+.toggle:hover, .toggle:focus-visible {
   color: var(--tw-fg);
   outline: none;
 }
-
 .toggle :global(.codicon) {
   font-size: 12px !important;
   color: var(--tw-fg-faint);
 }
-
 .title {
   white-space: nowrap;
 }
-
 .counts {
   display: inline-flex;
   gap: 6px;
@@ -58,22 +46,17 @@
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
-
-/* Git's colours, as in the tool steps' diffs: the one place colour means something here. */
 .added {
   color: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
 }
-
 .removed {
   color: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
 }
-
 .files {
   margin: 2px 0 0;
   padding: 0;
   list-style: none;
 }
-
 .file {
   display: flex;
   align-items: center;
@@ -81,7 +64,6 @@
   min-height: 20px;
   line-height: 20px;
 }
-
 .path {
   flex: 0 1 auto;
   min-width: 0;
@@ -98,21 +80,16 @@
   white-space: nowrap;
   cursor: pointer;
 }
-
-.path:hover,
-.path:focus-visible {
+.path:hover, .path:focus-visible {
   color: var(--tw-fg);
   text-decoration: underline;
   outline: none;
 }
-
-.status,
-.state {
+.status, .state {
   flex-shrink: 0;
   color: var(--tw-fg-faint);
   white-space: nowrap;
 }
-
 .action {
   display: inline-flex;
   flex-shrink: 0;
@@ -129,55 +106,42 @@
   cursor: pointer;
   transition: color 0.12s ease, border-color 0.12s ease;
 }
-
 .action :global(.codicon) {
   font-size: 12px !important;
 }
-
-.action:hover:not(:disabled),
-.action:focus-visible {
+.action:hover:not(:disabled), .action:focus-visible {
   border-color: var(--tw-rule);
   color: var(--tw-fg);
   outline: none;
 }
-
 .action:disabled {
   opacity: 0.5;
   cursor: default;
 }
-
 .undone .path {
   color: var(--tw-fg-faint);
   text-decoration: line-through;
 }
-
 .undone .counts {
   opacity: 0.45;
 }
-
 .done .counts {
   opacity: 0.45;
 }
-
 .file .state {
   margin-left: auto;
 }
-
-/* Inside a message, lists get the reply's own dashes; this one is a table of files. */
 .files > .file {
   padding-left: 0;
 }
-
 .files > .file::before {
   content: none;
   display: none;
 }
-
 .panel .files {
   margin: 2px 0 0;
   padding: 0;
 }
-
 .panel .file {
   margin: 0;
 }

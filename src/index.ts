@@ -1,12 +1,10 @@
 import * as path from "path"
-import { v4 as uuidv4 } from "uuid"
 import { commands, ExtensionContext, languages, StatusBarAlignment, window, workspace } from "vscode"
 import * as vscode from "vscode"
 
 import { EXTENSION_CONTEXT_NAME, EXTENSION_NAME, POINTER_COMMAND_NAME } from "./common/constants"
 import { logger } from "./common/logger"
 import { ContextItem, SelectionContextItem } from "./common/types"
-import { setContext } from "./extension/context"
 import { InlineEditCodeActionProvider } from "./extension/edit/code-actions"
 import { InlineEditCodeLensProvider } from "./extension/edit/code-lens"
 import { ChatEditMode, FileEditProposal, InlineEditArgs, InlineEditService } from "./extension/edit/service"
@@ -17,7 +15,6 @@ import { terminalHistory } from "./extension/terminal"
 import { SidebarProvider } from "./extension/webview/sidebar"
 
 export function activate(context: ExtensionContext) {
-  setContext(context)
   const generations = new GenerationTracker()
   const statusBar = new PointerStatusBar(window.createStatusBarItem(StatusBarAlignment.Right), context, generations)
   const sidebarProvider = new SidebarProvider(context, new SessionManager())
@@ -78,7 +75,7 @@ export function activate(context: ExtensionContext) {
       const { selection, document } = editor
       const filePath = workspace.asRelativePath(document.uri.fsPath)
       addContextItem({
-        id: uuidv4(),
+        id: crypto.randomUUID(),
         category: "selection",
         name: `Selection from ${path.basename(filePath)} (L${selection.start.line + 1}-L${selection.end.line + 1})`,
         path: filePath,

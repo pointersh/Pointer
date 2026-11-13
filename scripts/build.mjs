@@ -23,6 +23,11 @@ import esbuild from "esbuild"
   }
 
   const flags = process.argv.slice(2);
+  const production = !flags.includes("--watch");
+  for (const config of [extensionConfig, webConfig]) {
+    config.minify = production;
+    config.define = { "process.env.NODE_ENV": JSON.stringify(production ? "production" : "development") };
+  }
 
   if (flags.includes("--watch")) {
     const ctx = await esbuild.context(webConfig);

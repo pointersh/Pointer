@@ -1,8 +1,3 @@
-/*
- * What agent mode may do, laid over the foot of the transcript like the
- * keys sheet: a label and a few words to pick from per line, the chosen
- * one in the foreground colour. Greyscale throughout.
- */
 .panel {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -12,7 +7,6 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  /* As wide as the input it opens from, up to a comfortable line. */
   max-width: 420px;
   padding: 10px 12px 12px;
   background: var(--tw-bg);
@@ -21,14 +15,12 @@
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
   font-size: var(--tw-fs-sm);
 }
-
 .head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   color: var(--tw-fg-dim);
 }
-
 .close {
   display: inline-flex;
   padding: 0;
@@ -37,17 +29,13 @@
   color: var(--tw-fg-faint);
   cursor: pointer;
 }
-
-.close:hover,
-.close:focus-visible {
+.close:hover, .close:focus-visible {
   color: var(--tw-fg);
   outline: none;
 }
-
 .close :global(.codicon) {
   font-size: 12px !important;
 }
-
 .row {
   display: flex;
   align-items: center;
@@ -55,7 +43,6 @@
   gap: 8px;
   min-height: 20px;
 }
-
 .label {
   min-width: 0;
   overflow: hidden;
@@ -63,19 +50,15 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
-.choices,
-.link {
+.choices, .link {
   flex-shrink: 0;
 }
-
 .choices {
   display: inline-flex;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 2px;
 }
-
 .choice {
   padding: 2px 9px;
   border: 1px solid transparent;
@@ -86,26 +69,19 @@
   cursor: pointer;
   transition: color 0.12s ease, border-color 0.12s ease;
 }
-
-.choice:hover:not(:disabled),
-.choice:focus-visible {
+.choice:hover:not(:disabled), .choice:focus-visible {
   color: var(--tw-fg-dim);
   outline: none;
 }
-
-.chosen,
-.chosen:hover:not(:disabled) {
+.chosen, .chosen:hover:not(:disabled) {
   background: var(--tw-fill-strong);
   color: var(--tw-fg);
 }
-
 .choice:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }
-
-.link,
-.more {
+.link, .more {
   white-space: nowrap;
   padding: 0;
   border: 0;
@@ -116,46 +92,11 @@
   text-underline-offset: 2px;
   cursor: pointer;
 }
-
-.link:hover,
-.more:hover,
-.link:focus-visible,
-.more:focus-visible {
+.link:hover, .more:hover, .link:focus-visible, .more:focus-visible {
   color: var(--tw-fg);
   outline: none;
 }
-
 .more {
   align-self: flex-start;
   margin-top: 2px;
-}
-
-/* A pick from a list, or a name typed, set like the choices beside it. */
-.select {
-  flex: 0 1 200px;
-  min-width: 0;
-  max-width: 60%;
-  padding: 2px 6px;
-  border: 0;
-  border-radius: var(--tw-radius);
-  background: var(--tw-fill-strong);
-  color: var(--tw-fg);
-  font: inherit;
-  text-overflow: ellipsis;
-}
-
-.select:focus-visible {
-  outline: 1px solid var(--tw-fg-faint);
-}
-
-.select option {
-  background: var(--vscode-dropdown-background, var(--tw-bg));
-  color: var(--vscode-dropdown-foreground, var(--tw-fg));
-}
-
-/* What is in force, said under the rows that decide it. */
-.note {
-  color: var(--tw-fg-faint);
-  font-size: var(--tw-fs-xs);
-  overflow-wrap: anywhere;
 }

@@ -1,13 +1,7 @@
 import { ReactNode } from "react"
-import { ChatCompletionMessageParam } from "fluency.js"
 
 import type { WorkspaceSearchReport } from "./messaging/protocol"
 import { CodeLanguageDetails } from "./languages"
-
-export interface PrefixSuffix {
-  prefix: string
-  suffix: string
-}
 
 export interface LanguageType {
   language: CodeLanguageDetails
@@ -18,6 +12,13 @@ export interface ImageAttachment {
   data: string
   type: string
   id?: string
+}
+
+export interface ChatCompletionMessageParam {
+  role: "system" | "user" | "assistant" | "tool"
+  content: string
+  name?: string
+  tool_call_id?: string
 }
 
 export type ChatCompletionMessage = ChatCompletionMessageParam & {
@@ -88,34 +89,7 @@ export const Theme = {
   Contrast: "Contrast"
 } as const
 
-export interface DefaultTemplate {
-  systemMessage?: string
-}
-
-export interface TemplateData
-  extends Record<string, string | undefined | null> {
-  code?: string
-  systemMessage?: string
-  language?: string
-  osName?: string
-  defaultShell?: string | null
-  homedir?: string
-  cwd?: string
-}
-
 export type ThemeType = (typeof Theme)[keyof typeof Theme]
-
-export interface FimContextFile {
-  name: string
-  text: string
-}
-
-export interface ModelCatalogueEntry {
-  models: string[]
-  supportsStreaming?: boolean | string[]
-}
-
-export type ModelCatalogue = Record<string, ModelCatalogueEntry>
 
 export interface PointerProvider {
   apiHostname?: string
@@ -130,16 +104,6 @@ export interface PointerProvider {
   modelName: string
   provider: string
   type: string
-}
-
-export interface ChunkOptions {
-  minSize: number
-  maxSize: number
-  overlap: number
-}
-
-export type Embedding = {
-  embeddings: [number[]]
 }
 
 export type CategoryType =

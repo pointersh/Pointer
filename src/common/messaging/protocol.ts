@@ -3,10 +3,10 @@ import type {
 AnyContextItem,
 ChatCompletionMessage,
 ContextItem,LanguageType,
-MentionType,PointerProvider,
-ReplyChangesView,
+MentionType,ReplyChangesView,
 ThemeType,
-ToolStepView} from "../types"
+ToolStepView
+} from "../types"
 
 export interface Channel<Payload = void, Reply = never> {
   payload: Payload
@@ -42,30 +42,6 @@ export interface ProviderTestResult {
   sample?: string
 }
 
-export interface ProviderModelList {
-  models: string[]
-  labels?: Record<string, string>
-  error?: string
-}
-
-export interface ProviderSaveResult {
-  success: boolean
-  provider?: PointerProvider
-  errors?: Partial<Record<keyof PointerProvider, string>>
-}
-
-export interface EmbeddingStatus {
-  indexed: boolean
-  files: number
-  chunks: number
-  updatedAt?: number
-  model?: string
-  activeModel?: string
-  modelChanged: boolean
-  running: boolean
-  workspace?: string
-}
-
 export interface WorkspaceHitSummary {
   path: string
   startLine: number
@@ -99,22 +75,6 @@ export interface WorkspaceSearchReport {
   nearMisses: WorkspaceNearMiss[]
   elapsedMs?: number
   note?: string
-}
-
-export interface EmbeddingProgress {
-  running: boolean
-  phase: "scanning" | "embedding" | "finishing"
-  processed: number
-  total: number
-  currentFiles: string[]
-  startedAt?: number
-  error?: string
-  cancelled?: boolean
-}
-
-export interface ConversationRename {
-  id: string
-  title: string
 }
 
 export interface NewDocumentRequest {

@@ -1,10 +1,5 @@
-export const ACTIVE_CONVERSATION_STORAGE_KEY = "pointer.active-conversation"
+
 export const ACTIVE_CHAT_PROVIDER_STORAGE_KEY = "pointer.active-chat-provider"
-export const ACTIVE_EMBEDDINGS_PROVIDER_STORAGE_KEY =
-  "pointer.active-embeddings-provider"
-export const ACTIVE_FIM_PROVIDER_STORAGE_KEY = "pointer.active-fim-provider"
-export const CONVERSATION_STORAGE_KEY = "pointer.conversations"
-export const INFERENCE_PROVIDERS_STORAGE_KEY = "pointer.inference-providers"
 
 export const GLOBAL_STORAGE_KEY = {
   selectedModel: "pointer.selectedModel",

@@ -14,12 +14,10 @@
   z-index: 20;
   animation: fadeIn 0.12s ease-out both;
 }
-
 @keyframes fadeIn {
   from {
     opacity: 0;
   }
-
   to {
     opacity: 1;
   }

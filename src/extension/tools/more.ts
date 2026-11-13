@@ -3,15 +3,13 @@ import fs from "fs"
 import path from "path"
 
 import {
-  gitNamedPaths,
-  globToRegExp,
-  locateSymbol,
-  readOnlyGitArgs,
-  tidyGitPath,
-  withoutHiddenDiffs,
-  withoutHiddenLines
+gitNamedPaths,
+globToRegExp,readOnlyGitArgs,
+tidyGitPath,
+withoutHiddenDiffs,
+withoutHiddenLines
 } from "./helpers"
-import { clip, linesOf, plural, ToolInputError, WorkspaceView } from "./view"
+import { clip, plural, ToolInputError, WorkspaceView } from "./view"
 import type { EditOutcome, Tool } from "./workspace"
 
 const MAX_FOUND_FILES = 100
@@ -43,11 +41,6 @@ export interface EditorSink {
   definition(file: string, line: number, character: number): Promise<EditorLocation[]>
   rename(file: string, line: number, character: number, newName: string): Promise<EditOutcome & { files?: string[] }>
   context(): Promise<EditorContextView>
-}
-
-export interface FileOpsSink {
-  remove(file: string): Promise<EditOutcome>
-  move(from: string, to: string): Promise<EditOutcome>
 }
 
 const globWords = (glob: string) =>
@@ -85,13 +78,6 @@ export const findFiles = (view: WorkspaceView): Tool => ({
     }
   }
 })
-
-export const insideGitRepository = (root: string): boolean => {
-  for (let dir = root; ; dir = path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, ".git"))) return true
-    if (path.dirname(dir) === dir) return false
-  }
-}
 
 const GIT_PINNED = [
   "--no-pager",
@@ -210,58 +196,6 @@ export const git = (view: WorkspaceView): Tool => {
   }
 }
 
-const lineReader = (view: WorkspaceView) => {
-  const files = new Map<string, Promise<string[]>>()
-  return async (file: string, line: number): Promise<string> => {
-    let lines = files.get(file)
-    if (!lines) {
-      lines = view.text(file).then((text) => (text === undefined ? [] : linesOf(text)))
-      files.set(file, lines)
-    }
-    return ((await lines)[line - 1] ?? "").trim()
-  }
-}
-
-const locatedLines = async (view: WorkspaceView, locations: EditorLocation[]) => {
-  const read = lineReader(view)
-  const seen = new Set<string>()
-  const unique = locations.filter((l) => {
-    const key = `${l.file}:${l.line}`
-    return seen.has(key) ? false : (seen.add(key), true)
-  })
-  const inside = unique.filter((l) => view.visible(l.file))
-  const outside = unique.filter((l) => !view.visible(l.file))
-  const lines = await Promise.all(
-    inside.slice(0, MAX_LOCATIONS).map(async (l) => `${view.relative(l.file)}:${l.line}: ${clip(await read(l.file, l.line))}`)
-  )
-  if (inside.length > MAX_LOCATIONS) lines.push(`… ${inside.length - MAX_LOCATIONS} more`)
-  return { lines, inside, outside }
-}
-
-const outsidePlace = (view: WorkspaceView, location: EditorLocation) => {
-  const relative = view.relative(location.file)
-  const shown = relative.startsWith("..") || path.isAbsolute(relative) ? location.file : relative
-  return `${shown}:${location.line}: (outside the workspace or ignored; it cannot be read)`
-}
-
-const symbolAt = async (view: WorkspaceView, file: string | undefined, symbol: string | undefined, line?: string) => {
-  if (!file) throw new ToolInputError("A path is needed.")
-  const wanted = symbol?.trim()
-  if (!wanted) throw new ToolInputError("A symbol name is needed.")
-  const absolute = view.resolve(file, "file")
-  const text = await view.text(absolute)
-  if (text === undefined) throw new ToolInputError(`${view.relative(absolute)} is binary or too large.`)
-  const at = locateSymbol(text.replace(/\r\n/g, "\n"), wanted, line ? Number.parseInt(line, 10) || undefined : undefined)
-  if (!at) throw new ToolInputError(`${wanted} does not appear in ${view.relative(absolute)}.`)
-  return { absolute, rel: view.relative(absolute), wanted, ...at }
-}
-
-const SYMBOL_PARAMETERS = [
-  { name: "path", description: "A file where the symbol appears." },
-  { name: "symbol", description: "The symbol's name." },
-  { name: "line", description: "The line it is on, when the name appears more than once.", optional: true, type: "integer" as const }
-]
-
 export const diagnostics = (view: WorkspaceView, editor: EditorSink): Tool => ({
   name: "diagnostics",
   description:
@@ -284,127 +218,5 @@ export const diagnostics = (view: WorkspaceView, editor: EditorSink): Tool => ({
         : `No errors or warnings in ${absolute ? view.relative(absolute) : "the files the editor has checked"}.`,
       summary: `checked ${where} · ${found.length ? `${plural(errors, "error")}, ${plural(found.length - errors, "warning")}` : "clean"}`
     }
-  }
-})
-
-export const findReferences = (view: WorkspaceView, editor: EditorSink): Tool => ({
-  name: "find_references",
-  readOnly: true,
-  description: "Every place a function, class, variable or type is used, from the language server; exact, unlike grep.",
-  parameters: SYMBOL_PARAMETERS,
-  async run({ path: file, symbol, line }) {
-    const at = await symbolAt(view, file, symbol, line)
-    const { lines, inside, outside } = await locatedLines(view, await editor.references(at.absolute, at.line, at.character))
-    if (outside.length) lines.push(`… and ${plural(outside.length, "place")} outside the workspace or in ignored files`)
-    return {
-      output: lines.length ? lines.join("\n") : `The language server found no references to ${at.wanted}.`,
-      summary: `references to \`${at.wanted}\` · ${plural(inside.length, "place")}`
-    }
-  }
-})
-
-export const goToDefinition = (view: WorkspaceView, editor: EditorSink): Tool => ({
-  name: "go_to_definition",
-  readOnly: true,
-  description: "Where the symbol used at a place is defined, from the language server; follows imports.",
-  parameters: SYMBOL_PARAMETERS,
-  async run({ path: file, symbol, line }) {
-    const at = await symbolAt(view, file, symbol, line)
-    const { lines, inside, outside } = await locatedLines(view, await editor.definition(at.absolute, at.line, at.character))
-    if (!inside.length) lines.push(...outside.slice(0, 3).map((l) => outsidePlace(view, l)))
-    return {
-      output: lines.length ? lines.join("\n") : `The language server does not know where ${at.wanted} is defined.`,
-      summary:
-        `definition of \`${at.wanted}\` · ` +
-        (inside.length ? view.relative(inside[0].file) : outside.length ? "outside the workspace" : "not found")
-    }
-  }
-})
-
-export const renameSymbol = (view: WorkspaceView, editor: EditorSink): Tool => ({
-  name: "rename_symbol",
-  acts: true,
-  description: "Rename a function, class, variable or type everywhere it is used, through the language server. Better than editing each use.",
-  parameters: [...SYMBOL_PARAMETERS.slice(0, 2), { name: "new_name", description: "The new name." }, SYMBOL_PARAMETERS[2]],
-  async run({ path: file, symbol, new_name, line }) {
-    const newName = new_name?.trim()
-    if (!newName) throw new ToolInputError("rename_symbol needs new_name.")
-    const at = await symbolAt(view, file, symbol, line)
-    const outcome = await editor.rename(at.absolute, at.line, at.character, newName)
-    view.forgetFiles()
-    if (!outcome.ok) {
-      return { output: outcome.message, summary: `\`${at.wanted}\` not renamed · ${outcome.message}`, failed: true }
-    }
-    const files = outcome.files?.length ?? 0
-    return {
-      output: outcome.message,
-      summary: `renamed \`${at.wanted}\` → \`${newName}\`${files ? ` · ${plural(files, "file")}` : ""}`,
-      final: outcome.pending
-    }
-  }
-})
-
-export const editorContext = (view: WorkspaceView, editor: EditorSink): Tool => ({
-  name: "editor_context",
-  description: "What the user is looking at now: the active file, the cursor line, the selected text and the other open files.",
-  parameters: [],
-  async run() {
-    const context = await editor.context()
-    const active = context.activeFile && view.visible(context.activeFile) ? view.relative(context.activeFile) : undefined
-    const open = context.openFiles.filter((f) => view.visible(f)).map((f) => view.relative(f)).filter((f) => f !== active)
-    const lines = [
-      active
-        ? `Active file: ${active}${context.cursorLine ? `, cursor on line ${context.cursorLine}` : ""}`
-        : context.activeFile
-          ? "The active file is outside the workspace or ignored by .gitignore; it cannot be read."
-          : "No file is active.",
-      ...(context.selection && active
-        ? [`Selected, lines ${context.selection.startLine}-${context.selection.endLine}:`, context.selection.text]
-        : []),
-      ...(open.length ? [`Also open: ${open.join(", ")}`] : [])
-    ]
-    return {
-      output: lines.join("\n"),
-      summary: `looked at the editor · ${active ? `\`${active}\`` : "nothing readable open"}${context.selection && active ? " with a selection" : ""}`
-    }
-  }
-})
-
-export const deleteFile = (view: WorkspaceView, ops: FileOpsSink): Tool => ({
-  name: "delete_file",
-  acts: true,
-  description: "Delete a file in the workspace.",
-  parameters: [{ name: "path", description: "The file to delete." }],
-  async run({ path: file }) {
-    if (!file) throw new ToolInputError("delete_file needs a path.")
-    const absolute = view.resolve(file, "file")
-    const rel = view.relative(absolute)
-    const outcome = await ops.remove(absolute)
-    view.forgetFiles()
-    return outcome.ok
-      ? { output: outcome.message, summary: `deleted \`${rel}\`` }
-      : { output: outcome.message, summary: `\`${rel}\` not deleted · ${outcome.message}`, failed: true }
-  }
-})
-
-export const moveFile = (view: WorkspaceView, ops: FileOpsSink): Tool => ({
-  name: "move_file",
-  acts: true,
-  description:
-    "Move or rename a file; missing folders are made. Imports of it elsewhere are not rewritten for you: find them with find_references or grep and fix them.",
-  parameters: [
-    { name: "from", description: "The file now." },
-    { name: "to", description: "Where it goes; must not exist yet." }
-  ],
-  async run({ from, to }) {
-    if (!from || !to) throw new ToolInputError("move_file needs from and to.")
-    const source = view.resolve(from, "file")
-    const target = view.resolveNew(to)
-    const outcome = await ops.move(source, target)
-    view.forgetFiles()
-    const summary = `\`${view.relative(source)}\` → \`${view.relative(target)}\``
-    return outcome.ok
-      ? { output: outcome.message, summary: `moved ${summary}` }
-      : { output: outcome.message, summary: `not moved ${summary} · ${outcome.message}`, failed: true }
   }
 })

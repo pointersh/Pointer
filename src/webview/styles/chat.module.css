@@ -6,7 +6,6 @@
   width: 100%;
   overflow: hidden;
 }
-
 .fullScreenActions {
   display: flex;
   justify-content: flex-end;
@@ -15,11 +14,6 @@
   padding: 4px var(--tw-pad);
   border-bottom: 1px solid var(--tw-rule-soft);
 }
-
-/*
- * Context chips: a wrapping row of paths, sitting above the transcript.
- * Underlined rather than boxed, so a long list reads as a list of files.
- */
 .contextItems {
   display: flex;
   flex-wrap: wrap;
@@ -27,7 +21,6 @@
   padding: 8px var(--tw-pad);
   border-bottom: 1px solid var(--tw-rule-soft);
 }
-
 .contextItem {
   display: flex;
   align-items: center;
@@ -38,17 +31,14 @@
   cursor: pointer;
   transition: color 0.12s ease;
 }
-
 .contextItem:hover {
   color: var(--tw-fg);
 }
-
 .contextItemIcon {
   flex-shrink: 0;
   margin-right: 6px;
   opacity: 0.55;
 }
-
 .contextItemName {
   flex: 1;
   min-width: 0;
@@ -56,34 +46,24 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .contextItemClose {
   flex-shrink: 0;
   margin-left: 6px;
   opacity: 0;
   transition: opacity 0.12s ease;
 }
-
 .contextItem:hover .contextItemClose {
   opacity: 0.6;
 }
-
 .contextItemClose:hover {
   opacity: 1 !important;
   color: var(--vscode-errorForeground);
 }
-
 .transcript {
   flex: 1 1 0;
   min-height: 0;
   overflow: hidden;
 }
-
-/*
- * Before the first message. Quiet: the title types itself out under a
- * block cursor, then the line naming the provider fades in. Nothing else
- * moves, and nothing moves under prefers-reduced-motion.
- */
 .emptyChat {
   display: flex;
   align-items: center;
@@ -91,7 +71,6 @@
   height: 100%;
   padding: 0 var(--tw-pad);
 }
-
 .crt {
   display: flex;
   flex-direction: column;
@@ -101,27 +80,23 @@
   max-width: 320px;
   text-align: center;
 }
-
 .crtGlyph {
   color: var(--tw-fg-faint);
   font-family: var(--tw-mono);
   font-size: 18px;
   line-height: 1;
 }
-
 .crtTitle {
   display: inline-flex;
   align-items: center;
   margin: 0;
   max-width: 100%;
   color: var(--tw-fg);
-  /* The typing reveal steps a character at a time, which needs fixed-width letters. */
   font-family: var(--tw-mono);
   font-size: var(--tw-fs-mono);
   font-weight: 600;
   text-transform: none;
 }
-
 .crtTyped {
   display: inline-block;
   max-width: calc(var(--chars) * 1ch + var(--chars) * var(--tw-track));
@@ -129,7 +104,6 @@
   white-space: nowrap;
   animation: crt-type 0.9s steps(var(--chars), end) 0.2s both;
 }
-
 .crtCursor {
   display: inline-block;
   width: 0.55em;
@@ -138,185 +112,21 @@
   background: var(--tw-cursor);
   animation: crt-blink 1s steps(2, start) infinite;
 }
-
-/* Wraps between items only, never inside a model name. */
-.crtLine {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 6px 8px;
-  max-width: 100%;
-  color: var(--tw-fg-dim);
-  font-size: var(--tw-fs-sm);
-  line-height: 1.5;
-  animation: crt-fade 0.4s ease-out 1.1s both;
-}
-
-.crtLabel {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  white-space: nowrap;
-}
-
-.crtLabel .codicon {
-  flex-shrink: 0;
-  font-size: 13px !important;
-}
-
-/* A sentence, not a tag: it may wrap, and takes the whole line. */
-.crtNote {
-  flex-basis: 100%;
-  justify-content: center;
-  align-items: flex-start;
-  margin-bottom: 4px;
-  text-align: left;
-  white-space: normal;
-}
-
-.crtNote .codicon {
-  margin-top: 2px;
-}
-
-.crtProvider {
-  color: var(--tw-fg);
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.crtModel {
-  max-width: 100%;
-  color: var(--tw-code);
-  font-family: var(--tw-mono);
-  font-size: var(--tw-fs-xs);
-  letter-spacing: var(--tw-track);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
 @keyframes crt-type {
   from {
     max-width: 0;
   }
 }
-
 @keyframes crt-blink {
   to {
     visibility: hidden;
   }
 }
-
-@keyframes crt-fade {
-  from {
-    opacity: 0;
-  }
-}
-
-/* What the model's server says about it: where it runs, then what it holds and whether it is in memory. */
-.crtFacts {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  max-width: 100%;
-  color: var(--tw-fg-faint);
-  font-size: var(--tw-fs-xs);
-  line-height: 1.5;
-  animation: crt-fade 0.4s ease-out 1.3s both;
-}
-
-.crtChips {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
-
-.crtChip,
-.crtLoad {
-  display: inline-flex;
-  align-items: center;
-  height: 20px;
-  padding: 0 8px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--tw-fill);
-  color: var(--tw-fg-dim);
-  font: inherit;
-  letter-spacing: var(--tw-track);
-  white-space: nowrap;
-}
-
-.crtChipError {
-  color: var(--vscode-errorForeground, var(--tw-fg));
-  cursor: help;
-}
-
-.crtLoad {
-  background: var(--tw-primary-bg);
-  color: var(--tw-primary-fg);
-  cursor: pointer;
-}
-
-.crtLoad:hover {
-  background: var(--tw-primary-hover);
-}
-
-/* Three first questions about the open file. */
-.starters {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 6px;
-  margin-top: 8px;
-  animation: crt-fade 0.4s ease-out 1.5s both;
-}
-
-.starter {
-  height: 26px;
-  padding: 0 12px;
-  border: 1px solid color-mix(in srgb, var(--tw-fg) 12%, transparent);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--tw-fg-dim);
-  font-family: var(--tw-font);
-  font-size: var(--tw-fs-sm);
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    color 0.12s ease,
-    background 0.12s ease,
-    border-color 0.12s ease;
-}
-
-.starter:hover:not(:disabled) {
-  border-color: transparent;
-  background: var(--tw-fill-strong);
-  color: var(--tw-fg);
-}
-
-.starter:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
 @media (prefers-reduced-motion: reduce) {
-  .crtTyped,
-  .crtCursor,
-  .crtLine,
-  .crtFacts,
-  .starters {
+  .crtTyped, .crtCursor {
     animation: none;
   }
 }
-
-/*
- * Status strip between the transcript and the composer. Empty most of the
- * time, so it collapses to a hairline rather than reserving a bar of space.
- */
 .chatOptions {
   position: relative;
   display: flex;
@@ -326,8 +136,6 @@
   min-height: 22px;
   padding: 0 var(--tw-pad);
 }
-
-/* Floats over the foot of the transcript, centred, only while it is scrolled up. */
 .scrollDown {
   position: absolute;
   bottom: calc(100% + 4px);
@@ -339,128 +147,23 @@
   background: var(--tw-bg);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
-
 .scrollDown::part(control) {
   opacity: 0.8;
 }
-
 .chatOptions > div {
   display: flex;
   align-items: center;
   gap: 2px;
 }
-
 .selectionCount {
   color: var(--tw-fg-faint);
   font-size: var(--tw-fs-xs);
   letter-spacing: var(--tw-track);
   white-space: nowrap;
 }
-
 .composer {
   position: relative;
 }
-
-/*
- * The chat's keys, opened with "?" and laid over the foot of the
- * transcript so the composer does not move.
- */
-.shortcuts {
-  position: absolute;
-  right: var(--tw-pad);
-  bottom: calc(100% + 6px);
-  left: var(--tw-pad);
-  z-index: 5;
-  max-height: 60vh;
-  overflow-y: auto;
-  padding: 10px 12px 12px;
-  background: var(--tw-bg);
-  border: 1px solid var(--tw-rule-soft);
-  border-radius: var(--tw-radius-lg);
-  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.28);
-  font-size: var(--tw-fs-sm);
-}
-
-.shortcutsHead {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-  color: var(--tw-fg-dim);
-}
-
-.shortcutsClose {
-  color: var(--tw-fg-faint);
-  font-size: var(--tw-fs-xs);
-  white-space: nowrap;
-}
-
-.shortcutsList {
-  display: grid;
-  gap: 4px;
-  margin: 0;
-}
-
-.shortcutsRow {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.shortcutsRow dt {
-  display: flex;
-  gap: 3px;
-}
-
-.shortcutsRow dd {
-  margin: 0;
-  color: var(--tw-fg-dim);
-}
-
-.shortcuts kbd {
-  padding: 0 5px;
-  border: 0;
-  border-radius: var(--tw-radius-sm);
-  background: var(--tw-fill-strong);
-  color: var(--tw-fg);
-  font-family: var(--tw-mono);
-  font-size: var(--tw-fs-xs);
-  line-height: 1.6;
-  white-space: nowrap;
-}
-
-/* The model's state and the keys hint, at the far end of the footer. */
-.footerEnd {
-  display: inline-flex;
-  align-items: center;
-  flex-shrink: 0;
-  margin-left: auto;
-  padding-left: 8px;
-}
-
-.shortcutsHint {
-  flex-shrink: 0;
-  padding: 0 var(--tw-pad);
-  background: none;
-  border: 0;
-  color: var(--tw-fg-faint);
-  font-family: inherit;
-  font-size: var(--tw-fs-xs);
-  letter-spacing: var(--tw-track);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.shortcutsHint:hover {
-  color: var(--tw-fg-dim);
-}
-
-/*
- * Grab strip sitting on the composer's top rule. Invisible until hovered,
- * so it reads as an edge rather than a control.
- */
 .resizeHandle {
   display: flex;
   align-items: center;
@@ -470,7 +173,6 @@
   cursor: ns-resize;
   touch-action: none;
 }
-
 .resizeGrip {
   width: 28px;
   height: 2px;
@@ -479,12 +181,9 @@
   opacity: 0;
   transition: opacity 0.12s ease;
 }
-
 .resizeHandle:hover .resizeGrip {
   opacity: 0.7;
 }
-
-/* The input is a rounded, filled field inset from the edges; focus lifts its ground and draws a soft ring. */
 .chatBox {
   position: relative;
   container-type: inline-size;
@@ -499,21 +198,16 @@
     border-color 0.12s ease,
     background 0.12s ease;
 }
-
 .chatBox:focus-within {
   border-color: color-mix(in srgb, var(--tw-fg) 22%, transparent);
 }
-
 .chatBoxDisabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
-
 .chatBoxDisabled .tiptap {
   pointer-events: none;
 }
-
-/* A small, quiet chevron ahead of the draft; doubled in agent mode. No glow. */
 .prompt {
   flex: 0 0 auto;
   padding: 10px 0 0 12px;
@@ -523,15 +217,9 @@
   user-select: none;
   transition: color 0.12s ease;
 }
-
 .chatBox:focus-within .prompt {
   color: var(--tw-fg-dim);
 }
-
-/*
- * The switches and buttons sit in a strip under the editor, outside what
- * scrolls, so a tall draft or a pasted image never runs beneath them.
- */
 .editorWrap {
   flex: 1 1 auto;
   min-width: 0;
@@ -539,7 +227,6 @@
   margin-bottom: 34px;
   overflow-y: auto;
 }
-
 .tiptap {
   min-height: 100%;
   display: flex;
@@ -555,24 +242,18 @@
   outline: none;
   box-sizing: border-box;
 }
-
 .tiptap :global(.ProseMirror) {
   flex: 1 1 auto;
   outline: none;
 }
-
 .tiptap p {
   margin: 0;
 }
-
-/* A suggestion ahead of the cursor, as the editor shows an inline completion. */
 .tiptap :global(.ghostText) {
   color: var(--vscode-editorGhostText-foreground, var(--tw-fg-faint));
   pointer-events: none;
   user-select: none;
 }
-
-/* A model is being asked for the rest: three dots breathing in turn, grey as the text they stand for. */
 .tiptap :global(.ghostPending) {
   display: inline-flex;
   gap: 3px;
@@ -581,7 +262,6 @@
   pointer-events: none;
   user-select: none;
 }
-
 .tiptap :global(.ghostPending i) {
   width: 3px;
   height: 3px;
@@ -590,27 +270,22 @@
   opacity: 0.25;
   animation: ghostPending 0.9s ease-in-out infinite;
 }
-
 .tiptap :global(.ghostPending i:nth-child(2)) {
   animation-delay: 0.15s;
 }
-
 .tiptap :global(.ghostPending i:nth-child(3)) {
   animation-delay: 0.3s;
 }
-
 @keyframes ghostPending {
   0%, 100% { opacity: 0.25; }
   40% { opacity: 1; }
 }
-
 @media (prefers-reduced-motion: reduce) {
   .tiptap :global(.ghostPending i) {
     animation: none;
     opacity: 0.6;
   }
 }
-
 .chatButtons {
   position: absolute;
   bottom: 6px;
@@ -619,12 +294,9 @@
   align-items: center;
   gap: 2px;
 }
-
-/* Send, and stop in its place while a reply is being written: the one solid thing in the composer. */
 .sendButton {
   margin-left: 4px;
 }
-
 vscode-button.sendButton[appearance="icon"]::part(control) {
   width: 20px;
   height: 20px;
@@ -634,21 +306,17 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   color: var(--tw-primary-fg);
   opacity: 1;
 }
-
 vscode-button.sendButton[appearance="icon"]:hover::part(control) {
   background: var(--tw-primary-hover);
 }
-
 vscode-button.sendButton[appearance="icon"][disabled]::part(control) {
   opacity: 0.3;
 }
-
 .sendButton {
   display: inline-flex;
   width: 20px;
   height: 20px;
 }
-
 vscode-button.sendButton[appearance="icon"]::part(control) {
   display: flex;
   align-items: center;
@@ -657,8 +325,6 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   border: 0;
   line-height: 1;
 }
-
-/* The glyph fills the disc and centres itself, whatever the font's own bearings. */
 .sendButton :global(.codicon) {
   display: flex;
   align-items: center;
@@ -668,8 +334,6 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   font-size: 11px !important;
   line-height: 1;
 }
-
-/* Stop is a drawn square: the font's stop glyph sits off the middle of its box. */
 .stopButton :global(.codicon)::before {
   content: "";
   width: 7px;
@@ -677,62 +341,21 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   border-radius: 2px;
   background: currentColor;
 }
-
-/* Lined up with the input above it. */
-.footer {
-  display: flex;
-  align-items: center;
-  padding: 4px calc(var(--tw-pad) - 8px) 2px;
-  container-type: inline-size;
-}
-
-/* In a narrow panel the hint is just its key, leaving the room to the model's name. */
-.shortcutsHintKey {
-  display: none;
-}
-
-@container (max-width: 420px) {
-  .shortcutsHintText {
-    display: none;
-  }
-
-  .shortcutsHintKey {
-    display: inline;
-  }
-}
-
-/*
- * Agent mode. The prompt doubles and brightens, and pulses while the
- * model works. The switch says which mode the next message goes out in.
- */
-/* Greyscale like the rest of the chat: the foreground at full strength is the "lit" colour. */
 .composer {
   --tw-agent: var(--tw-fg);
 }
-
-.agent .prompt,
-.agent:focus-within .prompt {
+.agent .prompt, .agent:focus-within .prompt {
   color: var(--tw-fg-dim);
   letter-spacing: -0.12em;
 }
-
 .agentBusy .prompt {
   animation: agent-pulse 0.9s ease-in-out infinite;
 }
-
 @keyframes agent-pulse {
   50% {
     opacity: 0.45;
   }
 }
-
-/* Bottom left of the composer, across from the send button. */
-/*
- * Agent mode, and with it whether commands run unasked, at the composer's
- * bottom left. They give way to the camera and send buttons on the right:
- * the key hint goes first as the composer narrows, then auto-run's word,
- * and they never reach under the buttons.
- */
 .modeSwitches {
   position: absolute;
   bottom: 6px;
@@ -743,19 +366,16 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   gap: 4px;
   overflow: hidden;
 }
-
 @container (max-width: 380px) {
   .switchKey {
     display: none;
   }
 }
-
 @container (max-width: 250px) {
   .switchLabel {
     display: none;
   }
 }
-
 .agentToggle {
   flex-shrink: 0;
   display: inline-flex;
@@ -776,12 +396,10 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
     color 0.12s ease,
     background 0.12s ease;
 }
-
 .agentToggle:hover {
   color: var(--tw-fg-dim);
   background: color-mix(in srgb, var(--tw-fg) 6%, transparent);
 }
-
 .agentDot {
   width: 6px;
   height: 6px;
@@ -789,36 +407,25 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   border-radius: 50%;
   transition: background 0.15s ease;
 }
-
 .agentToggle:disabled {
   cursor: not-allowed;
 }
-
-.agentToggleOn,
-.agentToggleOn:hover {
+.agentToggleOn, .agentToggleOn:hover {
   color: var(--tw-agent);
   background: color-mix(in srgb, var(--tw-agent) 10%, transparent);
 }
-
 .agentToggle :global(.codicon) {
   font-size: 11px !important;
 }
-
 .agentToggleOn .agentDot {
   background: var(--tw-agent);
   border-color: var(--tw-agent);
 }
-
 @media (prefers-reduced-motion: reduce) {
   .agentBusy .prompt {
     animation: none;
   }
 }
-
-/*
- * Messages typed while a reply runs, waiting their turn. Dim and one line
- * each: they are not in the conversation yet.
- */
 .queue {
   display: flex;
   flex-direction: column;
@@ -827,7 +434,6 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   padding: 6px var(--tw-pad) 4px;
   list-style: none;
 }
-
 .queued {
   display: flex;
   align-items: baseline;
@@ -836,7 +442,6 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   color: var(--tw-fg-dim);
   font-size: var(--tw-fs-sm);
 }
-
 .queuedLabel {
   flex-shrink: 0;
   color: var(--tw-fg-faint);
@@ -844,7 +449,6 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   letter-spacing: var(--tw-track);
   animation: agent-pulse 1.6s ease-in-out infinite;
 }
-
 .queuedText {
   flex: 1 1 auto;
   min-width: 0;
@@ -852,7 +456,6 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-
 .queuedRemove {
   flex-shrink: 0;
   padding: 0;
@@ -863,12 +466,9 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
   opacity: 0;
   transition: opacity 0.12s ease;
 }
-
-.queued:hover .queuedRemove,
-.queuedRemove:focus-visible {
+.queued:hover .queuedRemove, .queuedRemove:focus-visible {
   opacity: 1;
 }
-
 @media (prefers-reduced-motion: reduce) {
   .queuedLabel {
     animation: none;
