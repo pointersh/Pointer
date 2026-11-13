@@ -40,7 +40,6 @@ import { createCustomImageExtension } from "./image-extension"
 import MessageItem from "./message-item"
 import { bridge, emit, useServerEvent } from "./messaging"
 import { ModelState } from "./model-state"
-import { Suggestions } from "./suggestions"
 import { answerToolStep } from "./tool-steps"
 import { conversationMarkdown } from "./transcript"
 import { CustomKeyMap, getThinkingMessage } from "./utils"
@@ -1127,9 +1126,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
             />
           )}
         </div>
-        {!!selection.length && (
-          <Suggestions isDisabled={!!generatingRef.current || chatDisabled} />
-        )}
         <div className={styles.chatOptions}>
           <div>
             {!isBottom && messages.length > 0 && !(following && isLoading) && (

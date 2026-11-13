@@ -96,7 +96,7 @@ suite("Agent reply, end to end", function () {
         setTimeout(() => chatRef.current?.answerToolApproval(waiting.id, true, true), 10)
       }
     } as unknown as ExtensionBridge
-    const chat = new ChatIn(new GenerationTracker(), undefined, context, bridge, undefined)
+    const chat = new ChatIn(new GenerationTracker(), context, bridge, undefined)
     chatRef.current = chat
     chat.root = root
     try {
@@ -151,7 +151,7 @@ suite("Agent reply, end to end", function () {
       storageUri: vscode.Uri.file(path.join(root, ".git", "pointer-storage")),
       subscriptions: []
     } as unknown as vscode.ExtensionContext
-    const chat = new ChatIn(new GenerationTracker(), undefined, context, bridge, undefined)
+    const chat = new ChatIn(new GenerationTracker(), context, bridge, undefined)
     chat.root = root
     try {
       const reply = await chat.completion([{ role: "user", content: "Make a two, and make a file." } as ChatCompletionMessage])
@@ -239,7 +239,7 @@ suite("Agent reply, end to end", function () {
         }
       }
     } as unknown as ExtensionBridge
-    const chat = new ChatIn(new GenerationTracker(), undefined, context, bridge, undefined)
+    const chat = new ChatIn(new GenerationTracker(), context, bridge, undefined)
     chatRef.current = chat
     chat.root = root
     chat.steer("q0", "Too early.")

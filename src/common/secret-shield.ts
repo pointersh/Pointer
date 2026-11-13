@@ -95,8 +95,6 @@ const DETECTORS: Detector[] = [
   }
 ]
 
-export const SECRET_KINDS: SecretKind[] = DETECTORS.map(({ id, label }) => ({ id, label }))
-
 const labelOf = (id: string) => DETECTORS.find((d) => d.id === id)?.label ?? id
 
 const PLACEHOLDER = /REDACTED_[A-Z_]+_\d+/g

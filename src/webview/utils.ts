@@ -34,16 +34,6 @@ export const getLanguageMatch = (
   return "auto"
 }
 
-
-
-export const getModelShortName = (name: string) => {
-  if (name.length > 40) {
-    return `${name.substring(0, 35)}...`
-  }
-  return name
-}
-
-
 export const CustomKeyMap = Extension.create({
   name: "chatKeyMap",
 

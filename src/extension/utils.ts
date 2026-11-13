@@ -27,15 +27,6 @@ import { LanguageType, PrefixSuffix, Theme } from "../common/types"
 import { isIndexablePath } from "./embeddings/indexable"
 import { ExtensionBridge } from "./messaging/bridge"
 
-export const delayExecution = <T extends () => void>(
-  fn: T,
-  delay = 2000
-): NodeJS.Timeout => {
-  return setTimeout(() => {
-    fn()
-  }, delay)
-}
-
 export const getTextSelection = () => {
   const editor = window.activeTextEditor
   const selection = editor?.selection
@@ -54,61 +45,8 @@ export const getLanguage = (): LanguageType => {
   }
 }
 
-export const getIsMiddleOfWord = (
-  document: TextDocument,
-  position: Position
-): boolean => {
-  const lineText = document.lineAt(position.line).text
-  const charBefore = lineText.charAt(position.character - 1)
-  const charAfter = lineText.charAt(position.character)
-  return /\w/.test(charBefore) && /\w/.test(charAfter)
-}
-
 export const prefixWindowStep = (numLinesPrefix: number) =>
   Math.max(1, Math.floor(numLinesPrefix / 4))
-
-export const getPrefixSuffix = (
-  numLines: number,
-  document: TextDocument,
-  position: Position,
-  contextRatio = [0.85, 0.15]
-): PrefixSuffix => {
-  const currentLine = position.line
-  const numLinesToEnd = document.lineCount - currentLine
-  let numLinesPrefix = Math.floor(Math.abs(numLines * contextRatio[0]))
-  let numLinesSuffix = Math.ceil(Math.abs(numLines * contextRatio[1]))
-
-  if (numLinesPrefix > currentLine) {
-    numLinesSuffix += numLinesPrefix - currentLine
-    numLinesPrefix = currentLine
-  }
-
-  if (numLinesSuffix > numLinesToEnd) {
-    numLinesPrefix += numLinesSuffix - numLinesToEnd
-    numLinesSuffix = numLinesToEnd
-  }
-
-  const step = prefixWindowStep(numLinesPrefix)
-  let firstLine = Math.floor(Math.max(0, currentLine - numLinesPrefix) / step) * step
-  const prefixFrom = (line: number) =>
-    document.getText(new Range(line, 0, currentLine, position.character))
-  let prefix = prefixFrom(firstLine)
-  while (prefix.length > FIM_MAX_PREFIX_CHARS && firstLine + step <= currentLine) {
-    firstLine += step
-    prefix = prefixFrom(firstLine)
-  }
-  const suffixRange = new Range(
-    currentLine,
-    position.character,
-    currentLine + numLinesSuffix,
-    0
-  )
-
-  return {
-    prefix: trimToLineBoundary(prefix, FIM_MAX_PREFIX_CHARS, "start"),
-    suffix: trimToLineBoundary(document.getText(suffixRange), FIM_MAX_SUFFIX_CHARS, "end")
-  }
-}
 
 export const trimToLineBoundary = (
   text: string,
@@ -127,39 +65,6 @@ export const trimToLineBoundary = (
 
 const BLOCK_OPENERS = ["{", "(", "[", ":", "=>", "=", ","]
 
-export const getShouldUseMultiline = ({
-  document,
-  position,
-  node,
-  multilineEnabled
-}: {
-  document: TextDocument
-  position: Position
-  node: SyntaxNode | null
-  multilineEnabled: boolean
-}): boolean => {
-  if (!multilineEnabled) return false
-
-  const lineText = document.lineAt(position.line).text
-  const before = lineText.slice(0, position.character).trimEnd()
-  const after = lineText.slice(position.character).trim()
-
-  if (after.length > 0) return false
-
-  const nodeType = node?.type || ""
-  if (
-    nodeType.includes("string") ||
-    nodeType.includes("comment") ||
-    nodeType.includes("template")
-  ) {
-    return false
-  }
-
-  if (before.trim().length === 0) return true
-
-  return BLOCK_OPENERS.some((opener) => before.endsWith(opener))
-}
-
 export const getTheme = () => {
   const currentTheme = window.activeColorTheme
   if (currentTheme.kind === ColorThemeKind.Light) {
@@ -171,34 +76,6 @@ export const getTheme = () => {
   }
 }
 
-export function safeParseJsonStringBuffer(
-  stringBuffer: string
-): unknown | undefined {
-  try {
-    return JSON.parse(stringBuffer.replace(NORMALIZE_REGEX, ""))
-  } catch {
-    return undefined
-  }
-}
-
-export function safeParseJson<T>(data: string): T | undefined {
-  try {
-    return JSON.parse(data)
-  } catch {
-    return undefined
-  }
-}
-
-export const getCurrentWorkspacePath = (): string | undefined => {
-  if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
-    const workspaceFolder = workspace.workspaceFolders[0]
-    return workspaceFolder.uri.fsPath
-  } else {
-    window.showInformationMessage("No workspace is open.")
-    return undefined
-  }
-}
-
 export const getTerminal = async (): Promise<Terminal | undefined> => {
   const pointerTerminal = window.terminals.find((t) => t.name === POINTER)
   if (pointerTerminal) return pointerTerminal
@@ -206,17 +83,6 @@ export const getTerminal = async (): Promise<Terminal | undefined> => {
   terminal.show()
   return terminal
 }
-
-export const getTerminalExists = (): boolean => {
-  if (window.terminals.length === 0) {
-    window.showErrorMessage("No active terminals")
-    return false
-  }
-  return true
-}
-
-export const getNormalisedText = (text: string) =>
-  text.replace(NORMALIZE_REGEX, " ")
 
 export const updateLoadingMessage = (
   bridge: ExtensionBridge | undefined,
@@ -300,71 +166,4 @@ export async function getAllFilePaths(dirPath: string): Promise<string[]> {
   }
 
   return filePaths
-}
-
-export function readGitIgnoreFile(): string[] | undefined {
-  try {
-    const folders = workspace.workspaceFolders
-    if (!folders || folders.length === 0) {
-      console.log("No workspace folders found")
-      return undefined
-    }
-
-    const rootPath = folders[0].uri.fsPath
-    if (!rootPath) {
-      console.log("Root path is undefined")
-      return undefined
-    }
-
-    const gitIgnoreFilePath = path.join(rootPath, ".gitignore")
-    if (!fs.existsSync(gitIgnoreFilePath)) {
-      console.log(".gitignore file not found at", gitIgnoreFilePath)
-      return undefined
-    }
-
-    const ignoreFileContent = fs.readFileSync(gitIgnoreFilePath, "utf8")
-    return ignoreFileContent
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line !== "" && !line.startsWith("#"))
-      .map((pattern) => {
-        if (pattern.endsWith("/")) {
-          return pattern + "**"
-        }
-        return pattern
-      })
-  } catch (e) {
-    console.error("Error reading .gitignore file:", e)
-    return undefined
-  }
-}
-
-export function notifyKnownErrors(error: Error) {
-  if (knownErrorMessages.some((msg) => error.message.includes(msg))) {
-    vscode.window
-      .showInformationMessage(
-        "Besides Pointer, there may be other AI extensions being enabled (such as Fitten Code) that are affecting the behavior of the fetch API or ReadableStream used in the Pointer plugin. We recommend that you disable that AI plugin for the smooth use of Pointer",
-        "View extensions",
-        "Restart Visual Studio Code (after disabling related extensions)"
-      )
-      .then((selected) => {
-        if (selected === "View extensions") {
-          vscode.commands.executeCommand("workbench.view.extensions")
-        } else if (
-          selected ===
-          "Restart Visual Studio Code (after disabling related extensions)"
-        ) {
-          vscode.commands.executeCommand("workbench.action.reloadWindow")
-        }
-      })
-  }
-}
-
-export function sanitizeWorkspaceName(
-  workspaceName: string | undefined
-): string {
-  const invalidChars = /[^a-zA-Z0-9_.-]+/g
-  const sanitizedName = (workspaceName || "").replace(invalidChars, "_")
-
-  return sanitizedName
 }

@@ -43,33 +43,3 @@ export const getParser = async (
     throw e
   }
 }
-
-export function getNodeAtPosition(
-  tree: Parser.Tree | undefined,
-  position: Position
-): SyntaxNode | null {
-  let foundNode: SyntaxNode | null = null
-  const visitedNodes: SyntaxNode[] = []
-  if (!tree || !position) {
-    return null
-  }
-
-  function searchNode(node: SyntaxNode): boolean {
-    if (
-      position.line >= node.startPosition.row &&
-      position.line <= node.endPosition.row
-    ) {
-      foundNode = node
-      for (const child of node.children) {
-        visitedNodes.push(child)
-        if (searchNode(child)) break
-      }
-      return true
-    }
-    return false
-  }
-
-  searchNode(tree.rootNode)
-
-  return foundNode
-}

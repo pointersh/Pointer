@@ -138,8 +138,6 @@ export interface NewDocumentRequest {
 export interface ClientEvents {
   [EVENT_NAME.pointerAcceptSolution]: Channel<string>
   [EVENT_NAME.pointerChatMessage]: Channel<ChatRequest>
-  [EVENT_NAME.pointerClickSuggestion]: Channel<string>
-  [EVENT_NAME.pointerEditDefaultTemplates]: Channel
   [EVENT_NAME.pointerFileListRequest]: Channel<void, string[]>
   [EVENT_NAME.pointerGetConfigValue]: Channel<{ key: string }, ConfigValue>
   [EVENT_NAME.pointerGetContextItems]: Channel
@@ -150,7 +148,6 @@ export interface ClientEvents {
   [EVENT_NAME.pointerGetWorkspaceContext]: Channel<{ key: string }, ContextValue>
   [EVENT_NAME.pointerGlobalContext]: Channel<{ key: string }, ContextValue>
   [EVENT_NAME.pointerHideBackButton]: Channel
-  [EVENT_NAME.pointerListTemplates]: Channel<void, string[]>
   [EVENT_NAME.pointerNewConversation]: Channel
   [EVENT_NAME.pointerNewDocument]: Channel<NewDocumentRequest>
   [EVENT_NAME.pointerNotification]: Channel<string>
@@ -227,7 +224,6 @@ export interface ServerEvents {
   [EVENT_NAME.pointerGetModels]: ModelCatalogue
   [EVENT_NAME.pointerGetWorkspaceContext]: ContextValue
   [EVENT_NAME.pointerGlobalContext]: ContextValue
-  [EVENT_NAME.pointerListTemplates]: string[]
   [EVENT_NAME.pointerNewConversation]: void
   [EVENT_NAME.pointerExportConversation]: void
   [EVENT_NAME.pointerOnCompletion]: ChatCompletionMessage

@@ -8,10 +8,6 @@ export function setContext(extensionContext: ExtensionContext) {
   context = extensionContext
 }
 
-export function getContext() {
-  return context
-}
-
 let root: string | undefined
 
 export function extensionRoot(): string {

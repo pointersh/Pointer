@@ -10,9 +10,6 @@ export interface DeadlineOptions {
   reason?: () => unknown
 }
 
-export const noAnswer = (ms: number): Error =>
-  new Error(`No answer within ${ms / 1000} s.`)
-
 export const deadline = (ms: number, options: DeadlineOptions = {}): Deadline => {
   const { parent, reason } = options
   const controller = new AbortController()
@@ -30,10 +27,4 @@ export const deadline = (ms: number, options: DeadlineOptions = {}): Deadline =>
       parent?.removeEventListener("abort", forward)
     }
   }
-}
-
-export const timeoutSignal = (ms: number, options: DeadlineOptions = {}): AbortSignal => {
-  const made = deadline(ms, options)
-  made.signal.addEventListener("abort", made.done, { once: true })
-  return made.signal
 }

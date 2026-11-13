@@ -1,77 +1,9 @@
 export interface DefaultTemplate {
   name: string
   template: string
-  interactive?: boolean
 }
 
 export const defaultTemplates: DefaultTemplate[] = [
-  {
-    name: "explain",
-    interactive: true,
-    template: `
-Explain the following code concisely:
-{{{code}}}
-Focus on key functionality and purpose. The language is:
-{{language}}`.trim()
-  },
-  {
-    name: "refactor",
-    interactive: true,
-    template: `
-Refactor the following code to improve efficiency or readability without altering its functionality:
-{{{code}}}
-Always format responses with Markdown for code blocks with the language prefix e.g \`\`\`{{language}}.
-The language is: {{language}}.
-Do not explain the code in your response.`.trim()
-  },
-  {
-    name: "add-types",
-    interactive: true,
-    template: `
-Add types to the following code, keeping the logic unchanged:
-{{{code}}}
-Always format responses with Markdown for code blocks with the language prefix e.g \`\`\`{{language}}.
-The language is: {{language}}.
-Do not explain the code in your response.`.trim()
-  },
-  {
-    name: "add-tests",
-    interactive: true,
-    template: `
-Write comprehensive unit tests for the following code block:
-{{{code}}}
-Use the most popular testing library for {{language}}.
-Always format responses with Markdown for code blocks with the language prefix e.g \`\`\`{{language}}.`.trim()
-  },
-  {
-    name: "fix-code",
-    interactive: true,
-    template: `
-Fix any errors in the following code without changing its core functionality:
-{{{code}}}
-Always format responses with Markdown for code blocks with the language prefix e.g \`\`\`{{language}}.
-The language is: {{language}}.
-Do not explain the changes in your response.`.trim()
-  },
-  {
-    name: "generate-docs",
-    interactive: true,
-    template: `
-Generate comprehensive documentation for the following code block:
-{{{code}}}
-Use the standard documentation format for {{language}}. If unsure, use a widely accepted format.
-Always format responses with Markdown for code blocks with the language prefix e.g \`\`\`{{language}}.`.trim()
-  },
-  {
-    name: "commit-message",
-    template: `
-Write a git commit message for the following diff.
-Use the imperative mood ("Add", "Fix", "Refactor"), keep the subject line under 72 characters,
-and add a short body only when it explains something the subject cannot.
-Reply with the commit message only: no code fences, no quotes, no explanation.
-
-{{{code}}}`.trim()
-  },
   {
     name: "system",
     template: `You are a helpful, respectful and honest coding assistant.
@@ -85,48 +17,5 @@ For code refactoring, use markdown with appropriate code formatting.`.trim()
 Code from the workspace that may be relevant. Each block is labelled with its file and line range; refer to those when you answer. Ignore any block that does not bear on the question.
 
 {{{code}}}`.trim()
-  },
-  {
-    name: "fim",
-    template: "<PRE>{{{prefix}}} <SUF> {{{suffix}}} <MID>"
-  },
-  {
-    name: "review",
-    template: `
-You are a senior engineer reviewing a change titled "{{title}}".
-{{#if part}}This is part {{part}} of a larger review; comment only on the files shown here.{{/if}}
-
-Review the unified diff below and answer in markdown with these sections:
-
-## Summary
-Two or three sentences: what the change does and how sound it looks.
-
-## Issues
-The most important problems first, at most eight. For each, one bullet with a severity marker (🔴 bug, 🟠 risk, 🟡 nit), the file and approximate line from the hunk header, what is wrong, and a concrete fix. Omit this section if there are none.
-
-## Suggestions
-Optional improvements worth making, if any.
-
-## Verdict
-One line: ready to merge, merge after fixes, or needs rework.
-
-Be specific and quote the relevant code. Do not restate the diff, do not ask for comments or documentation, and do not mention dependencies or other pull requests.
-
-\`\`\`diff
-{{{code}}}
-\`\`\``.trim()
-  },
-  {
-    name: "review-summary",
-    template: `
-Below are the parts of a code review of "{{title}}", each covering different files.
-Combine them into one short overall assessment in markdown: the most important issues across all parts (at most five, most severe first, each naming its file), then one line on merge readiness.
-Do not repeat the parts and do not add new findings.
-
-{{{code}}}`.trim()
-  },
-  {
-    name: "fim-system",
-    template: ""
   }
 ]

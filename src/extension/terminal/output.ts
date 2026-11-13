@@ -47,28 +47,6 @@ const LOCATION_PATTERNS = [
 const NOT_CODE = /^(https?:|file:|node:|internal\/)/i
 const LIBRARY = /(^|[\\/])(node_modules|site-packages|\.venv|venv|dist|out|build)[\\/]/
 
-export const extractFileLocations = (output: string): FileLocation[] => {
-  const found: FileLocation[] = []
-  const seen = new Set<string>()
-  const text = stripAnsi(output)
-  for (const pattern of LOCATION_PATTERNS) {
-    for (const match of text.matchAll(pattern)) {
-      const path = match[1].replace(/^\.\//, "")
-      if (NOT_CODE.test(path) || LIBRARY.test(path) || path.startsWith("<")) {
-        continue
-      }
-      const line = Number(match[2])
-      if (!line) continue
-      const column = match[3] ? Number(match[3]) : undefined
-      const key = `${path}:${line}`
-      if (seen.has(key)) continue
-      seen.add(key)
-      found.push({ path, line, column })
-    }
-  }
-  return found
-}
-
 export const runFailed = (run: TerminalRun): boolean =>
   run.exitCode !== undefined
     ? run.exitCode !== 0
@@ -92,21 +70,4 @@ export const formatTerminalRun = (run: TerminalRun): string => {
     output.trim() || "(no output)",
     "```"
   ].join("\n")
-}
-
-export const extractShellCommand = (reply: string): string => {
-  const text = reply.trim()
-  const fence = /```[a-zA-Z]*\n([\s\S]*?)\n?```/.exec(text)
-  const candidate = (fence ? fence[1] : text)
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(
-      (line) =>
-        line && !line.startsWith("#") && !/^[A-Za-z][^`]*:$/.test(line)
-    )[0]
-  if (!candidate) return ""
-  return candidate
-    .replace(/^\$\s+/, "")
-    .replace(/^`(.*)`$/, "$1")
-    .trim()
 }

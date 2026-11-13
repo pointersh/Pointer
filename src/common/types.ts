@@ -16,31 +16,6 @@ export interface LanguageType {
   languageId: string | undefined
 }
 
-export interface ClientMessage<
-  T = string | boolean | ChatCompletionMessage[],
-  Y = unknown
-> {
-  data?: T
-  meta?: Y
-  type?: string
-  key?: string
-}
-
-export type ClientMessageWithData = ClientMessage<string | boolean> &
-  ClientMessage<ChatCompletionMessage[]> &
-  ClientMessage<GithubPullRequestMessage>
-
-export interface ServerMessage<T = unknown> {
-  type: string
-  data: T
-}
-
-export interface GithubPullRequestMessage {
-  owner: string
-  repo: string
-  number: number
-}
-
 export interface ImageAttachment {
   data: string
   type: string
@@ -130,62 +105,11 @@ export interface TemplateData
   cwd?: string
 }
 
-export interface FimTemplateData extends Record<string, string | undefined> {
-  context: string
-  fileName: string
-  prefix: string
-  suffix: string
-  systemMessage?: string
-}
-
-export interface ChatTemplateData {
-  systemMessage?: string
-  role: string
-  messages: ChatCompletionMessage[]
-  code: string
-  language?: string
-}
-
 export type ThemeType = (typeof Theme)[keyof typeof Theme]
 
 export interface FimContextFile {
   name: string
   text: string
-}
-
-export interface FimPromptTemplate {
-  contextFiles: FimContextFile[]
-  header: string
-  prefixSuffix: PrefixSuffix
-  language?: string
-  fileName: string
-  repoName: string
-}
-
-export interface ApiProviders {
-  [key: string]: { fimApiPath: string; chatApiPath: string; port: number }
-}
-
-export type Bracket = (typeof ALL_BRACKETS)[number]
-
-export interface UiTabs {
-  [key: string]: JSX.Element
-}
-
-export interface ApiModel {
-  parent_model: string
-  format: string
-  family: string
-  parameter_size: string
-  digest: string
-  model: string
-  modified_at: string
-  name: string
-  size: number
-}
-
-export interface ApiModels {
-  models: ApiModel[]
 }
 
 export interface ModelCatalogueEntry {
@@ -194,29 +118,6 @@ export interface ModelCatalogueEntry {
 }
 
 export type ModelCatalogue = Record<string, ModelCatalogueEntry>
-
-export type ResolvedInlineCompletion =
-  | InlineCompletionItem[]
-  | InlineCompletionList
-  | PromiseLike<
-      InlineCompletionItem[] | InlineCompletionList | null | undefined
-    >
-  | null
-  | undefined
-
-export interface InteractionItem {
-  keyStrokes: number | null | undefined
-  lastVisited: number
-  name: string | null | undefined
-  sessionLength: number
-  visits: number | null | undefined
-  isOpen: boolean
-  relevanceScore?: number | null | undefined
-  activeLines: {
-    line: number
-    character: number
-  }[]
-}
 
 export interface PointerProvider {
   apiHostname?: string
@@ -241,12 +142,6 @@ export interface ChunkOptions {
 
 export type Embedding = {
   embeddings: [number[]]
-}
-
-export type EmbeddedDocument = {
-  content: string
-  vector: number[] | undefined
-  file: string
 }
 
 export type CategoryType =
@@ -280,37 +175,4 @@ export type AnyContextItem = ContextItem | SelectionContextItem;
 export interface MentionType {
   name: string
   path: string
-}
-
-export interface GitHubPr {
-  number: number
-  title: string
-  html_url: string
-  draft?: boolean
-  updated_at?: string
-  user?: { login: string }
-  head?: { ref: string }
-}
-
-export interface LMSEmbeddingItem {
-  object: string
-  embedding: number[]
-  index: number
-}
-
-export interface LMSEmbeddingUsage {
-  prompt_tokens: number
-  total_tokens: number
-}
-
-export interface LMStudioEmbedding {
-  object: string
-  data: LMSEmbeddingItem[]
-  model: string
-  usage: LMSEmbeddingUsage
-}
-
-export interface ContextFile {
-  name: string;
-  path: string;
 }

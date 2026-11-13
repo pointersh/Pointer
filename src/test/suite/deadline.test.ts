@@ -1,22 +1,10 @@
 import * as assert from "assert"
 
-import { deadline, noAnswer, timeoutSignal } from "../../common/deadline"
+import { deadline } from "../../common/deadline"
 
 const tick = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 suite("Deadline", () => {
-  test("fires after its time with the platform's reason, or the caller's", async () => {
-    const plain = deadline(10)
-    assert.strictEqual(plain.signal.aborted, false)
-    await tick(30)
-    assert.strictEqual(plain.signal.aborted, true)
-    assert.strictEqual((plain.signal.reason as { name?: string }).name, "AbortError")
-
-    const named = deadline(10, { reason: () => noAnswer(10) })
-    await tick(30)
-    assert.strictEqual(named.signal.aborted, true)
-    assert.strictEqual((named.signal.reason as Error).message, "No answer within 0.01 s.")
-  })
 
   test("answered() stops the clock; the parent still cuts in until done()", async () => {
     const parent = new AbortController()
@@ -45,19 +33,4 @@ suite("Deadline", () => {
     made.done()
   })
 
-  test("timeoutSignal tidies up after itself on either trigger", async () => {
-    const parent = new AbortController()
-    const byParent = timeoutSignal(1_000, { parent: parent.signal })
-    parent.abort(new Error("plugin stopped"))
-    assert.strictEqual(byParent.aborted, true)
-    assert.strictEqual((byParent.reason as Error).message, "plugin stopped")
-
-    const quiet = new AbortController()
-    const byClock = timeoutSignal(10, { parent: quiet.signal, reason: () => noAnswer(10) })
-    await tick(30)
-    assert.strictEqual(byClock.aborted, true)
-    assert.match((byClock.reason as Error).message, /No answer/)
-    quiet.abort(new Error("late"))
-    assert.match((byClock.reason as Error).message, /No answer/)
-  })
 })

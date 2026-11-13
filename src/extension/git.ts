@@ -22,9 +22,6 @@ const tryGit = async (cwd: string, args: string): Promise<string | undefined> =>
 export const isGitRepository = async (cwd: string): Promise<boolean> =>
   (await tryGit(cwd, "rev-parse --is-inside-work-tree"))?.trim() === "true"
 
-export const getCurrentBranch = async (cwd: string): Promise<string> =>
-  (await tryGit(cwd, "rev-parse --abbrev-ref HEAD"))?.trim() || "HEAD"
-
 const BASE_CANDIDATES = [
   "origin/main",
   "main",
@@ -36,32 +33,6 @@ const BASE_CANDIDATES = [
   "development"
 ]
 
-export interface GitHubRemote {
-  owner: string
-  repo: string
-}
-
-export const parseGitHubRemote = (url: string): GitHubRemote | undefined => {
-  const match =
-    /(?:^|[/@])github\.com[/:]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(url.trim())
-  if (!match) return undefined
-  return { owner: match[1], repo: match[2] }
-}
-
-export const getGitHubRemote = async (
-  cwd: string
-): Promise<GitHubRemote | undefined> => {
-  const origin = await tryGit(cwd, "remote get-url origin")
-  if (origin?.trim()) return parseGitHubRemote(origin)
-  const remotes = (await tryGit(cwd, "remote -v")) || ""
-  for (const line of remotes.split("\n")) {
-    const url = line.split(/\s+/)[1]
-    const parsed = url && parseGitHubRemote(url)
-    if (parsed) return parsed
-  }
-  return undefined
-}
-
 const getRemoteDefaultBranch = async (
   cwd: string
 ): Promise<string | undefined> => {
@@ -70,41 +41,10 @@ const getRemoteDefaultBranch = async (
   return name || undefined
 }
 
-export const detectBaseBranch = async (
-  cwd: string
-): Promise<string | undefined> => {
-  const current = await getCurrentBranch(cwd)
-  const remoteDefault = await getRemoteDefaultBranch(cwd)
-  const candidates = remoteDefault
-    ? [remoteDefault, ...BASE_CANDIDATES]
-    : BASE_CANDIDATES
-  for (const candidate of candidates) {
-    const short = candidate.replace(/^origin\//, "")
-    if (short === current) continue
-    const exists = await tryGit(cwd, `rev-parse --verify --quiet ${candidate}`)
-    if (exists?.trim()) return candidate
-  }
-  return undefined
-}
-
 export const getWorkingTreeDiff = async (cwd: string): Promise<string> => {
   const hasHead = await tryGit(cwd, "rev-parse --verify --quiet HEAD")
   if (hasHead?.trim()) return runGit(cwd, "diff HEAD")
   return runGit(cwd, "diff --cached")
-}
-
-export const getBranchDiff = async (
-  cwd: string,
-  base: string
-): Promise<string> => runGit(cwd, `diff ${base}...HEAD`)
-
-export const countChangedFiles = async (
-  cwd: string,
-  args: string
-): Promise<number> => {
-  const out = await tryGit(cwd, `diff --name-only ${args}`)
-  if (out === undefined) return 0
-  return out.split("\n").filter((line) => line.trim()).length
 }
 
 export const truncateDiff = (diff: string, maxChars = 24_000): string => {

@@ -138,20 +138,3 @@ export const readSymbolEntry = async (
     range: { startLine: range.start.line, endLine: range.end.line }
   }
 }
-
-export const symbolAtLine = async (
-  uri: Uri,
-  line: number
-): Promise<Location | undefined> => {
-  const enclosing = (await allSymbols(uri))
-    .filter((symbol) => {
-      const range = rangeOf(symbol)
-      return range.start.line <= line && range.end.line >= line
-    })
-    .sort(
-      (a, b) =>
-        rangeOf(a).end.line - rangeOf(a).start.line -
-        (rangeOf(b).end.line - rangeOf(b).start.line)
-    )[0]
-  return enclosing ? new Location(uri, rangeOf(enclosing)) : undefined
-}

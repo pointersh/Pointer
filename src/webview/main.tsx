@@ -8,12 +8,10 @@ import { EmbeddingOptions } from "./embeddings"
 import { ConversationHistory } from "./history"
 import { useServerEvent } from "./messaging"
 import { Providers } from "./providers"
-import { Settings } from "./settings"
 
 import styles from "./styles/main.module.css"
 
 const tabs: Record<string, JSX.Element> = {
-  [WEBUI_TABS.settings]: <Settings />,
   [WEBUI_TABS.embeddings]: <EmbeddingOptions />
 }
 

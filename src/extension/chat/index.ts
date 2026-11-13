@@ -63,7 +63,6 @@ import {
 import { ToolSteps } from "./tool-steps"
 import { buildChatTurn } from "./turn"
 
-const TEMPLATES_WITH_RAG = ["explain"]
 const LOAD_TIMEOUT_MS = 5 * 60_000
 
 const loadKey = (provider: PointerProvider) =>
@@ -101,7 +100,6 @@ export class Chat extends Base {
 
   constructor(
     generations: GenerationTracker,
-    templateDir: string | undefined,
     extensionContext: ExtensionContext,
     bridge: ExtensionBridge,
     search: WorkspaceSearch | undefined
@@ -116,7 +114,7 @@ export class Chat extends Base {
     this._context = new ChatContextBuilder(
       extensionContext,
       bridge,
-      new TemplateProvider(templateDir),
+      new TemplateProvider(),
       search
     )
   }
@@ -241,13 +239,6 @@ export class Chat extends Base {
       this._preparing = false
     }
     return this.run(provider, "", view)
-  }
-
-  public async templateCompletion(template: string, context?: string) {
-    const provider = this.start()
-    if (!provider) return ""
-    this._conversation = await this.buildTemplateConversation(template, context)
-    return this.run(provider)
   }
 
   public async ask(
@@ -573,32 +564,4 @@ export class Chat extends Base {
     })
   }
 
-  private async buildTemplateConversation(
-    template: string,
-    context?: string
-  ): Promise<ChatCompletionMessage[]> {
-    const { language } = getLanguage()
-    const { prompt, selection } = await this._context.templatePrompt(
-      template,
-      language,
-      context
-    )
-
-    this._bridge.emit(EVENT_NAME.pointerSetTab, WEBUI_TABS.chat)
-    this._bridge.emit(EVENT_NAME.pointerAddMessage, {
-      role: USER,
-      content:
-        `${kebabToSentence(template)}\n\n\n<pre><code>${selection}</code></pre>`.trim() ||
-        " ",
-      prompt: prompt.trim()
-    })
-
-    const rag = TEMPLATES_WITH_RAG.includes(template)
-      ? await this._context.ragContext(selection, new Set())
-      : undefined
-    const content =
-      (rag ? `${prompt}\n\nAdditional Context:\n${rag}` : prompt).trim() || " "
-
-    return [...this._conversation, { role: USER, content }]
-  }
 }

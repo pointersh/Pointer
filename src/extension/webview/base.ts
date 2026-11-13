@@ -42,7 +42,6 @@ export class BaseProvider {
   private _fileTreeProvider: FileTreeProvider
   private _sessionManager: SessionManager | undefined
   private _generations: GenerationTracker
-  private _templateDir: string | undefined
   private _templateProvider: TemplateProvider
   private _disposables: vscode.Disposable[] = []
   public bridge: ExtensionBridge | undefined
@@ -60,7 +59,6 @@ export class BaseProvider {
 
   constructor(
     context: vscode.ExtensionContext,
-    templateDir: string,
     generations: GenerationTracker,
     index?: WorkspaceIndex,
     sessionManager?: SessionManager
@@ -70,8 +68,7 @@ export class BaseProvider {
     this._workspaceIndex = index
     this._sessionManager = sessionManager
     this._generations = generations
-    this._templateDir = templateDir
-    this._templateProvider = new TemplateProvider(templateDir)
+    this._templateProvider = new TemplateProvider()
   }
 
   public registerWebView(webView: vscode.Webview) {
@@ -98,7 +95,6 @@ export class BaseProvider {
   private initializeServices(bridge: ExtensionBridge) {
     this.chat = new Chat(
       this._generations,
-      this._templateDir,
       this.context,
       bridge,
       this._workspaceIndex?.search
@@ -127,12 +123,6 @@ export class BaseProvider {
         void vscode.commands.executeCommand(POINTER_COMMAND_NAME.applyCode, code),
       [EVENT_NAME.pointerChatMessage]: ({ messages, mentions }) =>
         void this.chat?.completion(messages, mentions),
-      [EVENT_NAME.pointerClickSuggestion]: (template) =>
-        void vscode.commands.executeCommand(
-          POINTER_COMMAND_NAME.templateCompletion,
-          template
-        ),
-      [EVENT_NAME.pointerEditDefaultTemplates]: () => this.editDefaultTemplates(),
       [EVENT_NAME.pointerFileListRequest]: () =>
         this._fileTreeProvider.getAllFiles(),
       [EVENT_NAME.pointerGetConfigValue]: ({ key }) => ({
@@ -163,8 +153,6 @@ export class BaseProvider {
         void vscode.commands.executeCommand(POINTER_COMMAND_NAME.hideBackButton),
       [EVENT_NAME.pointerOpenProviders]: () =>
         void vscode.commands.executeCommand(POINTER_COMMAND_NAME.manageProviders),
-      [EVENT_NAME.pointerListTemplates]: () =>
-        this._templateProvider.listTemplates(),
       [EVENT_NAME.pointerNewConversation]: () => this.newConversation(),
       [EVENT_NAME.pointerNewDocument]: (request) =>
         this.createNewUntitledDocument(request),
@@ -209,28 +197,12 @@ export class BaseProvider {
     )
   }
 
-  public getFimProvider = () => {
-    return this.context.globalState.get<PointerProvider>(ACTIVE_FIM_PROVIDER_STORAGE_KEY)
-  }
 
-  public editDefaultTemplates = async () => {
-    if (!this._templateDir) return
-    await vscode.commands.executeCommand(
-      "vscode.openFolder",
-      vscode.Uri.file(this._templateDir),
-      true
-    )
-  }
 
   public destroyStream = () => {
     this.chat?.abort()
     this.bridge?.emit(EVENT_NAME.pointerStopGeneration)
   }
-
-  public async streamTemplateCompletion(template: string) {
-    this.chat?.templateCompletion(template)
-  }
-
 
   private readContextItems = () =>
     this.context?.workspaceState.get<AnyContextItem[]>(

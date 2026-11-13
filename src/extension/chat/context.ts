@@ -93,21 +93,6 @@ export class ChatContextBuilder {
     return own
   }
 
-  public async templatePrompt(
-    template: string,
-    language: CodeLanguageDetails,
-    fallbackSelection?: string
-  ) {
-    const editor = window.activeTextEditor
-    const selection =
-      editor?.document.getText(editor.selection) || fallbackSelection || ""
-    const prompt = await this._templates.readTemplate<TemplateData>(template, {
-      code: selection,
-      language: language?.langName || "unknown"
-    })
-    return { prompt: prompt || "", selection }
-  }
-
   public async ragContext(
     question: string,
     sources: ReadonlySet<ContextSource>,

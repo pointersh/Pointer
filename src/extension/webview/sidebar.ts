@@ -15,11 +15,10 @@ export class SidebarProvider extends BaseProvider {
   constructor(
     generations: GenerationTracker,
     context: vscode.ExtensionContext,
-    templateDir: string,
     index: WorkspaceIndex | undefined,
     sessionManager: SessionManager
   ) {
-    super(context, templateDir, generations, index, sessionManager)
+    super(context, generations, index, sessionManager)
     this.context = context
     this.registerSidebarReadyHandler(this.handleSidebarReady)
   }
