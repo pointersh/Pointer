@@ -3,11 +3,10 @@ import type {
 AnyContextItem,
 ChatCompletionMessage,
 ContextItem,LanguageType,
-MentionType,ReplyChangesView,
+MentionType,PointerProvider,
+ReplyChangesView,
 ThemeType,
-ToolStepView,
-PointerProvider
-} from "../types"
+ToolStepView} from "../types"
 
 export interface Channel<Payload = void, Reply = never> {
   payload: Payload

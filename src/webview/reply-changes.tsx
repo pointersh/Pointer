@@ -1,11 +1,11 @@
 import { useState } from "react"
-import { useTranslation } from "./strings"
 import cx from "classnames"
 
 import { EVENT_NAME } from "../common/constants"
 import { FileChangeView, ReplyChangesView } from "../common/types"
 
 import { bridge, emit } from "./messaging"
+import { useTranslation } from "./strings"
 
 import styles from "./styles/reply-changes.module.css"
 

@@ -1,5 +1,4 @@
 import { Children, isValidElement, ReactNode, useMemo, useState } from "react"
-import { useTranslation } from "./strings"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vs, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 
@@ -8,6 +7,7 @@ import { LanguageType } from "../common/types"
 
 import { useCodeTheme } from "./hooks/useCodeTheme"
 import { emit } from "./messaging"
+import { useTranslation } from "./strings"
 import { getLanguageMatch } from "./utils"
 
 import styles from "./styles/code-block.module.css"

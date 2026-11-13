@@ -6,13 +6,14 @@ import {
   useMemo,
   useState
 } from "react"
-import { useTranslation } from "./strings"
 import { Editor } from "@tiptap/core"
 import { MentionNodeAttrs } from "@tiptap/extension-mention"
 import cx from "classnames"
 
 import { topLevelItems } from "../common/constants"
 import { CategoryType, ContextItem } from "../common/types"
+
+import { useTranslation } from "./strings"
 
 import styles from "./styles/common.module.css"
 

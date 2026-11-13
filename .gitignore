@@ -4,9 +4,6 @@ node_modules
 .vscode-test/
 *.vsix
 
-# built by `npm run build`; published from packages/pointer-server, never committed
-packages/pointer-server/cli.js
-packages/pointer-server/*.tgz
 
 # local Claude Code settings and worktrees
 .claude/

@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react"
-import { useTranslation } from "./strings"
 import cx from "classnames"
 
 import { EVENT_NAME } from "../common/constants"
@@ -11,6 +10,7 @@ WorkspaceSearchReport
 
 import { isSearchFinished } from "./hooks/useWorkspaceSearch"
 import { emit } from "./messaging"
+import { useTranslation } from "./strings"
 
 import styles from "./styles/workspace-context.module.css"
 

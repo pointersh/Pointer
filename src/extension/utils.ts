@@ -12,8 +12,8 @@ EVENT_NAME,POINTER
 import { supportedLanguages } from "../common/languages"
 import { LanguageType, Theme } from "../common/types"
 
-import { isIndexablePath } from "./indexable"
 import { ExtensionBridge } from "./messaging/bridge"
+import { isIndexablePath } from "./indexable"
 
 export const getTextSelection = () => {
   const editor = window.activeTextEditor

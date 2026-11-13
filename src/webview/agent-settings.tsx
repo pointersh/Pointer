@@ -1,11 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react"
-import { useTranslation } from "./strings"
 import cx from "classnames"
 
 import { AGENT_STEP_PRESETS, DEFAULT_AGENT_STEPS, EVENT_NAME, GLOBAL_STORAGE_KEY } from "../common/constants"
 
 import { StorageType, useStorageContext } from "./hooks/useStorageContext"
 import { bridge, emit } from "./messaging"
+import { useTranslation } from "./strings"
 
 import styles from "./styles/agent-settings.module.css"
 

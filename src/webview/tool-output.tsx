@@ -1,5 +1,4 @@
 import React from "react"
-import { useTranslation } from "./strings"
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vs, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import cx from "classnames"
@@ -20,6 +19,7 @@ import { ToolStepView } from "../common/types"
 
 import { useCodeTheme } from "./hooks/useCodeTheme"
 import { emit } from "./messaging"
+import { useTranslation } from "./strings"
 
 import styles from "./styles/tool-steps.module.css"
 

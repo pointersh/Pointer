@@ -6,6 +6,8 @@ module.exports = {
     root: true,
     "rules": {
     "quotes": ["error", "double"],
+    "no-empty": ["error", { "allowEmptyCatch": true }],
+    "no-empty": ["error", { "allowEmptyCatch": true }],
     "simple-import-sort/exports": "error",
     "import/first": "error",
     "import/newline-after-import": "error",
