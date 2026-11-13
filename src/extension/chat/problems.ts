@@ -1,12 +1,7 @@
 import { DiagnosticSeverity, languages, workspace } from "vscode"
 
-/** Diagnostics beyond this add noise, not signal, to an @problems prompt. */
 const MAX_PROBLEMS = 50
 
-/**
- * The workspace's current diagnostics as one line of JSON each, errors first,
- * capped so one noisy file cannot flood the prompt.
- */
 export const getProblemsContext = (): string => {
   const problems = workspace.textDocuments
     .flatMap((document) =>

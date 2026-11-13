@@ -33,8 +33,6 @@ export const useSuggestion = () => {
         ? fuse.search(query).map((result) => result.item)
         : allItems
 
-      // Symbols come from the language servers, already matched to the
-      // query, so they bypass the fuzzy search over file names.
       const symbolItems = await searchSymbols(query)
 
       const groupedItems = groupItemsByCategory([...filteredItems, ...symbolItems])

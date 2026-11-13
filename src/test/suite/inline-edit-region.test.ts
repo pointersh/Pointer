@@ -4,7 +4,6 @@ import * as vscode from "vscode"
 import { layoutDiff } from "../../extension/edit/diff"
 import { DiffRegion } from "../../extension/edit/region"
 
-/** An editor on an untitled document, plus a region that follows its changes. */
 const open = async (content: string, from: number, to: number) => {
   const document = await vscode.workspace.openTextDocument({
     content,
@@ -124,14 +123,12 @@ suite("Inline edit region", () => {
     assert.deepStrictEqual(snapshot.removed, [1])
     assert.deepStrictEqual(snapshot.added, [2, 4])
 
-    // A refinement streams over the region, then is abandoned.
     await t.region.render(layoutDiff("a\nb\nc", "a\nX", true))
     await t.region.render(snapshot)
     assert.strictEqual(t.document.getText(), "a\nb\nB\nc\nd")
     assert.deepStrictEqual(t.region.removed, [1])
     assert.deepStrictEqual(t.region.added, [2, 4])
 
-    // After settling a hunk the range still covers whole lines.
     assert.ok(await t.region.settle(t.editor, "accept", 0))
     assert.strictEqual(t.document.getText(), "a\nB\nc\nd")
     assert.strictEqual(t.document.getText(t.region.range), "a\nB\nc\nd")
@@ -188,7 +185,6 @@ suite("Inline edit region", () => {
   })
 
   test("streams new tests into an untitled file that saves to its path", async () => {
-    // How writeTests opens a test file that does not exist yet.
     const target = vscode.Uri.file("/tmp/pointer-write-tests/math.test.ts")
     const document = await vscode.workspace.openTextDocument(
       target.with({ scheme: "untitled" })

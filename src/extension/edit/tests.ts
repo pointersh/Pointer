@@ -1,32 +1,17 @@
-/**
- * Write-tests naming and prompts. Pure: no vscode, no network.
- *
- * The tests for a file go in a sibling file named the way the language's
- * test runner expects (`foo.test.ts`, `test_foo.py`, `foo_test.go`). The
- * model is asked for the test code alone; the reply is parsed the same
- * defensive way an inline edit's is.
- */
 import * as path from "path"
 
 import { SYSTEM, USER } from "../../common/constants"
 import { ChatCompletionMessage } from "../../common/types"
 
 export interface TestRequest {
-  /** The code to test. */
   code: string
-  /** Language name for the prompt and the fence, e.g. "typescript". */
   language?: string
-  /** Workspace-relative path of the source file. */
   fileName: string
-  /** Workspace-relative path of the test file. */
   testFileName: string
-  /** The framework to use, when known; else the model picks. */
   framework?: string
-  /** What the test file already holds, when it exists. */
   existing?: string
 }
 
-/** The test file's name for a source file's `name` and `ext`. */
 export const testFileName = (
   name: string,
   ext: string,
@@ -51,13 +36,11 @@ export const testFileName = (
   }
 }
 
-/** Where the tests for `sourcePath` belong: next to it. */
 export const testFilePath = (sourcePath: string, languageId: string): string => {
   const { dir, name, ext } = path.parse(sourcePath)
   return path.join(dir, testFileName(name, ext, languageId))
 }
 
-/** Whether a file is itself a test file, by any of the names above. */
 export const isTestFile = (filePath: string): boolean => {
   const base = path.basename(filePath)
   return (
@@ -75,10 +58,6 @@ const JS_LANGUAGES = new Set([
   "typescriptreact"
 ])
 
-/**
- * The framework to ask for. JavaScript projects declare theirs in
- * package.json; the other languages have one obvious answer.
- */
 export const testFrameworkFor = (
   languageId: string,
   dependencies: string[] = []
@@ -129,7 +108,6 @@ export const TEST_SYSTEM_PROMPT = [
 const fence = (language: string | undefined, body: string) =>
   `\`\`\`${language || ""}\n${body}\n\`\`\``
 
-/** The user turn: the source, where the tests go, and what to use. */
 export const buildTestPrompt = (request: TestRequest): string => {
   const parts: string[] = []
   parts.push(`Source file: ${request.fileName}`)
@@ -171,10 +149,6 @@ export const buildTestMessages = (
   { role: USER, content: buildTestPrompt(request) }
 ]
 
-/**
- * The test file's last line with the new tests after it. A file that
- * already has content gets a blank line between the old and the new.
- */
 export const appendTests = (
   lastLine: string,
   fileIsEmpty: boolean,
@@ -185,7 +159,6 @@ export const appendTests = (
   return lastLine ? `${lastLine}\n\n${code}` : `\n${code}`
 }
 
-/** The names a package.json declares, for the framework lookup. */
 export const declaredDependencies = (packageJson: string): string[] => {
   try {
     const parsed = JSON.parse(packageJson) as Record<string, unknown>

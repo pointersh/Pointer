@@ -1,12 +1,6 @@
-/** A prompt pointer ships with, copied to ~/.pointer/templates for editing. */
 export interface DefaultTemplate {
   name: string
   template: string
-  /**
-   * Offered as a code action in chat: it needs only the editor selection
-   * and its language. The others are filled in by a feature of their own
-   * (review, commit message, completions, workspace context).
-   */
   interactive?: boolean
 }
 

@@ -80,8 +80,6 @@ suite("Embeddings: workspace storage", () => {
       assert.strictEqual(reopened.hasIndex, true)
       assert.deepStrictEqual((await reopened.vectorSearch(row.vector, 5)).map((hit) => hit.file), [file])
 
-      // A removed workspace root must not reach reranking or the final prompt,
-      // even if an already-open database still contains its old rows.
       let reranked = false
       const search = new WorkspaceSearch(
         reopened,

@@ -1,4 +1,3 @@
-/** Small string helpers shared by the extension host and the webview. */
 
 export const kebabToSentence = (kebab: string) => {
   if (!kebab) return ""

@@ -74,8 +74,6 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
       return props.items.filter((item) => item.category === selectedCategory)
     }, [props.items, selectedCategory])
 
-    // A typed query lists every match straight away; the category menu is
-    // only for a bare `@`.
     const isFlat = !selectedCategory && Boolean(props.query)
     const visibleItems = isFlat ? props.items : categoryItems
     const showsItems = isFlat || Boolean(selectedCategory)
@@ -96,7 +94,6 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
           setSelectedIndex(0)
         }
       } else {
-        // Symbols keep their `symbol:` ref in `id`; `path` is display text.
         const item = visibleItems[index]
         if (item) {
           props.command({

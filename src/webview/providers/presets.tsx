@@ -27,13 +27,11 @@ import styles from "../styles/providers.module.css"
 export interface ProviderPreset {
   key: string
   label: string
-  /** i18n key for the one-line blurb under the name. */
   descriptionKey: string
   logo: ReactNode
   provider: string
   type: ProviderType
   modelName: string
-  /** Local servers are listed first: they are what pointer is built around. */
   local: boolean
 }
 
@@ -81,13 +79,7 @@ const hosted = (
   local: false
 })
 
-/**
- * Model names are left blank for local servers on purpose: the form asks the
- * server what it has and picks the first match, which is always more useful
- * than a hard-coded name that may not be pulled.
- */
 export const PRESETS: ProviderPreset[] = [
-  // chat
   local(API_PROVIDERS.Ollama, "chat"),
   local(API_PROVIDERS.LMStudio, "chat"),
   local(API_PROVIDERS.LlamaCpp, "chat"),
@@ -121,7 +113,6 @@ export const PRESETS: ProviderPreset[] = [
     <SvgPerplexity />,
     "sonar"
   ),
-  // embedding
   local(API_PROVIDERS.Ollama, "embedding"),
   local(API_PROVIDERS.LMStudio, "embedding"),
   local(API_PROVIDERS.LlamaCpp, "embedding"),
@@ -135,7 +126,6 @@ export const PRESETS: ProviderPreset[] = [
   )
 ]
 
-/** Turns a preset into the draft the form opens with. */
 export const presetToProvider = (preset: ProviderPreset): PointerProvider => {
   const endpoint = getEndpointDefaults(preset.provider, preset.type)
   const suffix = preset.type === "chat" ? "" : ` ${preset.type.toUpperCase()}`

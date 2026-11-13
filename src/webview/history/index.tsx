@@ -14,7 +14,6 @@ interface ConversationHistoryProps {
   onSelect: () => void
 }
 
-/** The composer stores HTML; titles and previews want the words. */
 const stripHtml = (html: string) => {
   const container = document.createElement("div")
   container.innerHTML = html
@@ -61,8 +60,6 @@ export const ConversationHistory = ({ onSelect }: ConversationHistoryProps) => {
             stripHtml(m.content).toLowerCase().includes(needle)
         )
       })
-      // Newest first; conversations from older builds have no timestamp and
-      // keep their stored order at the end.
       .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
 
     return DATE_BUCKETS.map((bucket) => ({
@@ -100,7 +97,6 @@ export const ConversationHistory = ({ onSelect }: ConversationHistoryProps) => {
     const preview = firstUserLine(conversation)
     const count = conversation.messages?.length || 0
     const title = titleOf(conversation)
-    // A title made from the first message says what its preview would.
     const sameAsTitle = (a: string, b: string) => {
       const [x, y] = [a, b].map((text) => text.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim())
       return !!x && !!y && (x.startsWith(y.slice(0, 24)) || y.startsWith(x.slice(0, 24)))

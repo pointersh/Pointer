@@ -1,8 +1,3 @@
-/**
- * What the chat says about its model before a message is sent: where it
- * runs, whether its server has it loaded, how the draft fits its context,
- * and what the empty chat's first questions send.
- */
 import * as assert from "node:assert"
 import * as http from "node:http"
 import { AddressInfo } from "node:net"

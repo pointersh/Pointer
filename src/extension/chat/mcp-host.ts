@@ -1,26 +1,15 @@
-/**
- * The MCP servers the user set up in `pointer.chatToolsMcpServers`, kept
- * running for the chat: started on the first agent reply that wants them,
- * restarted when their configuration changes, closed with the chat. Each
- * server's tools join agent mode; each call is put to the user first
- * unless they chose Always run for that tool, since nothing undoes what a
- * server did.
- */
 import { logger } from "../../common/logger"
 import { MANY_MCP_TOOLS, McpClient, McpServerConfig, McpToolSpec, mcpToolSpecs } from "../tools/mcp"
 import type { McpSink, ToolResult } from "../tools/workspace"
 
-/** How long a reply waits for its servers to start and list their tools. */
 const READY_WAIT_MS = 15_000
 
 interface Running {
   client: McpClient
-  /** The configuration it was started with, to tell when it changed. */
   key: string
   tools: McpToolSpec[]
 }
 
-/** A server's entry in the setting, or why it is not one. */
 const serverConfig = (value: unknown): McpServerConfig | string => {
   if (!value || typeof value !== "object" || Array.isArray(value)) return "it is not an object"
   const entry = value as Record<string, unknown>
@@ -57,21 +46,14 @@ export class McpHost {
     private readonly _timeouts: { startMs?: number; callMs?: number } = {}
   ) {}
 
-  /** Whether the user set up any server. */
   get configured(): boolean {
     return Object.keys(this._servers() ?? {}).length > 0
   }
 
-  /** The tools of every server that is up, in the settings' order, so the prompt reads the same each reply. */
   get tools(): McpToolSpec[] {
     return Object.keys(this._servers() ?? {}).flatMap((name) => this._running.get(name)?.tools ?? [])
   }
 
-  /**
-   * Start what the settings name and is not running (or changed), close
-   * what they no longer name, and read the new servers' tools. A server
-   * that fails is logged and left out; the reply goes on without it.
-   */
   async ready(): Promise<McpToolSpec[]> {
     const wanted = this._servers() ?? {}
     for (const [name, running] of this._running) {
@@ -119,7 +101,6 @@ export class McpHost {
     return this.tools
   }
 
-  /** The tools for one reply; `approve` says whether a call may run. */
   sink(approve: (detail: string, tool: McpToolSpec) => Promise<boolean>): McpSink {
     return {
       tools: this.tools,

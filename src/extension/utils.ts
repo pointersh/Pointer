@@ -54,7 +54,6 @@ export const getLanguage = (): LanguageType => {
   }
 }
 
-/** True when the cursor sits between two word characters, e.g. `fo|o`. */
 export const getIsMiddleOfWord = (
   document: TextDocument,
   position: Position
@@ -65,12 +64,6 @@ export const getIsMiddleOfWord = (
   return /\w/.test(charBefore) && /\w/.test(charAfter)
 }
 
-/**
- * How many lines the prefix window's first line moves at a time. The model
- * server reuses its work on a prompt for as long as the prompt begins the
- * same way; a window that slid down one line with every new line typed
- * began differently each time, and the whole prompt was read again.
- */
 export const prefixWindowStep = (numLinesPrefix: number) =>
   Math.max(1, Math.floor(numLinesPrefix / 4))
 
@@ -95,16 +88,11 @@ export const getPrefixSuffix = (
     numLinesSuffix = numLinesToEnd
   }
 
-  // The window starts on a step boundary at or above the line asked for,
-  // so it holds still while the cursor moves down through a step's worth
-  // of lines. The prefix is never shorter than asked, and up to one step
-  // longer.
   const step = prefixWindowStep(numLinesPrefix)
   let firstLine = Math.floor(Math.max(0, currentLine - numLinesPrefix) / step) * step
   const prefixFrom = (line: number) =>
     document.getText(new Range(line, 0, currentLine, position.character))
   let prefix = prefixFrom(firstLine)
-  // Over the character limit, whole steps go, for the same reason.
   while (prefix.length > FIM_MAX_PREFIX_CHARS && firstLine + step <= currentLine) {
     firstLine += step
     prefix = prefixFrom(firstLine)
@@ -122,11 +110,6 @@ export const getPrefixSuffix = (
   }
 }
 
-/**
- * Line counts alone don't bound the prompt: a hundred lines of minified or
- * generated code can exceed a small model's context. Cut at a line boundary
- * so the model never sees half a line.
- */
 export const trimToLineBoundary = (
   text: string,
   maxChars: number,
@@ -144,12 +127,6 @@ export const trimToLineBoundary = (
 
 const BLOCK_OPENERS = ["{", "(", "[", ":", "=>", "=", ","]
 
-/**
- * Decides whether to let a completion run over several lines. Multiline is
- * used on a blank line (the model is filling in a block), or after a token
- * that opens one; otherwise, and inside strings or comments, the completion
- * is kept to the rest of the current line.
- */
 export const getShouldUseMultiline = ({
   document,
   position,

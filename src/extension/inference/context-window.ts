@@ -1,17 +1,3 @@
-/**
- * How many tokens the model behind a provider can hold, as far as its
- * server will say.
- *
- * A local server decides this when it loads the model, and it is often
- * far less than the model was trained for (Ollama loads 4k to 32k unless
- * told otherwise), so the only honest source is the server itself: Ollama's
- * list of loaded models, llama.cpp's properties, LM Studio's model list.
- * A hosted API does not say and is not asked.
- *
- * Asking is cheap but not free, so an answer is kept for a short while. A
- * server that does not know yet (Ollama before the model's first request)
- * is asked again the next time.
- */
 import { API_PROVIDERS } from "../../common/constants"
 import { deadline } from "../../common/deadline"
 import { getProviderOrigin, HOSTED_PROVIDERS } from "../../common/provider-validation"
@@ -21,9 +7,7 @@ const KEEP_MS = 30_000
 const RETRY_UNKNOWN_MS = 3000
 const ASK_TIMEOUT_MS = 1500
 
-/** What a hosted model is taken to hold when nothing says: every current one holds at least this. */
 const HOSTED_ASSUMED_TOKENS = 128_000
-/** What a local server is taken to hold when it will not say. */
 const LOCAL_ASSUMED_TOKENS = 32_768
 
 interface Known {
@@ -62,17 +46,11 @@ export const ask = async (provider: PointerProvider, url: string, body?: unknown
 const positive = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) && value > 0 ? value : undefined
 
-/** `llama3` and `llama3:latest` are one model to Ollama. */
 export const sameOllamaModel = (a: string, b: string) => {
   const tagged = (name: string) => (name.includes(":") ? name : `${name}:latest`)
   return tagged(a) === tagged(b)
 }
 
-/**
- * Ollama: the context the model is loaded with; before it is loaded, the
- * `num_ctx` its Modelfile sets, if any. Otherwise Ollama picks when it
- * loads, and there is nothing to know yet.
- */
 const fromOllama = async (provider: PointerProvider): Promise<number | undefined> => {
   const origin = originOf(provider)
   const loaded = (await ask(provider, `${origin}/api/ps`)) as
@@ -91,10 +69,6 @@ const fromOllama = async (provider: PointerProvider): Promise<number | undefined
   return set ? positive(Number(set[1])) : undefined
 }
 
-/**
- * llama.cpp: the loaded context. A router-mode server needs the model named
- * and would load it to answer; asking must not load anything.
- */
 const fromLlamaCpp = async (provider: PointerProvider): Promise<number | undefined> => {
   const query = provider.modelName
     ? `?model=${encodeURIComponent(provider.modelName)}&autoload=false`
@@ -125,7 +99,6 @@ const detect = (provider: PointerProvider): Promise<number | undefined> => {
   }
 }
 
-/** The model's context in tokens, when its server says. */
 export const contextWindowOf = async (provider: PointerProvider): Promise<number | undefined> => {
   const key = keyOf(provider)
   const cached = known.get(key)
@@ -136,13 +109,10 @@ export const contextWindowOf = async (provider: PointerProvider): Promise<number
   return tokens
 }
 
-/** The last answer for this provider, without asking again: for showing next to a reply. */
 export const knownContextWindow = (provider: PointerProvider): number | undefined =>
   known.get(keyOf(provider))?.tokens
 
-/** What to plan for when the server will not say. */
 export const assumedContextWindow = (provider: PointerProvider): number =>
   HOSTED_PROVIDERS.includes(provider.provider) ? HOSTED_ASSUMED_TOKENS : LOCAL_ASSUMED_TOKENS
 
-/** For tests: forget every answer. */
 export const forgetContextWindows = () => known.clear()

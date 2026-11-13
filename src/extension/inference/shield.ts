@@ -1,11 +1,3 @@
-/**
- * The secret shield at the inference boundary. Every request a feature
- * makes to a provider that is not on this machine goes out with its
- * credentials swapped for placeholders (see `common/secret-shield`), and
- * what comes back has the real values put back. Chat, completions, inline
- * edit and embeddings all go through here, so none of them has to think
- * about it.
- */
 import { logger } from "../../common/logger"
 import { HOSTED_PROVIDERS } from "../../common/provider-validation"
 import {
@@ -18,18 +10,10 @@ import { PointerProvider } from "../../common/types"
 
 import { ChatMessage, InferenceClient, InferenceOptions } from "./types"
 
-/**
- * `offMachine`: shield requests to anything but a server on this machine.
- * `always`: shield local servers too. `off`: send prompts as they are.
- */
 export type SecretShieldMode = "offMachine" | "always" | "off"
 
 export const LOOPBACK = /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|::1|\[::1\])$/i
 
-/**
- * Whether a request to this provider leaves the machine. Hosted APIs always
- * do; an HTTP server does unless it listens on loopback.
- */
 export const leavesMachine = (provider: PointerProvider): boolean => {
   if (HOSTED_PROVIDERS.includes(provider.provider)) return true
   const host = (provider.apiHostname || "localhost").trim()
@@ -39,13 +23,6 @@ export const leavesMachine = (provider: PointerProvider): boolean => {
 export const shouldShield = (provider: PointerProvider, mode: SecretShieldMode) =>
   mode === "always" || (mode === "offMachine" && leavesMachine(provider))
 
-/**
- * A JSON text with every string inside it passed through `change`, for a
- * tool call's arguments: the values are what holds a secret or a
- * placeholder, and a value put back may need escaping the raw text would
- * not give it (a private key has line breaks). Text that is not JSON is
- * changed whole.
- */
 export const mapJsonStrings = (json: string, change: (text: string) => string): string => {
   let parsed: unknown
   try {
@@ -66,11 +43,6 @@ export const mapJsonStrings = (json: string, change: (text: string) => string): 
 
 type CallsMessage = { tool_calls?: { function: { name: string; arguments: string } }[] }
 
-/**
- * The model's own tool calls go back to it with each later request. Their
- * arguments were written with placeholders and restored for the tool, so
- * they hold real values again and are redacted like any other text.
- */
 const redactToolCalls = (shield: SecretShield, message: ChatMessage): ChatMessage => {
   const calls = (message as CallsMessage).tool_calls
   if (!Array.isArray(calls) || !calls.length) return message
@@ -131,7 +103,6 @@ const tell = (
   options?.onShield?.(report)
 }
 
-/** The client with every outgoing prompt redacted and every reply restored. */
 export const shieldClient = (
   client: InferenceClient,
   provider: PointerProvider
@@ -170,8 +141,6 @@ export const shieldClient = (
       const restore = shield.restoreStream()
       for await (const chunk of chunks) {
         const content = restore.push(chunk.content)
-        // A tool is given the real value, as the reader of a reply is: an
-        // edit that names a placeholder has to find the text in the file.
         const toolCalls = chunk.toolCalls?.map((call) => ({
           ...call,
           arguments: mapJsonStrings(call.arguments, (text) => shield.restore(text))

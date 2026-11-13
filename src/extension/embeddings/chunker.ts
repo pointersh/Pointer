@@ -5,19 +5,12 @@ import { defaultChunkOptions, EVENT_NAME, EXTENSION_CONTEXT_NAME } from "../../c
 import { ChunkOptions } from "../../common/types"
 import { getParser } from "../parser"
 
-/**
- * One indexed piece of a file: a contiguous run of whole lines. Chunks are
- * exact slices of the source (never re-joined text), so a hit can be shown
- * to the model, and to the user, as `path:start-end`.
- */
 export interface Chunk {
   content: string
-  /** Zero-based, inclusive. */
   startLine: number
   endLine: number
 }
 
-/** A [start, end] line range the chunker treats as one unit. */
 type Segment = [number, number]
 
 const lineLength = (lines: string[], from: number, to: number) => {
@@ -26,13 +19,6 @@ const lineLength = (lines: string[], from: number, to: number) => {
   return total
 }
 
-/**
- * Splits a file into segments along syntax boundaries. A node that fits in
- * one chunk is a unit; a bigger node is opened up so its children become
- * units; a leaf that is still too big (a huge string literal, a data blob)
- * is left to the line splitter. The result is a list of break rows, which
- * keeps every line of the file covered even where the tree has gaps.
- */
 export const syntaxBreaks = (
   root: SyntaxNode,
   maxSize: number
@@ -49,10 +35,6 @@ export const syntaxBreaks = (
   return [...breaks].sort((a, b) => a - b)
 }
 
-/**
- * Break rows for prose and config files, where the natural unit is a
- * paragraph: a blank line or a markdown heading starts a new segment.
- */
 export const proseBreaks = (lines: string[]): number[] => {
   const breaks: number[] = []
   let previousBlank = true
@@ -72,12 +54,6 @@ const segmentsFromBreaks = (breaks: number[], lineCount: number): Segment[] => {
   return rows.map((row, i) => [row, (rows[i + 1] ?? lineCount) - 1])
 }
 
-/**
- * Packs segments into chunks of at most `maxSize` characters. A segment that
- * is itself too big is cut on line boundaries. Each chunk after the first
- * starts with up to `overlap` characters of the lines before it, so a
- * definition split across two chunks is findable from either side.
- */
 export const packSegments = (
   lines: string[],
   segments: Segment[],
@@ -102,7 +78,6 @@ export const packSegments = (
       open = [start, end]
       continue
     }
-    // Too big for one chunk even on its own: cut it on line boundaries.
     let from = start
     for (let row = start; row <= end; row++) {
       if (row > from && lineLength(lines, from, row) > maxSize) {
@@ -114,8 +89,6 @@ export const packSegments = (
   }
   close()
 
-  // A tail smaller than the minimum is noise on its own: fold it into the
-  // chunk before it.
   const merged: Segment[] = []
   for (const range of ranges) {
     const previous = merged[merged.length - 1]
@@ -137,9 +110,6 @@ export const packSegments = (
         while (from > 0 && lineLength(lines, from - 1, start - 1) <= overlap) from--
       }
       const content = lines.slice(from, end + 1).join("\n")
-      // One enormous line (minified code, a data literal) cannot be cut on
-      // line boundaries; cut it on characters so the embedder never sees a
-      // giant input.
       if (content.length <= maxSize * 2) return [{ content, startLine: from, endLine: end }]
       const pieces: Chunk[] = []
       for (let offset = 0; offset < content.length; offset += maxSize) {
@@ -154,15 +124,6 @@ export const packSegments = (
     .filter((chunk) => chunk.content.trim().length > 0)
 }
 
-/**
- * The pieces of a chunk that go to the embedding model, each at most
- * `maxChars` long and cut on line boundaries, with the last line or so of
- * one piece repeated at the start of the next. A chunk that fits is one
- * piece. Small embedding models see only a couple of hundred tokens and
- * silently drop the rest, so a chunk longer than their window would never
- * be found by anything said in its second half; embedding it in pieces
- * keeps every line of it searchable.
- */
 export const embeddingWindows = (
   content: string,
   maxChars: number,
@@ -177,7 +138,6 @@ export const embeddingWindows = (
     while (to + 1 < lines.length && lineLength(lines, from, to + 1) <= maxChars) to++
     const text = lines.slice(from, to + 1).join("\n")
     if (text.length > maxChars) {
-      // One line longer than the window: cut it on characters.
       for (let offset = 0; offset < text.length; offset += maxChars) {
         windows.push(text.slice(offset, offset + maxChars))
       }
@@ -192,7 +152,6 @@ export const embeddingWindows = (
   return windows.filter((window) => window.trim().length > 0)
 }
 
-/** The chunk sizes the user set in the embeddings tab, or the defaults. */
 export const getChunkOptions = (
   context: ExtensionContext | undefined
 ): ChunkOptions => {
@@ -213,16 +172,11 @@ export const getChunkOptions = (
   return { maxSize, minSize, overlap }
 }
 
-/** Splits without a parser: paragraphs for prose, lines for everything else. */
 export const chunkText = (content: string, options: ChunkOptions): Chunk[] => {
   const lines = content.split("\n")
   return packSegments(lines, segmentsFromBreaks(proseBreaks(lines), lines.length), options)
 }
 
-/**
- * Splits a file for indexing, along syntax boundaries when a tree-sitter
- * grammar is available for it and along paragraphs otherwise.
- */
 export const chunkDocument = async (
   content: string,
   filePath: string,

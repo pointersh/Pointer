@@ -9,9 +9,7 @@ import { assetPath } from "../context"
 
 import { RerankReply, RerankRequest, RerankWorkerData } from "./rerank-worker"
 
-/** Workers idle this long are shut down; the next search reloads them (~0.7s). */
 const IDLE_MS = 5 * 60_000
-/** Each worker holds its own copy of the model (~150 MB), so few of them. */
 const POOL_SIZE = Math.min(3, Math.max(1, Math.floor(os.cpus().length / 4)))
 
 interface PoolWorker {
@@ -20,15 +18,6 @@ interface PoolWorker {
   pending: Map<number, { resolve: (scores: number[]) => void; reject: (error: Error) => void }>
 }
 
-/**
- * A cross-encoder that reads the question and a candidate chunk together
- * and says how likely the chunk is to answer it. Unlike a vector distance
- * the score is absolute, so a threshold means the same thing whatever else
- * was in the candidate list.
- *
- * Scoring runs in worker threads (see `rerank-worker.ts`) so the extension
- * host stays responsive, and a candidate list is split across the pool.
- */
 export class Reranker {
   private readonly _data: RerankWorkerData
   private readonly _script: string | undefined
@@ -46,7 +35,6 @@ export class Reranker {
     this._script = Reranker.findScript()
   }
 
-  /** Where the worker bundle lives: next to this file in the bundle, or under the tsc tree. */
   private static findScript(): string | undefined {
     return [
       assetPath("out", "rerank-worker.js"),
@@ -55,7 +43,6 @@ export class Reranker {
     ].find((candidate) => fs.existsSync(candidate))
   }
 
-  /** Where onnxruntime's wasm is: the bundle root, or node_modules in development. */
   private static findWasmDir(): string {
     return (
       [
@@ -67,23 +54,16 @@ export class Reranker {
     )
   }
 
-  /** Resolves true once the model is usable, false if it cannot be. */
   public get ready(): Promise<boolean> {
     return this.pool()[0]?.ready ?? Promise.resolve(false)
   }
 
-  /**
-   * One relevance probability (0..1) per passage, in input order, or
-   * nothing when the model is unavailable so the caller can fall back to
-   * the retrieval order.
-   */
   public async rerank(query: string, passages: string[]): Promise<number[] | undefined> {
     if (!passages.length) return []
     const pool = this.pool()
     if (!pool.length || !(await pool[0].ready)) return undefined
     this.touch()
 
-    // Spread the passages over the workers; each scores its share.
     const workers = pool.length
     const per = Math.ceil(passages.length / workers)
     const parts = Array.from({ length: workers }, (_, i) =>
@@ -130,7 +110,6 @@ export class Reranker {
           if (reply.ready) {
             logger.info(`Reranker worker ready in ${Date.now() - startedAt}ms`)
           } else {
-            // Every worker in the pool fails the same way; say it once.
             if (!this._broken) {
               logger.warn(`Reranker unavailable, results keep retrieval order: ${reply.error}`)
             }
@@ -166,7 +145,6 @@ export class Reranker {
     this._idleTimer.unref?.()
   }
 
-  /** Stops the workers; they are started again by the next search. */
   public shutdown() {
     clearTimeout(this._idleTimer)
     const pool = this._pool

@@ -1,14 +1,3 @@
-/**
- * The tools a chat model works with in one workspace folder: reading and
- * searching, and, where the host gives them somewhere to go, editing files
- * and running commands. Plain Node, no VS Code, so the same tools run in
- * the extension and in a headless eval; what needs the editor (edits,
- * the terminal, language servers) comes in as a sink.
- *
- * Everything stays inside the root and out of what `.gitignore` ignores
- * (see `view.ts`). Every result is capped, and says so, because a small
- * model's context fills after a couple of whole files.
- */
 import { EditRequest, planEdits, Replacement } from "./edit"
 import { FolderInstructions, folderInstructionsNote, InstructionFile, readRootInstructions } from "./instructions"
 import { coerceArguments, JsonSchema, McpToolSpec } from "./mcp"
@@ -31,34 +20,16 @@ import { parseLenientJson, ToolCall, ToolSpec } from "./protocol"
 import { clip, linesOf, plural, ToolInputError, WorkspaceView } from "./view"
 
 export interface ToolResult {
-  /** What the model is sent. */
   output: string
-  /** One line for the user: what was looked at and what came of it. */
   summary: string
-  /** The tool refused or went wrong; the output says why. */
   failed?: boolean
-  /**
-   * The model should answer now without another tool: an edit is waiting
-   * for review, and the open file shows both sides of it until then.
-   */
   final?: boolean
-  /**
-   * What the model reads ahead of the output, and the user does not see in
-   * the step: the instructions of a folder the call reached.
-   */
   preface?: string
-  /**
-   * What is kept of the output when it is trimmed out of the model's
-   * context to make room: enough to know what was there and where to look
-   * again. Its first line, when the tool gives none.
-   */
   digest?: string
 }
 
-/** What a running tool is told: when the user has stopped the reply, and how much it may send back. */
 export interface ToolContext {
   signal?: AbortSignal
-  /** Characters the result has room for in the model's context, when that is known. */
   roomChars?: number
 }
 
@@ -66,60 +37,39 @@ export interface Tool extends ToolSpec {
   run(args: Record<string, string>, context?: ToolContext): Promise<ToolResult>
 }
 
-/** Lines of a file read at once when the model's context is small or unknown; a larger one reads more, up to the most. */
 const MAX_READ_LINES = 150
 const MOST_READ_LINES = 500
-/** What a line of code runs to, for turning a result's room into lines. */
 const CHARS_PER_LINE = 45
-/** Lines shown after an edit on each side of the change, and of the change itself. */
 const EDIT_CONTEXT_LINES = 2
 const MAX_EDIT_SHOWN_LINES = 30
-/** Lines of a file shown to a model that tried to edit it without reading it. */
 const MAX_UNREAD_SHOWN_LINES = 80
 const MAX_GREP_MATCHES = 40
-/** Matches shown per file, so one noisy file does not hide the others. */
 const MAX_GREP_PER_FILE = 10
-/** Files named, with their match counts, beyond the ones whose lines are shown. */
 const MAX_GREP_OTHER_FILES = 15
-/** With this few matches in all, each is shown with the lines around it. */
 const GREP_CONTEXT_MATCHES = 6
 const GREP_CONTEXT_LINES = 2
 const MAX_LIST_ENTRIES = 150
 const MAX_SYMBOL_MATCHES = 15
-/** A search gives up after this long and says what it did not reach. */
 const SEARCH_BUDGET_MS = 8000
-/** Longer lines (minified code) are matched on their start only, which bounds a slow pattern. */
 const MAX_MATCHED_LINE_CHARS = 2000
 
-/**
- * Where edits go: the editor in the extension, a scratch copy in the eval.
- * `apply` edits land at once and the model can carry on; `review` edits
- * wait as a diff for the user, and the model stops there. `read` gives a
- * file as the editor has it, unsaved changes included, when it is open.
- */
 export interface EditSink {
   mode: "apply" | "review"
   read?(file: string): Promise<string | undefined>
-  /** Make or show the change; resolves to what the model is told. */
   edit(file: string, replacement: Replacement): Promise<EditOutcome>
-  /** Make or show a new file; resolves to what the model is told. */
   create(file: string, content: string): Promise<EditOutcome>
 }
 
 export interface EditOutcome {
   ok: boolean
   message: string
-  /** Waiting for the user's review rather than made. */
   pending?: boolean
-  /** Errors the editor reports in the file since the change; the message names them. */
   newErrors?: number
 }
 
-/** ` · 2 new errors`, for a step's line, when the change left any. */
 const errorsNote = (outcome: EditOutcome) =>
   outcome.newErrors ? ` · ${plural(outcome.newErrors, "new error")}` : ""
 
-/** A comma-separated list held to `max` characters, ending on a whole entry. */
 const cutToLast = (list: string, max: number): { text: string; cut: boolean } => {
   if (list.length <= max) return { text: list, cut: false }
   const end = list.lastIndexOf(", ", max)
@@ -128,11 +78,9 @@ const cutToLast = (list: string, max: number): { text: string; cut: boolean } =>
 
 const escapeRegex = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 
-/** The text itself as a pattern; lowercase means any case. */
 const literalPattern = (pattern: string) =>
   new RegExp(escapeRegex(pattern), pattern === pattern.toLowerCase() ? "i" : "")
 
-/** A pattern as a regex; one that does not compile is searched for literally. Lowercase means any case. */
 const searchPattern = (pattern: string) => {
   try {
     return new RegExp(pattern, pattern === pattern.toLowerCase() ? "i" : "")
@@ -141,7 +89,6 @@ const searchPattern = (pattern: string) => {
   }
 }
 
-/** Lines that declare `name` in the languages people mostly write. */
 const definitionPattern = (name: string) => {
   const n = escapeRegex(name)
   return new RegExp(
@@ -197,25 +144,20 @@ const readFile = (view: WorkspaceView, seen: Map<string, string>): Tool => ({
       throw new ToolInputError(`${rel} has only ${plural(lines.length, "line")}.`)
     }
     const asked = Math.max(start, Number.parseInt(end_line ?? "", 10) || lines.length)
-    // As much as the model's context has room for: a file read whole costs
-    // one request, and one read in parts costs a request for each.
     const room = context?.roomChars
     const most = room ? Math.min(MOST_READ_LINES, Math.max(MAX_READ_LINES, Math.floor(room / CHARS_PER_LINE))) : MAX_READ_LINES
     const last = Math.min(lines.length, asked, start + most - 1)
-    // Kept back for the header and for what is defined below where the read stops.
     const reserve = room ? Math.min(1200, Math.floor(room / 4)) : 1200
     const rows: string[] = []
     let used = 0
     for (let i = start; i <= last; i++) {
       const row = `${i}: ${clip(lines[i - 1])}`
-      // Room for the lines, less the header and the outline that may follow.
       if (room && rows.length >= 40 && used + row.length + 1 > room - reserve) break
       rows.push(row)
       used += row.length + 1
     }
     const end = start + rows.length - 1
     const stopped = end < Math.min(asked, lines.length)
-    // What is defined in the part not shown, so the next read can go straight to it.
     const below = stopped ? outlineOf(lines, end, lines.length, 50) : undefined
     const named = below ? cutToLast(outlineText(below.found), reserve - 200) : undefined
     const cut = stopped
@@ -247,9 +189,7 @@ const grep = (view: WorkspaceView): Tool => ({
     const scope = dir ? view.relative(view.resolve(dir, "any")) : "."
     const started = Date.now()
     const search = async (regex: RegExp) => {
-      /** Files whose matches are shown: their lines, and which of them matched (0-based). */
       const shownFiles: { file: string; lines: string[]; hits: number[]; count: number }[] = []
-      /** Files with matches that got no lines of their own, with how many each has. */
       const others: { file: string; count: number }[] = []
       let shown = 0
       let total = 0
@@ -282,9 +222,6 @@ const grep = (view: WorkspaceView): Tool => ({
         shown += hits.length
         shownFiles.push({ file: rel, lines, hits, count })
       }
-      // A handful of matches come with the lines around them, as `rg -C`
-      // prints them: what the model wants next is nearly always right there,
-      // and a read to fetch it would cost a whole request.
       const around = total <= GREP_CONTEXT_MATCHES ? GREP_CONTEXT_LINES : 0
       const blocks = shownFiles.map(({ file, lines, hits, count }) => {
         const rows: string[] = []
@@ -293,9 +230,7 @@ const grep = (view: WorkspaceView): Tool => ({
           const from = Math.max(printed + 1, hit - around)
           if (around && printed !== -1 && from > printed + 1) rows.push("--")
           for (let i = from; i <= Math.min(lines.length - 1, hit + around); i++) {
-            // A later match inside this one's context is printed as a match when its turn comes.
             if (i > hit && hits.includes(i)) break
-            // With context the indentation stays, so the lines read as the code they are.
             rows.push(`${i + 1}${i === hit ? ":" : "-"} ${clip(around ? lines[i].trimEnd() : lines[i].trim())}`)
             printed = i
           }
@@ -305,11 +240,8 @@ const grep = (view: WorkspaceView): Tool => ({
       return { blocks, others, total, files: blocks.length + others.length, unsearched }
     }
 
-    // A pattern is tried as written, then as the models tend to mean it,
-    // until something matches.
     const attempts: { regex: RegExp; note?: string }[] = [
       { regex: searchPattern(pattern) },
-      // `ctrl+i` or `foo()`, meaning the text rather than the regex.
       ...(/[.*+?^${}()|[\]\\]/.test(pattern)
         ? [
             {
@@ -318,7 +250,6 @@ const grep = (view: WorkspaceView): Tool => ({
             }
           ]
         : []),
-      // `ctrl\\+i`: escaped for the regex, then once more for the JSON it came in.
       ...(pattern.includes("\\\\")
         ? [
             {
@@ -337,7 +268,6 @@ const grep = (view: WorkspaceView): Tool => ({
     }
 
     const { blocks, others, total, files, unsearched } = found
-    // Where else it matched, busiest first: enough for a narrower search.
     const elsewhere = [...others].sort((a, b) => b.count - a.count)
     const named = elsewhere.slice(0, MAX_GREP_OTHER_FILES).map(({ file, count }) => `${file} (${count})`)
     const notes = [
@@ -440,7 +370,6 @@ const createFile = (view: WorkspaceView, sink: EditSink): Tool => ({
   }
 })
 
-/** A whole number argument, or undefined when it was left out or is not one. */
 const lineNumber = (value: string | undefined) => {
   const number = Number.parseInt(value ?? "", 10)
   return Number.isFinite(number) ? number : undefined
@@ -448,7 +377,6 @@ const lineNumber = (value: string | undefined) => {
 
 const isTrue = (value: string | undefined) => /^(true|yes|1)$/i.test(value?.trim() ?? "")
 
-/** The `edits` argument as a list of changes, or what is wrong with it. */
 const editList = (raw: string): EditRequest[] | string => {
   const parsed = parseLenientJson(raw)
   const list = "value" in parsed ? parsed.value : undefined
@@ -464,24 +392,17 @@ const editList = (raw: string): EditRequest[] | string => {
   return edits
 }
 
-/** Lines `from`–`to` (from 1) as `read_file` shows them. */
 const numbered = (lines: string[], from: number, to: number) =>
   lines
     .slice(from - 1, to)
     .map((line, i) => `${from + i}: ${clip(line)}`)
     .join("\n")
 
-/**
- * The file's lines around a change just made, numbered as they are now:
- * the model sees what it did and has the numbers for its next edit,
- * without a read.
- */
 const afterEdit = (text: string, plan: Replacement): { text: string; shown: string } => {
   const lines = text.replace(/\r\n/g, "\n").split("\n")
   const added = plan.text === "" ? [] : plan.text.split("\n")
   lines.splice(plan.startLine, plan.endLine - plan.startLine + 1, ...added)
   const from = Math.max(1, plan.startLine + 1 - EDIT_CONTEXT_LINES)
-  // The empty string after a final line break is not a line anyone numbers.
   const count = lines.length > 1 && lines[lines.length - 1] === "" ? lines.length - 1 : lines.length
   const to = Math.max(from, Math.min(count, plan.startLine + added.length + EDIT_CONTEXT_LINES))
   const shown =
@@ -540,9 +461,6 @@ const editFile = (view: WorkspaceView, sink: EditSink, seen: Map<string, string>
     const rel = view.relative(absolute)
     const text = await view.text(absolute)
     if (text === undefined) throw new ToolInputError(`${rel} is binary or too large to edit.`)
-    // Line numbers are only as good as the read they came from: a file
-    // that changed since (an earlier edit, the user typing) has moved under
-    // them, so the lines are shown as they are now rather than rewritten.
     if (byLines && seen.get(absolute) !== text) {
       seen.set(absolute, text)
       const lines = linesOf(text)
@@ -556,9 +474,6 @@ const editFile = (view: WorkspaceView, sink: EditSink, seen: Map<string, string>
     }
     const plan = planEdits(text, requests)
     if (typeof plan === "string") {
-      // A small model edits a file it has not read, from what it supposes
-      // is in it. Telling it to go and read costs a request and often loses
-      // it; the lines themselves, there and then, are what it needs.
       if (/find is not in the file/.test(plan) && !/nearest match/.test(plan) && !seen.has(absolute)) {
         const lines = linesOf(text)
         const to = Math.min(lines.length, MAX_UNREAD_SHOWN_LINES)
@@ -592,40 +507,25 @@ const editFile = (view: WorkspaceView, sink: EditSink, seen: Map<string, string>
 
 export interface WorkspaceTools {
   tools: Tool[]
-  /** A line naming the top-level entries, so the model starts oriented. */
   orientation: string
-  /** The root's instructions for agents (`AGENTS.md`), for the system prompt. */
   instructions?: InstructionFile
-  /** The instruction files used so far: the root's, then each folder's as a tool reached it. */
   instructionFiles?(): string[]
   run(call: ToolCall, context?: ToolContext): Promise<ToolResult>
 }
 
-/**
- * Where commands run: a terminal in the extension. `ask` puts each one to
- * the user first; `allow` runs it straight away.
- */
 export interface CommandSink {
   mode: "ask" | "allow"
   run(command: string, signal?: AbortSignal): Promise<CommandOutcome>
 }
 
 export interface CommandOutcome {
-  /** False when the user skipped it. */
   ran: boolean
-  /** The tail of what it printed, ANSI stripped. */
   output: string
   exitCode?: number
-  /**
-   * The wait ran out before the command ended: `running` when it was left
-   * to carry on (a server in the terminal), `stopped` when it was ended.
-   */
   timedOut?: "running" | "stopped"
-  /** It was stopped by the user's stop on its step; the reply carries on. */
   stoppedByUser?: boolean
 }
 
-/** A hit from the embeddings index. Lines are 0-based, inclusive. */
 export interface CodeHit {
   file: string
   startLine: number
@@ -634,7 +534,6 @@ export interface CodeHit {
   content: string
 }
 
-/** Search by meaning over the workspace's embeddings index. */
 export interface CodeSearch {
   search(query: string): Promise<CodeHit[]>
 }
@@ -684,7 +583,6 @@ const runCommand = (sink: CommandSink): Tool => ({
       failed: outcome.timedOut === "stopped" || (!outcome.timedOut && !!outcome.exitCode),
       output: `$ ${line}\n(${status})\n${printed || "(no output)"}`,
       summary: `ran \`${line}\` · ${outcomeWord}`,
-      // The end of what it printed is where a test run or a build says how it went.
       digest: `$ ${line}\n(${status})${printed ? `\n…\n${printed.split("\n").slice(-4).join("\n").slice(-400)}` : ""}`
     }
   }
@@ -701,8 +599,6 @@ const searchCode = (view: WorkspaceView, index: CodeSearch): Tool => ({
   async run({ query }) {
     const wanted = query?.trim()
     if (!wanted) throw new ToolInputError("search_code needs a query.")
-    // The index is built from the same files, but it is older than the
-    // rules: nothing ignored since comes back through it.
     const hits = (await index.search(wanted)).filter((hit) => view.visible(hit.file))
     const blocks: string[] = []
     let used = 0
@@ -725,25 +621,16 @@ const searchCode = (view: WorkspaceView, index: CodeSearch): Tool => ({
   }
 })
 
-/** What the tools can reach beyond reading files, when the host provides it. */
 export interface ToolExtras {
   edits?: EditSink & Partial<FileOpsSink>
   commands?: CommandSink
   codeSearch?: CodeSearch
-  /** The editor's language servers and open files. */
   editor?: EditorSink
-  /** Whether `git` is offered when the root is in a repository; on by default. */
   git?: boolean
-  /** Whether the project's `AGENTS.md` files are read; on by default. */
   instructions?: boolean
-  /** Tools from MCP servers the user set up, and how to call one. */
   mcp?: McpSink
 }
 
-/**
- * Where MCP tools go: the host has the servers running, puts each call to
- * the user as it says, and turns the answer into a result.
- */
 export interface McpSink {
   tools: McpToolSpec[]
   call(tool: McpToolSpec, args: Record<string, unknown>, context?: ToolContext): Promise<ToolResult>
@@ -754,16 +641,8 @@ const mcpTool = (spec: McpToolSpec, sink: McpSink): Tool => ({
   run: (args, context) => sink.call(spec, coerceArguments(spec.schema as JsonSchema | undefined, args), context)
 })
 
-/** Arguments that name a place in the workspace, whose folders' instructions apply. */
 const PLACE_ARGUMENTS = ["path", "from", "to"]
 
-/**
- * The reading tools, plus `search_code`, the editor's tools, `edit_file`
- * and its kin, and `run_command`, when there is an index to search, an
- * editor to ask, somewhere for edits to go and a terminal to run in.
- * `root` is the folder, or a view of it the host already made (so its
- * sinks can share the view's rules).
- */
 export const workspaceTools = (
   root: string | WorkspaceView,
   ignoredGlobs: string[] = [],
@@ -772,7 +651,6 @@ export const workspaceTools = (
   const { edits, commands, codeSearch, editor } = extras
   const view =
     typeof root === "string" ? new WorkspaceView(root, ignoredGlobs, edits?.read?.bind(edits)) : root
-  /** Each file as the model last saw it, so an edit by line numbers knows whether they still hold. */
   const seen = new Map<string, string>()
   const tools = [
     ...(codeSearch ? [searchCode(view, codeSearch)] : []),
@@ -797,7 +675,6 @@ export const workspaceTools = (
   const reading = extras.instructions !== false
   const instructions = reading ? readRootInstructions(view.root) : undefined
   const folders = reading ? new FolderInstructions(view) : undefined
-  /** A finished call with the instructions of the folders it reached, the first time the reply reaches them. */
   const withFolderInstructions = (call: ToolCall, result: ToolResult): ToolResult => {
     if (!folders || result.failed) return result
     const found = PLACE_ARGUMENTS.flatMap((name) => (call.args[name] ? folders.for(call.args[name]) : []))
@@ -820,10 +697,6 @@ export const workspaceTools = (
       try {
         return withFolderInstructions(call, await tool.run(call.args, context))
       } catch (error) {
-        // Whatever goes wrong inside a tool is the model's to read and work
-        // around; it never ends the reply. A refusal of the model's input is
-        // given whole (it may show the lines to use instead); anything else,
-        // and the step's summary, keeps to the first line.
         const full = error instanceof Error ? error.message : String(error)
         const message = full.split("\n")[0]
         return error instanceof ToolInputError

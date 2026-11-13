@@ -1,22 +1,7 @@
-/**
- * The "Pointer" output channel.
- *
- * Built on VS Code's log channel, so every line carries a timestamp and a
- * level, and the panel's own level picker (or "Developer: Set Log Level…")
- * chooses how much to see. Info is the narrative: one line when a request
- * goes out, one when it comes back, with timings and sizes. Debug adds the
- * prompts and replies themselves. Warnings and errors are always written;
- * the `pointer.enableLogging` setting turns everything else off.
- */
 import type * as VsCode from "vscode"
 
 import { SecretShield } from "./secret-shield"
 
-/**
- * The gateway CLI shares the inference adapters, and so this logger, with
- * no VS Code around. There the channel is stderr, warnings and errors
- * only: what a request carried is never written by a headless process.
- */
 const loadVsCode = (): typeof VsCode | undefined => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -43,10 +28,8 @@ const headlessSink = (): LogSink => ({
   show: () => undefined
 })
 
-/** Text a prompt or reply is cut to in the log. */
 const MAX_BLOCK_CHARS = 8000
 
-/** Keys and headers that must never reach the log. */
 const SECRET_KEY = /("?(?:api[_-]?key|authorization|token|secret|password)"?\s*[:=]\s*)("?)(?!Bearer\b)[^"\s,}&]+/gi
 const BEARER = /Bearer\s+[A-Za-z0-9._~+/=-]+/g
 
@@ -66,15 +49,12 @@ const describe = (error: unknown): string => {
   return String(error)
 }
 
-/** `1.2s` or `840ms`. */
 export const formatMs = (ms: number): string =>
   ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`
 
-/** `12.3k` or `840`. */
 export const formatCount = (n: number): string =>
   n >= 10_000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 
-/** A block cut to size, every line indented so it reads as one entry. */
 const indent = (text: string, max = MAX_BLOCK_CHARS): string => {
   const cut =
     text.length > max
@@ -108,7 +88,6 @@ export class Logger {
       .get<boolean>("enableLogging", true)
   }
 
-  /** Bring the channel into view. */
   public show() {
     this.channel.show(true)
   }
@@ -132,18 +111,15 @@ export class Logger {
     if (vscode) console.error(`[pointer] ${redact(text)}`)
   }
 
-  /** Detail worth having when something is wrong: prompts, replies, bodies. */
   public debug(message: string) {
     if (this.enabled) this.channel.debug(redact(message))
   }
 
-  /** A titled block of text at debug level: a prompt, a reply, a request body. */
   public block(title: string, text: string) {
     if (!this.enabled || !text) return
     this.channel.debug(`${redact(title)}\n${indent(redact(text))}`)
   }
 
-  /** Start a stopwatch; the returned function gives elapsed time as text. */
   public timer(): () => string {
     const started = Date.now()
     return () => formatMs(Date.now() - started)

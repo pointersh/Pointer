@@ -1,10 +1,3 @@
-/**
- * One error model for every provider. Adapters throw whatever their client
- * throws; the layer turns it into an `InferenceError` whose `kind` a feature
- * can act on, with the raw message kept for the log.
- *
- * Pure: no vscode imports, so it is unit-tested directly.
- */
 
 export type InferenceErrorKind =
   | "provider-unavailable"
@@ -18,9 +11,7 @@ export type InferenceErrorKind =
 
 export class InferenceError extends Error {
   public readonly kind: InferenceErrorKind
-  /** The HTTP status when the provider answered with one. */
   public readonly status?: number
-  /** What the provider's client actually threw. */
   public readonly cause?: unknown
 
   constructor(
@@ -54,7 +45,6 @@ interface ErrorLike {
   status?: number
   code?: string
   cause?: ErrorLike
-  /** Where axios-style clients put the server's own explanation. */
   response?: { data?: { error?: { message?: string } } }
 }
 
@@ -78,7 +68,6 @@ export const isAbortError = (error: unknown): boolean => {
   return /aborted/i.test(e.message || "") || isAbortError(e.cause)
 }
 
-/** Every message in the cause chain, so nothing a server said is lost. */
 export const collectMessages = (error: unknown): string => {
   const parts: string[] = []
   let current = error as ErrorLike | undefined
@@ -165,10 +154,6 @@ const classify = (
   return "inference-failure"
 }
 
-/**
- * The provider boundary: whatever a client threw, as an `InferenceError`.
- * One that already is passes through untouched.
- */
 export const toInferenceError = (error: unknown): InferenceError => {
   if (isInferenceError(error)) return error
   const raw = collectMessages(error) || "Unknown error"

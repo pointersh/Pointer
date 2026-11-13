@@ -41,7 +41,6 @@ const valueOf = (e: InputEvent) =>
   (e as unknown as React.ChangeEvent<HTMLInputElement>).target.value
 
 interface ProviderFormProps {
-  /** The draft to open with; `id` empty means "new". */
   initial: PointerProvider
   onClose: () => void
   onSaved?: (provider: PointerProvider) => void
@@ -94,10 +93,6 @@ export const ProviderForm = ({ initial, onClose, onSaved }: ProviderFormProps) =
     })
   }
 
-  /**
-   * Switching the provider or type swaps in that server's usual address, but
-   * only over values the user has not typed themselves.
-   */
   const previousDefaults = useRef(
     getEndpointDefaults(draft.provider, draft.type)
   )
@@ -121,8 +116,6 @@ export const ProviderForm = ({ initial, onClose, onSaved }: ProviderFormProps) =
     update({ ...patch, ...endpointPatch })
   }
 
-  // Ask the server what it serves whenever the address changes. Debounced:
-  // the user is typing a hostname, not submitting one.
   const listKey = [
     draft.provider,
     draft.type,
@@ -146,8 +139,6 @@ export const ProviderForm = ({ initial, onClose, onSaved }: ProviderFormProps) =
         setModelLabels(result.labels || {})
         setModelsError(result.error)
         setModelsLoading(false)
-        // A preset leaves the model blank so the first thing the server
-        // actually has gets picked.
         if (!draft.modelName && result.models.length) {
           const chosen = pickModel(result.models, draft.type)
           if (chosen) setDraft((current) => ({ ...current, modelName: chosen }))
@@ -296,7 +287,6 @@ export const ProviderForm = ({ initial, onClose, onSaved }: ProviderFormProps) =
                 value={draft.apiPort?.toString() ?? ""}
                 placeholder={t("port-placeholder")}
                 onInput={(e) => {
-                  // Kept as typed so a slip shows up as an error, not as NaN.
                   const raw = valueOf(e).trim()
                   update({
                     apiPort: raw ? (raw as unknown as number) : undefined
@@ -314,7 +304,6 @@ export const ProviderForm = ({ initial, onClose, onSaved }: ProviderFormProps) =
               placeholder={t("hostname-placeholder")}
               onInput={(e) => update({ apiHostname: valueOf(e) })}
               onBlur={() => {
-                // A pasted URL is split into its parts on the way out.
                 const parts = normalizeProvider(draft)
                 if (parts.apiHostname !== draft.apiHostname) {
                   update({

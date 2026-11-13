@@ -1,10 +1,3 @@
-/**
- * Reading a tool step's output back into its parts, so the chat can show
- * code as code: `read_file`'s numbered lines as a highlighted file, a
- * command's diff as a diff, `edit_file`'s find and replace as the change
- * it makes. Pure, so the parsing is unit-testable; the output formats are
- * the ones `extension/tools/workspace.ts` writes.
- */
 
 const EXTENSION_LANGUAGES: Record<string, string> = {
   ts: "typescript", mts: "typescript", cts: "typescript", tsx: "tsx",
@@ -20,7 +13,6 @@ const EXTENSION_LANGUAGES: Record<string, string> = {
   diff: "diff", patch: "diff"
 }
 
-/** The Prism language for a file, or "text". */
 export const languageForPath = (path: string): string => {
   const name = path.split("/").pop()?.toLowerCase() ?? ""
   if (name === "dockerfile") return "docker"
@@ -31,14 +23,11 @@ export const languageForPath = (path: string): string => {
 
 export interface FileSlice {
   path: string
-  /** 1-based, as `read_file` numbers them. */
   startLine: number
   code: string
-  /** What `read_file` said after the lines, e.g. where to read on. */
   note?: string
 }
 
-/** `read_file` output: `path (lines a–b of n)`, then `N: line` for each line. */
 export const parseReadFile = (output: string): FileSlice | undefined => {
   const [header, ...rest] = output.split("\n")
   const match = header.match(/^(.+) \(lines (\d+)–(\d+) of \d+\)$/)
@@ -60,14 +49,11 @@ export const parseReadFile = (output: string): FileSlice | undefined => {
 
 export interface CommandRun {
   command: string
-  /** "exit code 0", "still running…". */
   status: string
   output: string
-  /** The output is a unified diff (git diff, git show, diff -u). */
   isDiff: boolean
 }
 
-/** `run_command` output: `$ command`, `(status)`, then what it printed. */
 export const parseCommandRun = (output: string): CommandRun | undefined => {
   const match = output.match(/^\$ (.*)\n\(([^)\n]*)\)\n?([\s\S]*)$/)
   if (!match) return undefined
@@ -87,7 +73,6 @@ export interface DiffLine {
   text: string
 }
 
-/** Each line of a unified diff with what it is. */
 export const classifyDiff = (diff: string): DiffLine[] =>
   diff.replace(/\n$/, "").split("\n").map((text) => {
     if (/^(diff --git|index |--- |\+\+\+ |new file mode|deleted file mode|similarity index|rename (from|to) )/.test(text)) {
@@ -99,7 +84,6 @@ export const classifyDiff = (diff: string): DiffLine[] =>
     return { kind: "context", text }
   })
 
-/** `edit_file`'s find and replace as the lines it takes out and puts in. */
 export const replacementDiff = (find: string, replace: string): DiffLine[] => [
   ...find.replace(/\n$/, "").split("\n").map((text) => ({ kind: "del" as const, text: `-${text}` })),
   ...replace.replace(/\n$/, "").split("\n").map((text) => ({ kind: "add" as const, text: `+${text}` }))
@@ -107,14 +91,12 @@ export const replacementDiff = (find: string, replace: string): DiffLine[] => [
 
 export interface CodeHitBlock {
   path: string
-  /** 1-based. */
   startLine: number
   endLine: number
   relevance: string
   code?: string
 }
 
-/** `search_code` output: blocks of `path:a-b (relevance x)` and the code under it. */
 export const parseSearchHits = (output: string): CodeHitBlock[] => {
   const blocks: CodeHitBlock[] = []
   const header = /^(.+):(\d+)-(\d+) \(relevance ([\d.]+)\)$/
@@ -135,19 +117,11 @@ export const parseSearchHits = (output: string): CodeHitBlock[] => {
 
 export interface LocatedLine {
   path: string
-  /** 1-based. */
   line: number
   text: string
-  /** A line shown beside a match, not a match itself. */
   context?: boolean
 }
 
-/**
- * Lines that name a place: `path:line: text` each (find_symbol,
- * diagnostics, references), or grep's grouping of a path on its own line
- * with `line: text` under it, and `line- text` for the lines beside a
- * match.
- */
 export const parseLocatedLines = (output: string): LocatedLine[] | undefined => {
   const located: LocatedLine[] = []
   let file: string | undefined
@@ -171,7 +145,6 @@ export const parseLocatedLines = (output: string): LocatedLine[] | undefined => 
   return located.some((line) => !line.context) ? located : undefined
 }
 
-/** Located lines gathered under their file, in the order the files first appear. */
 export const groupByFile = (lines: LocatedLine[]): { path: string; lines: LocatedLine[] }[] => {
   const groups: { path: string; lines: LocatedLine[] }[] = []
   for (const line of lines) {

@@ -1,9 +1,3 @@
-/**
- * The editor's side of what a reply changed (`reply-changes.ts`): a
- * read-only view of a file as it was before the reply, the diff of that
- * against the file now, and undoing through a workspace edit, so the
- * editor's own Undo brings the agent's change back again.
- */
 import { existsSync } from "fs"
 import path from "path"
 import { commands, Disposable, Range, TextDocumentContentProvider, Uri, window, workspace, WorkspaceEdit } from "vscode"
@@ -13,10 +7,8 @@ import { ReplyChangesView } from "../../common/types"
 
 import { ChangeStore, planUndo, viewOf } from "./reply-changes"
 
-/** `pointer-before:/src/a.ts?<id>`: a file as it was before reply `<id>` changed it. */
 export const BEFORE_SCHEME = "pointer-before"
 
-/** The store the read-only views read from; every chat in a window shares one. */
 let current: ChangeStore | undefined
 let provider: Disposable | undefined
 
@@ -31,9 +23,7 @@ const beforeProvider: TextDocumentContentProvider = {
 const beforeUri = (id: string, file: string) => Uri.from({ scheme: BEFORE_SCHEME, path: `/${file}`, query: id })
 
 export interface UndoAnswer {
-  /** The changes as they stand afterwards, for the chat to show. */
   view?: ReplyChangesView
-  /** Why nothing was undone, for the user. */
   error?: string
 }
 
@@ -46,7 +36,6 @@ export class ReplyChangesEditor {
     provider ??= workspace.registerTextDocumentContentProvider(BEFORE_SCHEME, beforeProvider)
   }
 
-  /** The file as the reply found it beside the file now; a deleted file shows as it was. */
   async openDiff(id: string, file: string): Promise<void> {
     const record = this._store.load(id)
     const change = record?.files.find((f) => f.path === file)
@@ -65,11 +54,6 @@ export class ReplyChangesEditor {
     })
   }
 
-  /**
-   * Put `paths` (all of the reply's, by default) back as they were before
-   * it. A file changed since the reply ended is put back only if the user
-   * says so: what changed since is lost.
-   */
   async undo(id: string, paths?: string[]): Promise<UndoAnswer> {
     const record = this._store.load(id)
     if (!record) return { error: "pointer no longer keeps what this reply changed, so it cannot be undone from here." }

@@ -24,7 +24,6 @@ export class Base {
     )
   }
 
-  /** Services are rebuilt whenever a webview is (re)registered; drop the old listener. */
   public dispose() {
     this._configListener.dispose()
   }
@@ -34,7 +33,6 @@ export class Base {
       ACTIVE_FIM_PROVIDER_STORAGE_KEY
     )
 
-  /** The active provider for each job. */
   public getProvider = () =>
     this.context?.globalState.get<PointerProvider>(
       ACTIVE_CHAT_PROVIDER_STORAGE_KEY

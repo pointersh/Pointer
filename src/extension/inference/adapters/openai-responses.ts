@@ -1,13 +1,3 @@
-/**
- * Chat through OpenAI's Responses API, for conversations that use tools.
- *
- * OpenAI's reasoning models (gpt-6-astra and its kind) refuse function
- * tools on `/v1/chat/completions` unless reasoning is off, which they do
- * not allow, and asked to write tool calls as text instead they tend to
- * stall there before sending a byte. `/v1/responses` takes tools and
- * reasoning together and answers in seconds, so a request with tools, or
- * a conversation that already holds tool calls, comes here.
- */
 import { getProviderOrigin } from "../../../common/provider-validation"
 import { PointerProvider } from "../../../common/types"
 import {
@@ -25,7 +15,6 @@ import { responseEvents } from "./responses-stream"
 
 const DEFAULT_BASE = "https://api.openai.com/v1"
 
-/** Whether a conversation needs the Responses API: it offers tools or already holds tool calls. */
 export const needsResponsesApi = (request: ChatRequest) =>
   !!request.tools?.length ||
   request.messages.some(
@@ -39,7 +28,6 @@ const baseUrl = (config: PointerProvider) =>
     ? `${getProviderOrigin(config)}${config.apiPath || "/v1"}`.replace(/\/$/, "")
     : DEFAULT_BASE
 
-/** One request to `/v1/responses`, streamed as pointer chat chunks. */
 export async function* responsesChat(
   config: PointerProvider,
   request: ChatRequest,
@@ -86,7 +74,6 @@ export async function* responsesChat(
   for await (const event of responseEvents(response.body)) {
     if (options?.signal?.aborted) return
     switch (event.type) {
-      // A refusal is the model's answer too; left out, the reply would be blank.
       case "response.output_text.delta":
       case "response.refusal.delta":
         if (event.delta) text.push(event.delta)

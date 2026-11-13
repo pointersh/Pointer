@@ -1,12 +1,3 @@
-/**
- * Where a configured provider becomes something a feature can call.
- *
- * Adapters register for the provider kinds they serve. `resolve()` picks
- * the adapter for a configuration, builds its provider, and wraps it so
- * that every capability is callable, unsupported ones fail before any
- * request is made, cancellation ends a read at once, and whatever a client
- * throws comes out as an `InferenceError`.
- */
 import { OPEN_AI_COMPATIBLE_PROVIDERS } from "../../common/constants"
 import { HOSTED_PROVIDERS } from "../../common/provider-validation"
 import { PointerProvider } from "../../common/types"
@@ -23,7 +14,6 @@ import {
   InferenceProvider
 } from "./types"
 
-/** One way of serving a family of provider kinds. */
 export interface InferenceAdapter {
   readonly id: string
   create(config: PointerProvider): InferenceProvider
@@ -62,7 +52,6 @@ const guardedPromise = async <T>(
   }
 }
 
-/** The provider boundary, applied to whatever an adapter built. */
 export const guard = (provider: InferenceProvider): InferenceClient => ({
   id: provider.id,
   capabilities: () => provider.capabilities(),
@@ -93,7 +82,6 @@ export const guard = (provider: InferenceProvider): InferenceClient => ({
 export class ProviderRegistry {
   private readonly _adapters = new Map<string, InferenceAdapter>()
 
-  /** Serve these provider kinds with this adapter; a later call replaces. */
   public register(providerIds: string | string[], adapter: InferenceAdapter): this {
     for (const id of Array.isArray(providerIds) ? providerIds : [providerIds]) {
       this._adapters.set(id, adapter)
@@ -118,7 +106,6 @@ export class ProviderRegistry {
     return [...this._adapters.keys()]
   }
 
-  /** The client for a configured provider. Throws when nothing serves its kind. */
   public resolve(config: PointerProvider): InferenceClient {
     const adapter = this._adapters.get(config.provider)
     if (!adapter) {
@@ -141,12 +128,10 @@ export const hostedAdapter: InferenceAdapter = {
   create: (config) => new HostedInferenceProvider(config)
 }
 
-/** The registry the extension uses, with every built-in kind served. */
 export const providerRegistry = new ProviderRegistry()
   .register(Object.values(OPEN_AI_COMPATIBLE_PROVIDERS), httpAdapter)
   .register(HOSTED_PROVIDERS, hostedAdapter)
 
-/** The `pointer.secretShield` setting, when VS Code is around. */
 const secretShieldMode = (): SecretShieldMode => {
   try {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -159,10 +144,6 @@ const secretShieldMode = (): SecretShieldMode => {
   }
 }
 
-/**
- * The client a feature calls. Requests that would leave the machine go
- * through the secret shield.
- */
 export const resolveInferenceProvider = (config: PointerProvider): InferenceClient => {
   const client = providerRegistry.resolve(config)
   return shouldShield(config, secretShieldMode()) ? shieldClient(client, config) : client

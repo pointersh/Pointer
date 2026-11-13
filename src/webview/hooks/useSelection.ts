@@ -3,13 +3,6 @@ import { useEffect, useState } from "react"
 import { EVENT_NAME } from "../../common/constants"
 import { bridge, useServerEvent } from "../messaging"
 
-/**
- * The editor's current selection.
- *
- * Read once on mount, then kept live by the selection-change events the
- * extension pushes. `onSelect` fires on every push, which is what the chat
- * composer uses to pull focus when the user highlights code.
- */
 export const useSelection = (onSelect?: () => void) => {
   const [selection, setSelection] = useState("")
 

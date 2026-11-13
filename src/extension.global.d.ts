@@ -18,10 +18,6 @@ interface VsCodeApi<State = unknown> {
   postMessage: (message: unknown) => void
 }
 
-/**
- * Injected by the VS Code webview host. May only be called once per document,
- * which is why `src/webview/messaging/bridge.ts` owns the single call.
- */
 declare function acquireVsCodeApi<State = unknown>(): VsCodeApi<State>
 
 interface Window {

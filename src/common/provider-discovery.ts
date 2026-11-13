@@ -1,11 +1,3 @@
-/**
- * Finding a model server that is already running on this machine, and
- * turning it into providers, so a first run works without anyone typing
- * an address.
- *
- * Pure: the network calls live in `src/extension/providers/discovery.ts`.
- * This file decides *where* to look and *what to make* of an answer.
- */
 import {
   API_PROVIDERS,
   FIM_TEMPLATE_FORMAT,
@@ -19,7 +11,6 @@ import {
 } from "./provider-validation"
 import { PointerProvider } from "./types"
 
-/** An address to try, and which server is expected to answer there. */
 export interface LocalServerCandidate {
   provider: string
   apiHostname: string
@@ -27,18 +18,11 @@ export interface LocalServerCandidate {
   apiProtocol: string
 }
 
-/** A candidate that answered with a model list. */
 export interface DiscoveredServer extends LocalServerCandidate {
   label: string
   models: string[]
 }
 
-/**
- * The servers people run locally, in the order pointer prefers them when
- * more than one answers. Ollama first because it is by far the most
- * common; the OpenAI-compatible catch-all last because its port (8080) is
- * shared with llama.cpp and is claimed by that entry first.
- */
 export const LOCAL_SERVER_PROVIDERS: string[] = [
   API_PROVIDERS.Ollama,
   API_PROVIDERS.LMStudio,
@@ -68,11 +52,6 @@ const sameAddress = (a: LocalServerCandidate, b: LocalServerCandidate) =>
   a.apiPort === b.apiPort &&
   a.apiProtocol === b.apiProtocol
 
-/**
- * Merges extra candidates (a configured Ollama address, say) with the
- * defaults. An extra that shares an address with a default replaces it,
- * keeping the default's position; otherwise it goes first.
- */
 export const candidateList = (
   extras: LocalServerCandidate[] = []
 ): LocalServerCandidate[] => {
@@ -83,11 +62,6 @@ export const candidateList = (
   return [...fresh, ...list]
 }
 
-/**
- * Two candidates can share a port (llama.cpp and the generic entry both
- * default to 8080). When both "answer", it is the same server twice: keep
- * the first by preference.
- */
 export const dedupeServers = (servers: DiscoveredServer[]): DiscoveredServer[] =>
   servers.filter(
     (server, index) => servers.findIndex((s) => sameAddress(s, server)) === index
@@ -96,12 +70,6 @@ export const dedupeServers = (servers: DiscoveredServer[]): DiscoveredServer[] =
 export const describeServer = (server: DiscoveredServer) =>
   `${server.label} at ${server.apiHostname}:${server.apiPort}`
 
-/**
- * The providers a found server can back, one per job it has a suitable
- * model for. A job without one is left out on purpose: pointer then shows
- * it as unset rather than pointing autocomplete at a chat model that will
- * babble, or embeddings at a model that has no vectors.
- */
 export const providersForServer = (
   server: DiscoveredServer,
   makeId: () => string

@@ -26,7 +26,6 @@ export const useProviders = () => {
   const [chatProvider, setChatProvider] = useState<PointerProvider | null>(null)
   const [embeddingProvider, setEmbeddingProvider] =
     useState<PointerProvider | null>(null)
-  /** False until the extension has answered once; the list is unknown before. */
   const [ready, setReady] = useState(false)
 
   useServerEvent(PROVIDER_EVENT_NAME.getAllProviders, (all) => {
@@ -81,23 +80,18 @@ export const useProviders = () => {
     removeProvider: (p: PointerProvider) =>
       emit(PROVIDER_EVENT_NAME.removeProvider, p),
     resetProviders: () => emit(PROVIDER_EVENT_NAME.resetProvidersToDefaults),
-    /** Adds a provider; the reply says whether it was accepted. */
     saveProvider: (p: PointerProvider): Promise<ProviderSaveResult> =>
       bridge.request(PROVIDER_EVENT_NAME.addProvider, p),
     updateProvider: (p: PointerProvider): Promise<ProviderSaveResult> =>
       bridge.request(PROVIDER_EVENT_NAME.updateProvider, p),
-    /** Sends one real request to the provider and reports what happened. */
     testProvider: (p: PointerProvider): Promise<ProviderTestResult> =>
       bridge.request(PROVIDER_EVENT_NAME.testProvider, p).catch(failed),
-    /** Asks the provider's own endpoint which models it serves. */
     listModels: (p: PointerProvider): Promise<ProviderModelList> =>
       bridge
         .request(PROVIDER_EVENT_NAME.listProviderModels, p)
         .catch((error) => ({ models: [], error: failed(error).error })),
-    /** Asks the usual local ports which model servers are running. */
     discoverServers: (): Promise<DiscoveredServer[]> =>
       bridge.request(PROVIDER_EVENT_NAME.discoverProviders).catch(() => []),
-    /** Creates providers for a found server and makes them active. */
     useDiscoveredServer: (server: DiscoveredServer): Promise<PointerProvider[]> =>
       bridge
         .request(PROVIDER_EVENT_NAME.useDiscoveredServer, server)

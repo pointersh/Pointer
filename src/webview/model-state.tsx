@@ -5,11 +5,9 @@ import { ContextFit, ModelStatus, shortTokens } from "../common/model-status"
 
 import styles from "./styles/model-state.module.css"
 
-/** From this share of the context the gauge shows at all. */
 const SHOW_FROM = 0.25
 const RING = 2 * Math.PI * 5
 
-/** How the model sits in memory, in a few words; empty when the server does not say. */
 export const useLoadedLabel = (status: ModelStatus | null): string => {
   const { t } = useTranslation()
   if (!status || status.loaded === undefined) return ""
@@ -21,12 +19,6 @@ export const useLoadedLabel = (status: ModelStatus | null): string => {
   return t("model-loaded-split", { share: Math.round(status.gpuShare * 100) })
 }
 
-/**
- * The two things a local model's user finds out too late, said in the
- * composer's footer before the message goes: the model is not in memory
- * (with a click to load it), and the conversation is close to, or past,
- * what the model is loaded to hold.
- */
 export const ModelState = ({
   status,
   fit,
@@ -40,7 +32,6 @@ export const ModelState = ({
   model?: string
   warming: boolean
   onWarm: () => void
-  /** The empty chat already offers to load the model. */
   hideLoad?: boolean
 }) => {
   const { t } = useTranslation()

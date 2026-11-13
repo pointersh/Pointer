@@ -1,7 +1,3 @@
-/**
- * The tools beyond reading and editing: globs, symbol positions, the
- * read-only git tool (against a real repository) and finding files.
- */
 import * as assert from "node:assert"
 import { execFileSync } from "node:child_process"
 import * as fs from "node:fs"

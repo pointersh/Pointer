@@ -1,8 +1,3 @@
-/**
- * What a starter asks, as a pure function of the file: a short, plain
- * instruction a small local model follows well, with the code attached
- * and cut to what the model's context has room for.
- */
 import type { StarterKind } from "../../common/model-status"
 
 const STARTER: Record<StarterKind, { verb: string; prompt: string }> = {
@@ -23,7 +18,6 @@ const STARTER: Record<StarterKind, { verb: string; prompt: string }> = {
   }
 }
 
-/** The attached code may take this share of the model's context. */
 const CODE_SHARE = 0.5
 const CHARS_PER_TOKEN = 3
 const ASSUMED_WINDOW = 8192

@@ -1,9 +1,3 @@
-/**
- * The empty chat's first questions: one click asks about the open file, or
- * the selection when there is one. Each is a short, plain instruction a
- * small local model follows well, with the code attached and cut to what
- * the model's context has room for.
- */
 import { window, workspace } from "vscode"
 
 import type { StarterKind } from "../../common/model-status"

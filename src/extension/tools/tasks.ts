@@ -1,10 +1,3 @@
-/**
- * The model's own list of steps for work with several parts. It is the
- * one thing the model writes down for itself: the loop keeps it, shows it
- * to the user, and puts it back in front of the model when a reply runs
- * out of steps or a new turn begins, so a small model that has read six
- * files still knows what it set out to do and how far it got.
- */
 import { parseLenientJson, ToolSpec } from "./protocol"
 
 export interface Task {
@@ -54,7 +47,6 @@ const fromLines = (text: string): Task[] =>
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => {
-      // `- [x] step`, `1. [ ] step`, `[X] step`, `✓ step`, or a bare line (still to do).
       const body = line.replace(/^(?:[-*•]|\d+[.)])\s+/, "")
       const box = body.match(/^\[([^\]]?)\]\s*(.*)$/)
       if (box) return { text: box[2].trim(), done: /^[xX✓✔]$/.test(box[1]) }
@@ -64,7 +56,6 @@ const fromLines = (text: string): Task[] =>
     })
     .filter((task) => task.text)
 
-/** The list as the model sent it: checkbox lines, or JSON from a model that prefers it. Undefined when there is nothing in it. */
 export const parseTasks = (raw: string | undefined): Task[] | undefined => {
   const text = raw?.trim()
   if (!text) return undefined
@@ -81,5 +72,4 @@ export const renderTasks = (tasks: Task[]) => tasks.map((task) => `[${task.done 
 export const sameTasks = (a: Task[], b: Task[]) =>
   a.length === b.length && a.every((task, i) => task.text === b[i].text && task.done === b[i].done)
 
-/** `2 of 5 done`. */
 export const tasksProgress = (tasks: Task[]) => `${tasks.filter((task) => task.done).length} of ${tasks.length} done`

@@ -14,9 +14,7 @@ import { emit } from "./messaging"
 
 import styles from "./styles/workspace-context.module.css"
 
-/** Whether the list is open is a preference, not per message. */
 const OPEN_KEY = "pointer.contextPanelOpen"
-/** Lines of a chunk shown before "show all". */
 const PREVIEW_LINES = 4
 
 const readOpen = (): boolean => {
@@ -30,12 +28,9 @@ const readOpen = (): boolean => {
 const writeOpen = (open: boolean) => {
   try {
     localStorage.setItem(OPEN_KEY, open ? "1" : "0")
-  } catch {
-    // A webview without storage just forgets the preference.
-  }
+  } catch {}
 }
 
-/** `src/a/b.ts` as its directory and its name, so the name can stand out. */
 const splitPath = (path: string): [string, string] => {
   const at = path.lastIndexOf("/")
   return at === -1 ? ["", path] : [path.slice(0, at + 1), path.slice(at + 1)]
@@ -51,7 +46,6 @@ const formatScore = (score: number) => score.toFixed(2).replace(/^0/, "")
 const formatSeconds = (ms: number) =>
   ms < 950 ? `${Math.max(ms, 1)}ms` : `${(ms / 1000).toFixed(1)}s`
 
-/** Strips a common indent so a preview of a method body is not all margin. */
 const dedent = (lines: string[]): string[] => {
   const indents = lines
     .filter((line) => line.trim())
@@ -69,7 +63,6 @@ const openAt = (hit: WorkspaceNearMiss) =>
 
 interface HitRowProps {
   hit: WorkspaceHitSummary
-  /** Marks the strongest hit so the eye lands on it first. */
   best: boolean
 }
 
@@ -79,7 +72,6 @@ const HitRow = ({ hit, best }: HitRowProps) => {
   const [dir, name] = splitPath(hit.path)
   const lines = useMemo(() => {
     const all = hit.content.replace(/\s+$/, "").split("\n")
-    // Leading blank lines say nothing about the chunk.
     const first = all.findIndex((line) => line.trim())
     return dedent(first > 0 ? all.slice(first) : all)
   }, [hit.content])
@@ -136,7 +128,6 @@ const HitRow = ({ hit, best }: HitRowProps) => {
   )
 }
 
-/** A hairline meter and the number: how sure the reranker was. */
 const Score = ({ score }: { score: number }) => {
   const { t } = useTranslation()
   const level = score >= 0.5 ? "high" : score >= 0.2 ? "mid" : "low"
@@ -185,20 +176,10 @@ interface WorkspaceContextProps {
   report: WorkspaceSearchReport | undefined
 }
 
-/**
- * The workspace search behind a reply, shown under the "pointer" label:
- * a one-line summary that narrates the search while it runs, and behind
- * it the chunks the model was given, with the reranker's score for each,
- * a few lines of the code, and a click to open the file at that spot.
- *
- * Collapsed by default so a chat with the index on stays a chat; the open
- * state is remembered so someone who wants to see sources always does.
- */
 export const WorkspaceContext = ({ report }: WorkspaceContextProps) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(readOpen)
 
-  // Another panel toggling keeps this one in step.
   useEffect(() => {
     const sync = (event: StorageEvent) => {
       if (event.key === OPEN_KEY) setOpen(readOpen())
@@ -240,7 +221,6 @@ export const WorkspaceContext = ({ report }: WorkspaceContextProps) => {
         })
     }
   })()
-  // Nothing to unfold for a search that found nothing and has no misses.
   const expandable =
     finished &&
     (report.hits.length > 0 || report.nearMisses.length > 0 || !!report.note)

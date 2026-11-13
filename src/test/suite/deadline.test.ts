@@ -1,8 +1,3 @@
-/**
- * The shared deadline: a signal that fires after its time or when its
- * parent does, with the reason the caller chose, and that stops holding
- * the clock once the caller says the work is over.
- */
 import * as assert from "assert"
 
 import { deadline, noAnswer, timeoutSignal } from "../../common/deadline"
@@ -62,7 +57,6 @@ suite("Deadline", () => {
     await tick(30)
     assert.strictEqual(byClock.aborted, true)
     assert.match((byClock.reason as Error).message, /No answer/)
-    // It let go of the parent: aborting it now changes nothing and leaks no listener.
     quiet.abort(new Error("late"))
     assert.match((byClock.reason as Error).message, /No answer/)
   })

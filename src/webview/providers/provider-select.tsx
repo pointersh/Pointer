@@ -30,7 +30,6 @@ export const ProviderSelect = () => {
   const isActiveProviderInList = chatProvider && chatProviders.some(p => p.id === chatProvider.id)
   const effectiveProvider = isActiveProviderInList ? chatProvider : (chatProviders[0] || null)
 
-  // A provider's own model comes first; the catalogue only fills a blank.
   const modelFor = (provider: { provider: string; modelName: string }) =>
     provider.modelName ||
     models[provider.provider as keyof typeof models]?.models?.[0] ||
@@ -46,7 +45,6 @@ export const ProviderSelect = () => {
     }
   }, [chatProvider, chatProviders, isActiveProviderInList])
 
-  // A server is asked what it has; a hosted API's models come from the catalogue.
   const servesModels =
     !!effectiveProvider && usesEndpoint(effectiveProvider.provider, "chat")
   const [endpointModels, setEndpointModels] = React.useState<string[]>([])
@@ -78,8 +76,6 @@ export const ProviderSelect = () => {
     ? endpointModels
     : models[effectiveProvider?.provider as keyof typeof models]?.models || []
 
-  // The active provider is the one source of truth for the model, so this
-  // dropdown and the providers tab always agree.
   const selectedModel = effectiveProvider?.modelName || ""
 
   const handleChangeChatProvider = (e: unknown): void => {

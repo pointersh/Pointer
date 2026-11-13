@@ -21,7 +21,6 @@ interface CodeBlockProps {
 
 const COPIED_MS = 1500
 
-/** Fence names whose contents are a command to run, not a file to edit. */
 const SHELL_FENCES = new Set([
   "bash",
   "sh",
@@ -39,11 +38,6 @@ const SHELL_FENCES = new Set([
   "batch"
 ])
 
-/*
- * react-markdown hands the <code> children as a string most of the time, but a
- * fenced block that contains inline html or entities arrives as an array of
- * nodes. String(array) would join them with commas, so flatten by hand.
- */
 const toText = (node: ReactNode): string => {
   if (node === null || node === undefined || typeof node === "boolean") return ""
   if (typeof node === "string" || typeof node === "number") return String(node)
@@ -62,11 +56,6 @@ interface ActionProps {
   active?: boolean
 }
 
-/*
- * A plain <button>, not a toolkit web component: it lays out the same in
- * every host, and an icon with a word beside it beats a bare glyph nobody
- * can decode at 14px.
- */
 const Action = ({ icon, label, title, onClick, active }: ActionProps) => (
   <button
     type="button"
@@ -114,8 +103,6 @@ export const CodeBlock = (props: CodeBlockProps) => {
 
   const handleInsert = () => emit(EVENT_NAME.pointerInsertAtCursor, code)
 
-  // A fence with nothing in it (a model's stray ``` pair, a stream cut
-  // mid-block) is an empty box with buttons that do nothing.
   if (!code.trim()) return null
 
   return (

@@ -9,7 +9,6 @@ import { bridge, emit } from "./messaging"
 
 import styles from "./styles/reply-changes.module.css"
 
-/** Past this many files the list starts folded, the totals still shown. */
 const OPEN_UP_TO = 6
 
 const undoable = (file: FileChangeView) => !file.undone && !file.noUndo
@@ -23,17 +22,10 @@ const Counts = ({ added, removed }: { added: number; removed: number }) => (
 
 interface ReplyChangesProps {
   changes: ReplyChangesView
-  /** The changes as they stand after an undo, to keep with the message. */
   onUpdate?: (changes: ReplyChangesView) => void
-  /** Says why an undo did not happen. */
   onError?: (message: string) => void
 }
 
-/**
- * The files agent mode changed while writing a reply: each opens beside
- * what it was before the reply, and each, or all, can be put back. Edits
- * apply straight away, so this is how one is taken back.
- */
 export const ReplyChanges = ({ changes, onUpdate, onError }: ReplyChangesProps) => {
   const { t } = useTranslation()
   const [open, setOpen] = useState(changes.files.length <= OPEN_UP_TO)
@@ -43,7 +35,6 @@ export const ReplyChanges = ({ changes, onUpdate, onError }: ReplyChangesProps) 
     { added: 0, removed: 0 }
   )
   const left = changes.files.filter(undoable)
-  // Every file that could be put back has been.
   const allUndone = changes.files.some((file) => file.undone) && changes.files.every((file) => file.undone || file.noUndo)
 
   const undo = async (paths?: string[]) => {

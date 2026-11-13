@@ -11,15 +11,6 @@ import { useLoadedLabel } from "./model-state"
 
 import styles from "./styles/chat.module.css"
 
-/**
- * The transcript before the first message, done as a small CRT coming on:
- * the pane flickers up, the title types itself out under a block cursor,
- * then the line naming the provider and model fades in. It says where a
- * reply will come from; or, with nothing set, where to fix that.
- *
- * Under that, what the model's server says about it (how much it holds,
- * whether it is in memory) and three first questions about the open file.
- */
 export const EmptyChat = ({
   status,
   warming,

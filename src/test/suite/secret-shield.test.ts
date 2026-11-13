@@ -4,8 +4,6 @@ import { SecretShield } from "../../common/secret-shield"
 import { PointerProvider } from "../../common/types"
 import { ChatChunk, InferenceClient, leavesMachine, shieldClient, shouldShield } from "../../extension/inference"
 
-// Built at runtime so the repository never holds anything a secret scanner
-// would flag.
 const GITHUB = "ghp_" + "a1B2c3D4e5".repeat(4)
 const AWS = "AKIA" + "Q7XK2M9P4R8T6W3Z"
 const ANTHROPIC = "sk-" + "ant-api03-" + "Zq8Lr2Nx5Vb7Kd1Hm4Tf"

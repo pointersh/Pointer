@@ -31,11 +31,6 @@ const ACTIVE_EVENTS = {
   embedding: PROVIDER_EVENT_NAME.getActiveEmbeddingsProvider
 } as const
 
-/**
- * The webview's window onto the provider list: every add, edit, switch,
- * test and import comes through here, and every change is announced back.
- * Storage itself is `ProviderStore`, which activation also uses.
- */
 export class ProviderManager {
   private readonly _store: ProviderStore
   private readonly _bridge: ExtensionBridge
@@ -48,8 +43,6 @@ export class ProviderManager {
   }
 
   private async _initialize(): Promise<void> {
-    // First-run discovery may still be probing; showing an empty list it
-    // is about to fill would send the person off to configure by hand.
     await whenProviderSetupDone()
     await this._store.repairActive()
     await this.broadcastProviders()
@@ -84,9 +77,6 @@ export class ProviderManager {
     })
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Reading                                                                  */
-  /* ------------------------------------------------------------------------ */
 
   public getProviders() {
     return this._store.getProviders()
@@ -126,15 +116,7 @@ export class ProviderManager {
     )
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Active providers                                                         */
-  /* ------------------------------------------------------------------------ */
 
-  /**
-   * Makes a provider the one used for a job. A model picked along the way
-   * (the chat header's dropdown) becomes the provider's model: there is one
-   * entry and one model, whichever picker last changed it.
-   */
   public async setActiveProvider(
     type: ProviderType,
     provider?: PointerProvider
@@ -164,11 +146,7 @@ export class ProviderManager {
     return this.setActiveProvider("embedding", provider)
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Discovery                                                                */
-  /* ------------------------------------------------------------------------ */
 
-  /** The providers tab's "use this one" on a server discovery found. */
   public async useDiscoveredServer(
     server?: DiscoveredServer
   ): Promise<PointerProvider[]> {
@@ -179,11 +157,6 @@ export class ProviderManager {
     return providers
   }
 
-  /**
-   * Starts over: clears everything, which puts the tab back on its welcome.
-   * The welcome then searches for local servers and offers what it finds,
-   * so a reset looks exactly like a first run.
-   */
   public async resetProvidersToDefaults(): Promise<void> {
     for (const type of PROVIDER_TYPES)
       await this._store.setActive(type, undefined)
@@ -193,9 +166,6 @@ export class ProviderManager {
     this.focusProviderTab()
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  CRUD                                                                     */
-  /* ------------------------------------------------------------------------ */
 
   private _prepare(input?: PointerProvider): ProviderSaveResult {
     if (!input) return { success: false, errors: { id: "No provider given." } }
@@ -234,8 +204,6 @@ export class ProviderManager {
 
     for (const type of PROVIDER_TYPES) {
       if (this._store.getActive(type)?.id !== provider.id) continue
-      // Changing a provider's type leaves its old role without an active
-      // entry; the same rules as a delete apply there.
       if (asType(provider.type) === type) {
         await this._store.setActive(type, provider)
       } else {
@@ -278,9 +246,6 @@ export class ProviderManager {
     await this.broadcastProviders()
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Import / export                                                          */
-  /* ------------------------------------------------------------------------ */
 
   public async importProviders(): Promise<void> {
     const fileUris = await window.showOpenDialog({
@@ -303,7 +268,6 @@ export class ProviderManager {
       return
     }
 
-    // Accept the exported shape (an object keyed by id) and a plain array.
     const entries: unknown[] = Array.isArray(parsed)
       ? parsed
       : parsed && typeof parsed === "object"
@@ -327,7 +291,6 @@ export class ProviderManager {
         )
         continue
       }
-      // Keep ids so re-importing the same file updates rather than duplicates.
       if (!provider.id) provider.id = uuidv4()
       providers[provider.id] = provider
       imported++

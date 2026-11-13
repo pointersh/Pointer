@@ -8,11 +8,9 @@ import styles from "../styles/providers.module.css"
 interface Props {
   result: ProviderTestResult | null
   pending?: boolean
-  /** Show the full explanation, not just the one-word state. */
   verbose?: boolean
 }
 
-/** The outcome of a live test, as a compact status line. */
 export const ProviderTestBadge = ({ result, pending, verbose }: Props) => {
   const { t } = useTranslation()
 

@@ -1,8 +1,3 @@
-/**
- * OpenAI's Responses API, as pointer speaks it for tool conversations:
- * the conversation mapped to input items, and the event stream read back
- * as text, tool calls and usage. Run against a local fake server.
- */
 import * as assert from "node:assert"
 import * as http from "node:http"
 import { AddressInfo } from "node:net"
@@ -55,7 +50,6 @@ const serve = async (reply: (body: Record<string, unknown>) => { status: number;
       received.push({ ...body, url: req.url, auth: req.headers.authorization })
       const { status, body: text } = reply(body)
       res.writeHead(status, { "Content-Type": status === 200 ? "text/event-stream" : "application/json" })
-      // Split mid-event to check the reader joins chunks.
       res.write(text.slice(0, 40))
       setTimeout(() => res.end(text.slice(40)), 5)
     })

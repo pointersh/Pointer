@@ -39,24 +39,19 @@ export interface InlineEditArgs {
   uri?: vscode.Uri | string
   range?: vscode.Range
   instruction?: string
-  /** Preset commands (refactor, add types) need something to work on. */
   requireSelection?: boolean
 }
 
-/** What the CodeLens needs to know about the edit in a document. */
 export type { Hunk } from "./region"
 
-/** Whether the chat's edits go straight into files or wait for review. */
 export type ChatEditMode = "apply" | "review"
 
-/** What became of a chat edit; `pending` while it waits for review. */
 export interface ChatEditOutcome {
   ok: boolean
   message: string
   pending?: boolean
 }
 
-/** A whole-lines replacement in a file on disk, from the chat's `edit_file` tool. */
 export interface FileEditProposal {
   file: string
   startLine: number
@@ -65,12 +60,6 @@ export interface FileEditProposal {
   text: string
 }
 
-/** With a folder open, a chat edit stays inside it. */
-/**
- * Whole lines taken out, line break and all: the next line's start when
- * there is one, else from the end of the line before, so no blank line is
- * left where they were.
- */
 const removedLines = (document: vscode.TextDocument, lines: vscode.Range): vscode.Range => {
   if (lines.end.line + 1 < document.lineCount) return new vscode.Range(lines.start.line, 0, lines.end.line + 1, 0)
   if (lines.start.line > 0) {
@@ -85,21 +74,15 @@ const outsideWorkspace = (uri: vscode.Uri) =>
 export interface PendingEditInfo {
   line: number
   streaming: boolean
-  /** First line of each hunk, in order. */
   hunks: number[]
 }
 
-/** One request to the model whose answer streams into a region. */
 interface Generation {
   region: DiffRegion
   messages: ChatCompletionMessage[]
-  /** The region's proposed text for what the model has said so far. */
   preview: (reply: string) => string
-  /** The region's proposed text for the complete reply. */
   finalize: (reply: string) => string
-  /** For the log and the messages: "edit" or "tests". */
   what: string
-  /** The log line describing the request. */
   describe: string
 }
 
@@ -108,16 +91,6 @@ const REVIEW_HINT = mac
   ? "Pointer: review the edit — ⌘⇧↩ accepts, ⌘⇧⌫ rejects"
   : "Pointer: review the edit — Ctrl+Shift+Enter accepts, Ctrl+Shift+Backspace rejects"
 
-/**
- * Rewrites a region of the active editor to an instruction, as a diff the
- * user accepts or rejects.
- *
- * The model's reply streams into the document as it arrives, laid out as
- * a merged diff: lines the rewrite drops stay visible and turn red, lines
- * it adds appear green. When the stream ends the diff waits for a verdict.
- * Accepting deletes the red lines, rejecting deletes the green ones; either
- * way the whole thing is one undo step. Only one edit exists at a time.
- */
 export class InlineEditService extends Base {
   private _run?: GenerationRun
   private _pending?: DiffRegion
@@ -156,7 +129,6 @@ export class InlineEditService extends Base {
     this._addedWords.dispose()
   }
 
-  /** The edit waiting in `document`, if any; drives the CodeLens. */
   public pendingFor(document: vscode.TextDocument): PendingEditInfo | undefined {
     const pending = this._pending
     if (!pending || pending.document !== document) return undefined
@@ -167,7 +139,6 @@ export class InlineEditService extends Base {
     }
   }
 
-  /** The command's entry point: resolve the editor and range, ask, run. */
   public async run(args?: InlineEditArgs) {
     if (this.running) {
       vscode.window.showInformationMessage(
@@ -178,7 +149,6 @@ export class InlineEditService extends Base {
     const provider = await this.requireProvider()
     if (!provider) return
 
-    // A pending diff is refined: the instruction applies to the proposal.
     const pending = this._pending
     if (pending) {
       const editor = await this.editorFor(pending.document)
@@ -209,12 +179,6 @@ export class InlineEditService extends Base {
     await this.edit(editor, new DiffRegion(editor, range), instruction, provider)
   }
 
-  /**
-   * Put a piece of code from the chat into the active editor for review.
-   * A selection is replaced. Without one the snippet is matched against the
-   * file and shown over the stretch it rewrites; a snippet that matches
-   * nothing is inserted at the cursor.
-   */
   public async propose(code: string) {
     if (this.running || this._pending) {
       vscode.window.showInformationMessage(
@@ -273,13 +237,6 @@ export class InlineEditService extends Base {
     logger.info(`Applied chat code ${how} in ${vscode.workspace.asRelativePath(document.uri)}`)
   }
 
-  /**
-   * A chat tool's search-and-replace. `apply` writes it into the file and
-   * saves, leaving the file open behind the chat so the change is visible
-   * and Ctrl+Z undoes it; `review` shows it as a pending diff to accept or
-   * reject, and nothing changes until the user decides. Resolves to what
-   * the model is told, since it cannot see the editor.
-   */
   public async chatEdit(
     proposal: FileEditProposal,
     mode: ChatEditMode = "apply"
@@ -287,8 +244,6 @@ export class InlineEditService extends Base {
     const pending = this._pending
     const uri = vscode.Uri.file(proposal.file)
     const relative = vscode.workspace.asRelativePath(uri)
-    // The tools keep to the workspace themselves; the command that reaches
-    // this can be run by anything, so it holds the line too.
     if (outsideWorkspace(uri)) {
       return { ok: false, message: `Not changed: ${relative} is outside the workspace.` }
     }
@@ -322,7 +277,6 @@ export class InlineEditService extends Base {
       }
       const saved = await document.save()
       const editor = await vscode.window.showTextDocument(document, { preview: true, preserveFocus: true })
-      // Lines taken out from the end leave fewer lines than the edit started at.
       const lastLine = document.lineCount - 1
       const start = Math.min(proposal.startLine, lastLine)
       const end = Math.min(lastLine, Math.max(start, proposal.startLine + proposal.text.split("\n").length - 1))
@@ -352,12 +306,6 @@ export class InlineEditService extends Base {
     }
   }
 
-  /**
-   * A chat tool's new file. `apply` creates it (folders included) through a
-   * workspace edit and leaves it open behind the chat; `review` opens it
-   * unsaved at its path with the content as a pending diff, so accepting
-   * and saving puts it there and rejecting leaves nothing behind.
-   */
   public async chatCreate(
     file: string,
     content: string,
@@ -407,13 +355,6 @@ export class InlineEditService extends Base {
     }
   }
 
-  /**
-   * Write tests for the selection (or the whole file) into the file's test
-   * file, opened beside it. A test file that does not exist yet opens
-   * untitled with its path, so nothing lands on disk until it is saved;
-   * one that exists gets the new tests appended. Either way the tests
-   * stream in as a diff to accept or reject, like an edit.
-   */
   public async writeTests() {
     if (this.running || this._pending) {
       vscode.window.showInformationMessage(
@@ -492,17 +433,14 @@ export class InlineEditService extends Base {
     })
   }
 
-  /** Keep the rewrite, or one hunk of it: delete the lines it replaced. */
   public accept(hunk?: number) {
     return this.resolve("accept", hunk)
   }
 
-  /** Discard the rewrite, or one hunk of it: delete the lines it added. */
   public reject(hunk?: number) {
     return this.resolve("reject", hunk)
   }
 
-  /* ------------------------------------------------------------------------ */
 
   private async resolve(verdict: "accept" | "reject", hunk?: number) {
     const pending = this._pending
@@ -551,11 +489,6 @@ export class InlineEditService extends Base {
     return visible ?? vscode.window.showTextDocument(document)
   }
 
-  /**
-   * The test file in an editor beside the source. An existing file opens
-   * as itself; a new one opens untitled at that path, so saving it puts
-   * it there and rejecting the tests leaves nothing behind.
-   */
   private async openTestFile(
     target: vscode.Uri,
     languageId: string,
@@ -571,8 +504,6 @@ export class InlineEditService extends Base {
     if (!exists && document.languageId !== languageId) {
       await vscode.languages.setTextDocumentLanguage(document, languageId)
     }
-    // Beside means the group next to the active one, so make sure the
-    // source is the active editor first.
     if (vscode.window.activeTextEditor !== source) {
       await vscode.window.showTextDocument(source.document, source.viewColumn)
     }
@@ -582,7 +513,6 @@ export class InlineEditService extends Base {
     })
   }
 
-  /** The dependencies of the nearest package.json above a file. */
   private dependenciesNear(filePath: string): string[] {
     let dir = path.dirname(filePath)
     for (let depth = 0; depth < 12; depth++) {
@@ -601,10 +531,6 @@ export class InlineEditService extends Base {
     return []
   }
 
-  /**
-   * An untitled test file with nothing left in it is closed rather than
-   * left behind asking to be saved.
-   */
   private async closeIfEmptyUntitled(document: vscode.TextDocument) {
     if (!document.isUntitled || document.getText().trim()) return
     const editor = vscode.window.visibleTextEditors.find(
@@ -630,7 +556,6 @@ export class InlineEditService extends Base {
     return vscode.window.showTextDocument(document)
   }
 
-  /** The selection widened to full lines; an empty selection is its line. */
   private wholeLines(
     document: vscode.TextDocument,
     range: vscode.Range
@@ -676,11 +601,6 @@ export class InlineEditService extends Base {
     return value?.trim() || undefined
   }
 
-  /**
-   * Rewrite `region` to an instruction. A fresh region edits the
-   * selection; a pending one edits its proposal, and the diff keeps
-   * showing against what was there before.
-   */
   private async edit(
     editor: vscode.TextEditor,
     region: DiffRegion,
@@ -733,11 +653,6 @@ export class InlineEditService extends Base {
     })
   }
 
-  /**
-   * Ask the model and stream the answer into the generation's region as
-   * a diff against what the region shows now, then hand it over for a
-   * verdict. Nothing changes if the model has nothing to add.
-   */
   private async generate(provider: PointerProvider, generation: Generation) {
     const { region, messages, what } = generation
     const { baseline, proposed } = region.sides()
@@ -768,7 +683,6 @@ export class InlineEditService extends Base {
           this.decorate()
         }
       } catch (error) {
-        // The user stopped it; the checks below put the region back.
         if (!isCancelled(error)) throw error
       }
 
@@ -818,7 +732,6 @@ export class InlineEditService extends Base {
     }
   }
 
-  /** Hand the rendered diff over to the user for a verdict. */
   private present() {
     this.decorate()
     void vscode.commands.executeCommand(
@@ -830,7 +743,6 @@ export class InlineEditService extends Base {
     vscode.window.setStatusBarMessage(REVIEW_HINT, 8000)
   }
 
-  /** Put the region back the way it was before a request started. */
   private async rewind(region: DiffRegion, snapshot: DiffLayout) {
     await region.render(snapshot)
     if (region.done) {
@@ -843,7 +755,6 @@ export class InlineEditService extends Base {
     this._emitter.fire()
   }
 
-  /** Paint the pending diff in every editor showing its document. */
   private decorate() {
     const pending = this._pending
     for (const editor of vscode.window.visibleTextEditors) {
@@ -879,7 +790,7 @@ export class InlineEditService extends Base {
       this._emitter.fire()
       return
     }
-    if (this.running) return // the stream loop reports it
+    if (this.running) return
     this.clearPending()
     if (!undo) {
       vscode.window.setStatusBarMessage(

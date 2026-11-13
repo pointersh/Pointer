@@ -1,10 +1,3 @@
-/**
- * Shared parser for OpenAI Responses API server-sent events.
- *
- * Request policy intentionally lives in each adapter; only transport/event
- * parsing is shared because the Responses API callers accept different
- * request fields.
- */
 export interface ResponsesEvent {
   type: string
   code?: string | null
@@ -20,7 +13,6 @@ export interface ResponsesEvent {
   error?: { code?: string; message?: string }
 }
 
-/** One parsed `data:` payload at a time. */
 export async function* responseEvents(
   body: ReadableStream<Uint8Array>
 ): AsyncGenerator<ResponsesEvent> {
@@ -31,7 +23,6 @@ export async function* responseEvents(
       const { value, done } = await reader.read()
       if (done) break
       buffer += value
-      // SSE permits CRLF; normalize before looking for blank-line separators.
       buffer = buffer.replace(/\r\n/g, "\n")
       let split: number
       while ((split = buffer.indexOf("\n\n")) !== -1) {
@@ -45,10 +36,7 @@ export async function* responseEvents(
         if (!data || data === "[DONE]") continue
         try {
           yield JSON.parse(data) as ResponsesEvent
-        } catch {
-          // Ignore a malformed event; a later terminal event still decides
-          // whether the whole response succeeded.
-        }
+        } catch {}
       }
     }
   } finally {

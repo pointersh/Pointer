@@ -5,7 +5,6 @@ const execAsync = util.promisify(exec)
 
 const MAX_BUFFER = 32 * 1024 * 1024
 
-/** Run git in a folder and return stdout; throws on a non-zero exit. */
 export const runGit = async (cwd: string, args: string): Promise<string> => {
   const { stdout } = await execAsync(`git ${args}`, {
     cwd,
@@ -14,7 +13,6 @@ export const runGit = async (cwd: string, args: string): Promise<string> => {
   return stdout
 }
 
-/** Like `runGit` but a failure yields undefined instead of throwing. */
 const tryGit = async (cwd: string, args: string): Promise<string | undefined> =>
   runGit(cwd, args).then(
     (out) => out,
@@ -43,11 +41,6 @@ export interface GitHubRemote {
   repo: string
 }
 
-/**
- * Owner and repository from a GitHub remote URL, in any of the forms git
- * accepts: https, ssh (`git@github.com:o/r.git`), or `ssh://git@github.com/o/r`.
- * Undefined for non-GitHub remotes.
- */
 export const parseGitHubRemote = (url: string): GitHubRemote | undefined => {
   const match =
     /(?:^|[/@])github\.com[/:]([^/\s]+)\/([^/\s]+?)(?:\.git)?\/?$/i.exec(url.trim())
@@ -55,13 +48,11 @@ export const parseGitHubRemote = (url: string): GitHubRemote | undefined => {
   return { owner: match[1], repo: match[2] }
 }
 
-/** The GitHub project this checkout pushes to, if its remote is on GitHub. */
 export const getGitHubRemote = async (
   cwd: string
 ): Promise<GitHubRemote | undefined> => {
   const origin = await tryGit(cwd, "remote get-url origin")
   if (origin?.trim()) return parseGitHubRemote(origin)
-  // No origin: take the first remote that is on GitHub.
   const remotes = (await tryGit(cwd, "remote -v")) || ""
   for (const line of remotes.split("\n")) {
     const url = line.split(/\s+/)[1]
@@ -71,7 +62,6 @@ export const getGitHubRemote = async (
   return undefined
 }
 
-/** `origin/main` or similar, from the remote's HEAD when git knows it. */
 const getRemoteDefaultBranch = async (
   cwd: string
 ): Promise<string | undefined> => {
@@ -80,11 +70,6 @@ const getRemoteDefaultBranch = async (
   return name || undefined
 }
 
-/**
- * The branch a feature branch is most likely to merge into: the remote's
- * default branch when known, otherwise the first of the usual names that
- * exists and is not the branch we are on.
- */
 export const detectBaseBranch = async (
   cwd: string
 ): Promise<string | undefined> => {
@@ -102,21 +87,17 @@ export const detectBaseBranch = async (
   return undefined
 }
 
-/** Staged and unstaged changes to tracked files, in one diff. */
 export const getWorkingTreeDiff = async (cwd: string): Promise<string> => {
   const hasHead = await tryGit(cwd, "rev-parse --verify --quiet HEAD")
   if (hasHead?.trim()) return runGit(cwd, "diff HEAD")
-  // No commits yet: only the index can be diffed.
   return runGit(cwd, "diff --cached")
 }
 
-/** Everything this branch adds on top of where it forked from `base`. */
 export const getBranchDiff = async (
   cwd: string,
   base: string
 ): Promise<string> => runGit(cwd, `diff ${base}...HEAD`)
 
-/** Number of files a diff command would touch, without fetching the diff. */
 export const countChangedFiles = async (
   cwd: string,
   args: string
@@ -126,10 +107,6 @@ export const countChangedFiles = async (
   return out.split("\n").filter((line) => line.trim()).length
 }
 
-/**
- * Cut a diff down to size at a hunk or file boundary so the model never sees
- * half a change, and say so at the end so it knows the picture is partial.
- */
 export const truncateDiff = (diff: string, maxChars = 24_000): string => {
   if (diff.length <= maxChars) return diff
   const head = diff.slice(0, maxChars)

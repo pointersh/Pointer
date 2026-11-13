@@ -1,8 +1,3 @@
-/**
- * A fake Ollama for gateway tests: speaks the generate, chat and embed
- * dialects, records what it was asked, and can stall on request so
- * cancellation paths are reachable. Nothing here needs a model.
- */
 import * as http from "http"
 import { AddressInfo } from "net"
 
@@ -10,7 +5,6 @@ export interface BackendRequest {
   path: string
   model?: string
   authorization?: string
-  /** Set when the gateway dropped the connection before the reply finished. */
   cancelled: boolean
   body?: Record<string, unknown>
 }
@@ -21,10 +15,8 @@ export interface Backend {
   close(): Promise<void>
 }
 
-/** A prompt or message containing this never gets its reply. */
 export const STALL = "STALL"
 
-/** A chat containing this is refused when it offers tools, the way Ollama refuses a model without them. */
 export const NO_TOOLS = "NOTOOLS"
 
 export const startBackend = (): Promise<Backend> =>
@@ -34,7 +26,6 @@ export const startBackend = (): Promise<Backend> =>
       let text = ""
       req.on("data", (chunk) => (text += chunk))
       req.on("end", () => {
-        // Listings answer the gateway's health probes; they are not inference.
         if (req.url === "/api/tags") {
           res.writeHead(200, { "Content-Type": "application/json" })
           res.end(JSON.stringify({ models: [{ name: "backend-coder:7b" }, { name: "backend-embed" }] }))
@@ -87,7 +78,6 @@ export const startBackend = (): Promise<Backend> =>
               choices: [{ index: 0, delta: { content }, finish_reason: null }]
             })}\n\n`
           const messages = (Array.isArray(body.messages) ? body.messages : []) as Array<{ role?: string }>
-          // Offered tools and not yet answered by one: read a file, or call whatever comes first.
           if (Array.isArray(body.tools) && body.tools.length && !messages.some((m) => m.role === "tool")) {
             const names = (body.tools as Array<{ function: { name: string } }>).map((entry) => entry.function.name)
             const tool = names.includes("read_file") ? "read_file" : names[0]

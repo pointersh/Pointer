@@ -1,12 +1,3 @@
-/**
- * Live checks against a provider: "does this configuration actually answer?"
- * and "which models does it serve?".
- *
- * Both go through the inference layer, so a probe exercises exactly the
- * adapter the feature will use. Every function resolves — failures come
- * back as a result, never as a rejection — because the caller is a UI that
- * wants to show the reason, not a stack trace.
- */
 import { deadline } from "../../common/deadline"
 import {
   ProviderModelList,
@@ -23,9 +14,6 @@ const PROBE_TIMEOUT_MS = 20_000
 const FIM_PROBE_PROMPT = "def add(a, b):\n    return"
 const EMBED_PROBE_INPUT = "hello"
 
-/* -------------------------------------------------------------------------- */
-/*  Testing                                                                   */
-/* -------------------------------------------------------------------------- */
 
 const testChat = (
   client: InferenceClient,
@@ -43,13 +31,6 @@ const testChat = (
     )
   )
 
-/**
- * Sends the same request the completion provider will send and reads the
- * first streamed chunk. Whether a real token came back is what tells the
- * user their model and template are wired up, not just that the port is
- * open. Stopping after one chunk cancels the stream so the server does not
- * keep generating for a probe.
- */
 const testFim = async (
   client: InferenceClient,
   provider: PointerProvider,
@@ -114,11 +95,7 @@ export const testProvider = async (
   }
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Listing models                                                            */
-/* -------------------------------------------------------------------------- */
 
-/** Asks the provider what it has, for the model dropdown. */
 export const listProviderModels = async (
   provider: PointerProvider,
   signal?: AbortSignal

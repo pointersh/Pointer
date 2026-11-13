@@ -19,17 +19,8 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>
 }
 
-/** How long a `request()` waits before giving up. */
 const REQUEST_TIMEOUT_MS = 30_000
 
-/**
- * The webview's half of the message bus.
- *
- * There is exactly one `window.addEventListener("message")` in the whole UI —
- * this one. Components and hooks subscribe to named channels instead, so
- * adding a listener costs a map insert rather than another global listener
- * with its own switch statement and its own cleanup to forget.
- */
 class WebviewBridge {
   private readonly _listeners = new Map<string, Set<Listener>>()
   private readonly _pending = new Map<string, Pending>()
@@ -40,20 +31,12 @@ class WebviewBridge {
     window.addEventListener("message", this._receive)
   }
 
-  /** Fire and forget. */
   public emit<K extends VoidPayloadEvent>(type: K): void
   public emit<K extends ClientEventName>(type: K, payload: PayloadOf<K>): void
   public emit(type: string, payload?: unknown): void {
     this._vscode.postMessage({ type, data: payload } satisfies Envelope)
   }
 
-  /**
-   * Ask the extension a question and await *this* call's answer.
-   *
-   * The correlation id is what makes concurrent reads of different storage
-   * keys safe; the old code approximated it by baking the key into the
-   * channel name.
-   */
   public request<K extends RequestableEvent & VoidPayloadEvent>(
     type: K
   ): Promise<ReplyOf<K>>
@@ -75,7 +58,6 @@ class WebviewBridge {
     })
   }
 
-  /** Listen to a channel the extension pushes on. Returns an unsubscribe. */
   public on<K extends ServerEventName>(
     type: K,
     listener: (data: ServerPayloadOf<K>) => void
@@ -105,16 +87,10 @@ class WebviewBridge {
       }
     }
 
-    // Iterate a copy: a listener is allowed to unsubscribe itself.
     this._listeners.get(message.type)?.forEach((listener) => {
       listener(message.data)
     })
   }
 }
 
-/**
- * The webview is a single document with a single VS Code API handle —
- * `acquireVsCodeApi()` throws if called twice — so the bridge is a module
- * singleton by necessity as well as by design.
- */
 export const bridge = new WebviewBridge()

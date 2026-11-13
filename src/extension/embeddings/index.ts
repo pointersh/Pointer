@@ -16,15 +16,8 @@ import { workspaceIndexPath } from "./storage"
 
 export { Hit, SearchOptions } from "./search"
 
-/** Saves are re-indexed this long after the last one to a file. */
 const SAVE_DEBOUNCE_MS = 1500
 
-/**
- * Everything the workspace index is made of, built once for the life of
- * the extension: the store, the embedder, the reranker (an 87 MB model,
- * loaded once), the indexer and the search over them. Also keeps the index
- * current as files are saved and deleted, when that setting is on.
- */
 export class WorkspaceIndex implements vscode.Disposable {
   public readonly db: EmbeddingDatabase
   public readonly embedder: Embedder
@@ -37,7 +30,6 @@ export class WorkspaceIndex implements vscode.Disposable {
   private readonly _pendingSaves = new Map<string, NodeJS.Timeout>()
   private _running = false
 
-  /** Fires after a background update changed what is indexed. */
   public readonly onDidChange = this._changed.event
 
   private constructor(
@@ -72,12 +64,6 @@ export class WorkspaceIndex implements vscode.Disposable {
     )
   }
 
-  /**
-   * Opens an isolated index for the current workspace. Returns
-   * nothing when there is no workspace or the store cannot be opened; the
-   * rest of the extension must still come up, only the embeddings tab goes
-   * without.
-   */
   public static async open(
     context: vscode.ExtensionContext
   ): Promise<WorkspaceIndex | undefined> {
@@ -100,7 +86,6 @@ export class WorkspaceIndex implements vscode.Disposable {
     }
   }
 
-  /** Set by the service while a full run is going, so saves wait. */
   public set running(value: boolean) {
     this._running = value
   }

@@ -1,16 +1,13 @@
 import { getWorkingTreeDiff, isGitRepository, runGit, truncateDiff } from "../git"
 
-/** A small model gets far less of the diff than the review feature sends. */
 export const GIT_CONTEXT_MAX_CHARS = 16000
 
 export interface GitSnapshot {
   branch: string
-  /** `git status --short`, one entry per line. */
   status: string
   diff: string
 }
 
-/** The block an `@git` mention puts in the prompt. */
 export const formatGitSnapshot = (
   snapshot: GitSnapshot,
   maxChars = GIT_CONTEXT_MAX_CHARS
@@ -31,7 +28,6 @@ export const formatGitSnapshot = (
   return parts.join("\n\n")
 }
 
-/** The working tree as the model should see it, or undefined outside git. */
 export const getGitContext = async (
   cwd: string
 ): Promise<string | undefined> => {

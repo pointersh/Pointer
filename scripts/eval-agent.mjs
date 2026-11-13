@@ -1,20 +1,4 @@
 #!/usr/bin/env node
-/**
- * How well a local model does agent work with pointer's tools, on a small
- * project made for the purpose: nothing in it is in any model's training
- * data or names its own answers. Each task is checked by running code, and
- * the report says what it cost: steps, requests, tokens sent and seconds.
- *
- *   npx tsc -p . --outDir out
- *   node scripts/eval-agent.mjs [model] [--runs 3] [--only native,text] [--tasks fix-bug,rename]
- *   node scripts/eval-agent.mjs [model] --context 8192      (plan for a context this small)
- *   node scripts/eval-agent.mjs [model] --out .claude/eval/out-base   (another build, to compare)
- *   node scripts/eval-agent.mjs [model] --json results.json
- *   node scripts/eval-agent.mjs [model] --keep failures/   (each failed attempt's calls and diff, to read)
- *
- * Compare two builds on the same model with the same --runs; one run of a
- * task swings too much to read anything into.
- */
 import { execFileSync } from "node:child_process"
 import crypto from "node:crypto"
 import fs from "node:fs"
@@ -42,7 +26,6 @@ const runs = Number(flag("runs", "1"))
 const modes = flag("only", "native,text").split(",")
 const wanted = flag("tasks", "")
 const jsonFile = flag("json", "")
-/** Where failed attempts are written out in full, when given. */
 const keepDir = flag("keep", "") && path.resolve(flag("keep", ""))
 
 const provider = {
@@ -57,7 +40,6 @@ const provider = {
   apiPath: base.pathname
 }
 
-/** The context the model is loaded with, as Ollama says once it has answered a request. */
 const loadedContext = async () => {
   try {
     const client = resolveInferenceProvider(provider)
@@ -70,9 +52,7 @@ const loadedContext = async () => {
 }
 const contextTokens = Number(flag("context", "0")) || (await loadedContext()) || 32768
 
-// --- The project -----------------------------------------------------------
 
-/** A long module: sixty small functions, with the one the task is about four fifths of the way down. */
 const ordersSource = () => {
   const parts = [
     "\"use strict\"",
@@ -296,12 +276,10 @@ const makeProject = () => {
   return dir
 }
 
-// --- Checks ----------------------------------------------------------------
 
 const read = (dir, file) => (fs.existsSync(path.join(dir, file)) ? fs.readFileSync(path.join(dir, file), "utf8") : "")
 const hash = (text) => crypto.createHash("sha1").update(text).digest("hex")
 
-/** Runs a snippet in the project; true when it exits cleanly. */
 const passes = (dir, script) => {
   try {
     execFileSync("node", ["-e", script], { cwd: dir, stdio: "pipe", timeout: 30_000 })
@@ -320,7 +298,6 @@ const testsPass = (dir) => {
   }
 }
 
-/** How many tests fail, or 99 when the run itself breaks. */
 const failingTests = (dir) => {
   let output = ""
   try {
@@ -334,7 +311,6 @@ const failingTests = (dir) => {
 
 const unchanged = (dir, file) => hash(read(dir, file)) === hash(FILES[file])
 
-/** Each task: what is asked, and what is wrong with the result (nothing, when it is right). */
 const TASKS = [
   {
     id: "fix-bug",
@@ -370,7 +346,6 @@ const TASKS = [
         ...(passes(dir, "const o=require('./src/orders');const r=require('./src/receipt');const {Cart}=require('./src/cart');if(o.summarise({id:'A',lines:[]}).label!=='A: £0.00')process.exit(1);r.receiptLines(new Cart().addItem('a',100))")
           ? []
           : ["a module broke"]),
-        // The coupon bug is still in the project and fails its one test; nothing else may.
         ...(failingTests(dir) <= 1 ? [] : ["tests fail"])
       ]
     }
@@ -385,7 +360,6 @@ const TASKS = [
       ...(/removeItem/.test(read(dir, "test/cart.test.js")) ? [] : ["no test added"]),
       ...((read(dir, "test/cart.test.js").match(/\btest\(/g) ?? []).length >= 4 ? [] : ["a test was lost"]),
       ...(/removeItem/.test(read(dir, "README.md")) ? [] : ["README not updated"]),
-      // The coupon bug is still in the project, so its test fails either way; the new one must not.
       ...(passes(dir, "const {execFileSync}=require('child_process');let o='';try{o=execFileSync('node',['--test'],{stdio:'pipe'}).toString()}catch(e){o=String(e.stdout)}if(!/# pass [3-9]/.test(o)||!/# fail [01]\\b/.test(o))process.exit(1)")
         ? []
         : ["the new test fails"])
@@ -409,7 +383,6 @@ const TASKS = [
   },
   {
     id: "long-chat",
-    // The same small change, asked at the end of a conversation longer than the model's context.
     ask: "Now set all three timeouts in src/config.js (connect, read and write) to 30000. Leave everything else as it is.",
     history: true,
     check: (dir) =>
@@ -422,7 +395,6 @@ const TASKS = [
   }
 ].filter((task) => !wanted || wanted.split(",").includes(task.id))
 
-/** Earlier turns about the project, a third more than the context holds. */
 const longHistory = () => {
   const source = ordersSource()
   const functions = source.split(/\n(?=\/\*\*)/).slice(1)
@@ -442,12 +414,10 @@ const longHistory = () => {
   return turns
 }
 
-// --- Running ---------------------------------------------------------------
 
 const SYSTEM =
   "You are pointer, a coding assistant in the user's editor. The user's workspace is a small JavaScript library. Be brief and precise."
 
-/** Edits as the editor takes them with `pointer.chatToolsEdits` set to `apply`: written straight away. */
 const applyingSink = (log) => ({
   mode: "apply",
   async edit(file, replacement) {
@@ -465,7 +435,6 @@ const applyingSink = (log) => ({
   }
 })
 
-/** Commands as `allow` mode runs them: straight away, in the project. */
 const commandRunner = (dir, ran) => ({
   mode: "allow",
   async run(command) {
@@ -479,7 +448,6 @@ const commandRunner = (dir, ran) => ({
   }
 })
 
-/** A failed attempt written out for reading: every call with its result, then what the project ended up as. */
 const keepFailure = (task, mode, dir, steps, why, text) => {
   fs.mkdirSync(keepDir, { recursive: true })
   let diff = ""
@@ -525,7 +493,6 @@ const attempt = async (task, mode) => {
   let text = ""
   try {
     const messages = [{ role: "system", content: SYSTEM }, ...(task.history ? longHistory() : []), { role: "user", content: task.ask }]
-    // No reply is worth more than five minutes: one that runs on is a failure, not a hang.
     for await (const chunk of chat.chat({ model, messages }, { signal: AbortSignal.timeout(300_000) })) text += chunk.content
   } catch (error) {
     text += `\n[error: ${error.message}]`

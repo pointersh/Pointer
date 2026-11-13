@@ -24,7 +24,6 @@ const LIVE_LINES = 8
 
 const lastLines = (text: string, count: number) => text.trimEnd().split("\n").slice(-count).join("\n")
 
-/** `a \`b\` c` with the backticked parts set as code. */
 const Summary = ({ text }: { text: string }) => (
   <>
     {text.split(/(`[^`]+`)/).map((part, i) =>
@@ -37,11 +36,6 @@ const Summary = ({ text }: { text: string }) => (
   </>
 )
 
-/**
- * The user's answer to a step waiting on them: run it, run it and keep
- * that exact command to run unasked from then on, or skip it. The
- * composer's keys answer through this too.
- */
 export const answerToolStep = (step: ToolStepView, how: "run" | "always" | "skip") =>
   emit(EVENT_NAME.pointerToolApproval, {
     id: step.id,
@@ -54,9 +48,7 @@ const Step = ({ step }: { step: ToolStepView }) => {
   const waiting = step.status === "waiting"
   const [open, setOpen] = useState(false)
   const inspectable = !!step.output || !!Object.keys(step.args ?? {}).length
-  // A command's output shows as it prints, without a click, until it ends.
   const live = step.status === "running" && step.name === "run_command" && !!step.output?.trim()
-  // A command that has had its turn can be copied, or put in the user's terminal to run again.
   const finishedCommand =
     step.name === "run_command" && step.status !== "running" && step.status !== "waiting" ? step.args?.command?.trim() : undefined
   const [copied, setCopied] = useState(false)
@@ -168,7 +160,6 @@ const Step = ({ step }: { step: ToolStepView }) => {
   )
 }
 
-/** A message the user sent while the reply worked, where the model read it. */
 const Said = ({ step }: { step: ToolStepView }) => {
   const { t } = useTranslation()
   return (
@@ -179,11 +170,6 @@ const Said = ({ step }: { step: ToolStepView }) => {
   )
 }
 
-/**
- * The model's list of steps as it stood at this point: what is done
- * ticked, what is next marked, the rest waiting. Only the latest one in a
- * stretch is laid out; an earlier one is a line like any other step.
- */
 const Tasks = ({ step, live }: { step: ToolStepView; live: boolean }) => {
   const tasks = parseTasks(step.args?.tasks)
   if (!tasks) return <Step step={step} />
@@ -205,17 +191,10 @@ const Tasks = ({ step, live }: { step: ToolStepView; live: boolean }) => {
   )
 }
 
-/**
- * The tools the model used for a stretch of a reply, a line each. A
- * line opens to what the tool was given and what came back; a command
- * waiting for the user shows Run and Skip in place. What the user said
- * along the way sits among them, where the model read it.
- */
 export const ToolSteps = ({ steps }: { steps?: ToolStepView[] }) => {
   if (!steps?.length) return null
   const isList = (step: ToolStepView) => step.name === TASKS_TOOL_NAME && step.status === "done"
   const latest = [...steps].reverse().find(isList)
-  // While the reply still works, the step after the last tick is the one in hand.
   const live = steps.some((step) => step.status === "running" || step.status === "waiting")
   return (
     <ol className={styles.panel}>

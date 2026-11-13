@@ -6,7 +6,6 @@ import {
   SyntaxLike
 } from "../../extension/embeddings/expand"
 
-/** A node spanning rows `from`..`to`; the last row may end at column 0. */
 const node = (
   type: string,
   from: number,
@@ -20,20 +19,6 @@ const node = (
   children
 })
 
-// A file shaped like:
-//  0 import a from "a"
-//  1 import b from "b"
-//  2
-//  3 class C {
-//  4   one() {
-//  5     return 1
-//  6   }
-//  7   two() {
-//  8     return 2
-//  9   }
-// 10 }
-// 11
-// 12 function f() { return 3 }
 const lines = [
   "import a from \"a\"",
   "import b from \"b\"",
@@ -75,8 +60,6 @@ suite("Embeddings: widening hits", () => {
 
   test("a hit in a small file grows to the whole file", () => {
     const range = enclosingRange(tree, lines, 5, 5, 10_000)
-    // The root ends at column 0 of a row past the last line, which is not
-    // a line of text: the range stops at the real last line.
     assert.deepStrictEqual(range, [0, 12])
   })
 

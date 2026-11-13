@@ -33,7 +33,6 @@ const SECTION_ICONS: Record<ProviderType, string> = {
   embedding: "database"
 }
 
-/** A blank draft for the custom form: any OpenAI-compatible server, on the usual local port. */
 const blankProvider = (type: ProviderType): PointerProvider => {
   const defaults = getEndpointDefaults(
     DEFAULT_PROVIDER_FORM_VALUES.provider,
@@ -47,15 +46,12 @@ const blankProvider = (type: ProviderType): PointerProvider => {
 }
 
 interface ProvidersProps {
-  /** Called once a chat provider exists where there was none: back to chat. */
   onDone?: () => void
 }
 
 export const Providers = ({ onDone }: ProvidersProps) => {
   const { t } = useTranslation()
   const [view, setView] = useState<View>({ name: "list" })
-  // Set when the gallery was opened from the welcome, so saving the first
-  // chat provider finishes the setup rather than showing the list.
   const fromWelcome = useRef(false)
   const [confirmingReset, setConfirmingReset] = useState(false)
   const [results, setResults] = useState<Record<string, ProviderTestResult>>({})
@@ -128,8 +124,6 @@ export const Providers = ({ onDone }: ProvidersProps) => {
           initial={view.provider}
           onClose={closeView}
           onSaved={(saved) => {
-            // A fresh test result for what was just saved is more useful than
-            // a stale one for what it used to be.
             setResults((current) => {
               const next = { ...current }
               delete next[saved.id]
@@ -142,8 +136,6 @@ export const Providers = ({ onDone }: ProvidersProps) => {
     )
   }
 
-  // Nothing configured: the welcome takes the whole tab. The header stays
-  // so the toolbar (import, in particular) is still reachable.
   const empty = Object.keys(providers).length === 0
 
   const renderSection = (type: ProviderType) => {

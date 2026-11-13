@@ -1,21 +1,4 @@
-/**
- * Secret shield: credentials in a prompt are swapped for placeholders
- * before it leaves the machine, and swapped back in what the model writes.
- *
- * A key pasted into a question, a `.env` file mentioned in chat, a token in
- * the code around the cursor: each becomes `REDACTED_<KIND>_<n>`. The same
- * secret gets the same placeholder everywhere in one request, so the model
- * can still reason about "the key on line 3" and write code that uses it.
- * When the reply names a placeholder, the developer sees their real value;
- * the model never did.
- *
- * Detection is deliberately conservative: well-known token shapes, private
- * key blocks, passwords in URLs, and quoted or `.env` values assigned to a
- * name that says it is secret. A value that looks like a placeholder
- * (`process.env.X`, `<your-key>`, `changeme`) is left alone.
- */
 
-/** A kind of credential, as it is named in a placeholder and in the UI. */
 export interface SecretKind {
   id: string
   label: string
@@ -23,16 +6,10 @@ export interface SecretKind {
 
 interface Detector extends SecretKind {
   pattern: RegExp
-  /**
-   * For patterns that match surrounding text (`password = "…"`): the
-   * capture groups before and after the secret, kept as they are.
-   */
   around?: boolean
-  /** Extra check on the secret itself, for the generic patterns. */
   accept?(secret: string): boolean
 }
 
-/** Bits per character; real keys are high, `aaaaaaaa` and `password` are low. */
 const entropy = (text: string): number => {
   const counts = new Map<string, number>()
   for (const char of text) counts.set(char, (counts.get(char) ?? 0) + 1)
@@ -97,7 +74,6 @@ const DETECTORS: Detector[] = [
     accept: (secret) => !PLACEHOLDER_VALUE.test(secret)
   },
   {
-    // PASSWORD=hunter2hunter2 in a .env file or a shell export.
     id: "env-secret",
     label: "Secret in an environment file",
     pattern: new RegExp(
@@ -108,7 +84,6 @@ const DETECTORS: Detector[] = [
     accept: looksReal
   },
   {
-    // apiKey: "…", "client_secret": "…", password = '…' in code or JSON.
     id: "assigned-secret",
     label: "Secret assigned in code",
     pattern: new RegExp(
@@ -120,7 +95,6 @@ const DETECTORS: Detector[] = [
   }
 ]
 
-/** Every kind the shield knows, for settings and docs. */
 export const SECRET_KINDS: SecretKind[] = DETECTORS.map(({ id, label }) => ({ id, label }))
 
 const labelOf = (id: string) => DETECTORS.find((d) => d.id === id)?.label ?? id
@@ -130,18 +104,12 @@ const PLACEHOLDER = /REDACTED_[A-Z_]+_\d+/g
 const placeholderFor = (kind: string, n: number) =>
   `REDACTED_${kind.toUpperCase().replace(/-/g, "_")}_${n}`
 
-/** What was withheld from one request: kinds and counts, never the values. */
 export interface ShieldReport {
   kind: string
   label: string
   count: number
 }
 
-/**
- * One request's worth of redaction. Redact everything the request sends
- * through the same shield, so a secret repeated in two messages gets one
- * placeholder, then restore what comes back.
- */
 export class SecretShield {
   private readonly _bySecret = new Map<string, string>()
   private readonly _byPlaceholder = new Map<string, string>()
@@ -165,17 +133,11 @@ export class SecretShield {
     return out
   }
 
-  /** Put the real values back wherever the model repeated a placeholder. */
   public restore(text: string): string {
     if (!this._byPlaceholder.size || !text) return text
     return text.replace(PLACEHOLDER, (p) => this._byPlaceholder.get(p) ?? p)
   }
 
-  /**
-   * A restorer for streamed text: holds back the tail of a chunk that could
-   * be the start of a placeholder, so one split across chunks still comes
-   * back whole. `flush()` returns whatever is left at the end.
-   */
   public restoreStream(): { push(chunk: string): string; flush(): string } {
     let pending = ""
     return {
@@ -217,11 +179,6 @@ export class SecretShield {
 
 const MARKER = "REDACTED_"
 
-/**
- * How many characters at the end of `text` might still grow into a
- * placeholder: a partial `REDACTED_`, or a whole one whose number may not
- * have finished arriving.
- */
 const heldTail = (text: string): number => {
   const tail = /REDACTED_[A-Z_]*\d*$/.exec(text)
   if (tail) return tail[0].length
@@ -231,7 +188,6 @@ const heldTail = (text: string): number => {
   return 0
 }
 
-/** "2 secrets" style summary for logs and tooltips. */
 export const describeReport = (report: ShieldReport[]): string =>
   report.map(({ label, count }) => (count > 1 ? `${label} ×${count}` : label)).join(", ")
 

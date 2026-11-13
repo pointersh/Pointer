@@ -12,13 +12,6 @@ import {
 
 import { bridge } from "./bridge"
 
-/**
- * Subscribe to a channel the extension pushes on.
- *
- * The handler is held in a ref so callers can pass an inline arrow function
- * without re-subscribing on every render — the trap that made the old
- * hand-rolled `addEventListener` effects depend on `[]` and then go stale.
- */
 export const useServerEvent = <K extends ServerEventName>(
   type: K,
   handler: (data: ServerPayloadOf<K>) => void
@@ -36,14 +29,9 @@ export interface Query<T> {
   refetch: () => void
 }
 
-/**
- * Ask the extension for a value once, and expose the usual loading/error
- * triple while it is in flight.
- */
 export const useServerQuery = <K extends RequestableEvent & VoidPayloadEvent>(
   type: K,
   initial?: ReplyOf<K>,
-  /** When set, the channel is also watched for unsolicited updates. */
   subscribe = false
 ): Query<ReplyOf<K>> => {
   const [data, setData] = useState<ReplyOf<K> | undefined>(initial)
@@ -89,14 +77,6 @@ export const useServerQuery = <K extends RequestableEvent & VoidPayloadEvent>(
   }
 }
 
-/**
- * A query that also stays fresh: the same channel is watched for the
- * unsolicited updates the extension pushes when the value changes — a theme
- * switch, a provider being saved.
- *
- * Only channels declared in *both* directions qualify, which is exactly the
- * "readable and observable" subset the protocol already distinguishes.
- */
 export const useServerState = <
   K extends RequestableEvent & VoidPayloadEvent & ServerEventName
 >(
@@ -104,7 +84,6 @@ export const useServerState = <
   initial?: ReplyOf<K>
 ): Query<ReplyOf<K>> => useServerQuery(type, initial, true)
 
-/** `bridge.emit`, re-exported so components import one module, not two. */
 export const emit: {
   <K extends VoidPayloadEvent>(type: K): void
   <K extends ClientEventName>(type: K, payload: PayloadOf<K>): void

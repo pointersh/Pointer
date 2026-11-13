@@ -1,6 +1,3 @@
-/**
- * Helpers for the streams the layer hands out.
- */
 import { InferenceError } from "./errors"
 import { ChatChunk, FimChunk } from "./types"
 
@@ -9,11 +6,6 @@ const cancelled = (reason: unknown) =>
     cause: reason
   })
 
-/**
- * The same items as `source`, ending the moment `signal` fires: the read in
- * progress rejects with a `cancelled` error instead of waiting on the
- * provider, and the source is told to stop.
- */
 export async function* abortable<T>(
   source: AsyncIterable<T>,
   signal?: AbortSignal
@@ -29,7 +21,6 @@ export async function* abortable<T>(
     if (signal.aborted) onAbort()
     else signal.addEventListener("abort", onAbort, { once: true })
   })
-  // Nobody awaits the rejection on its own; it only ever loses a race.
   aborted.catch(() => undefined)
 
   try {
@@ -40,14 +31,10 @@ export async function* abortable<T>(
     }
   } finally {
     signal.removeEventListener("abort", onAbort)
-    // Whether the consumer stopped or the signal fired, let the source
-    // release its connection. Not awaited: a source mid-read settles this
-    // only when that read does.
     void iterator.return?.().catch(() => undefined)
   }
 }
 
-/** The whole reply of a text stream, for callers that want it in one go. */
 export const readText = async (
   stream: AsyncIterable<FimChunk | ChatChunk>
 ): Promise<string> => {

@@ -21,9 +21,8 @@ suite("Time helpers", () => {
   })
 
   test("buckets timestamps by calendar day, not by 24h windows", () => {
-    const now = new Date(2026, 8, 7, 1, 0, 0).getTime() // 01:00 local
+    const now = new Date(2026, 8, 7, 1, 0, 0).getTime()
     assert.strictEqual(getDateBucket(now - 30 * MINUTE, now), "today")
-    // Two hours ago was before midnight, so it is yesterday.
     assert.strictEqual(getDateBucket(now - 2 * HOUR, now), "yesterday")
     assert.strictEqual(getDateBucket(now - 3 * DAY, now), "this-week")
     assert.strictEqual(getDateBucket(now - 10 * DAY, now), "older")

@@ -9,20 +9,13 @@ import { bridge, emit } from "./messaging"
 
 import styles from "./styles/agent-settings.module.css"
 
-/** Steps a reply may take, offered as presets; `DEFAULT_AGENT_STEPS` is the default. */
 export const STEP_PRESETS = AGENT_STEP_PRESETS
 
-/** The presets, with the user's own number among them when they set another in their settings. */
 const stepChoices = (current: number) =>
   Number.isFinite(current) && !STEP_PRESETS.includes(current)
     ? [...STEP_PRESETS, current].sort((a, b) => a - b)
     : STEP_PRESETS
 
-/**
- * A `pointer.*` setting, read once and written back to the user's
- * settings; the panel shows a change at once rather than waiting for the
- * round trip.
- */
 export const useSetting = <T,>(key: string, fallback: T): [T, (value: T) => void] => {
   const [value, setValue] = useState<T>(fallback)
   useEffect(() => {
@@ -78,7 +71,6 @@ export const Choices = <T extends string | number>({
   </div>
 )
 
-/** Escape, or a click outside the sheet and the button that opens it, puts a sheet away. */
 export const useDismiss = (
   panel: React.RefObject<HTMLElement>,
   toggle: string,
@@ -109,12 +101,6 @@ interface AgentSettingsProps {
   onClose: () => void
 }
 
-/**
- * What agent mode may do, from the composer: how changes land, whether
- * commands ask, run or are off, where they run, and how many steps a reply
- * may take. Each is a setting the user has (`pointer.chatTools…`), written
- * back to their settings.
- */
 export const AgentSettings = ({ autoRun, setAutoRun, onClose }: AgentSettingsProps) => {
   const { t } = useTranslation()
   const panel = useRef<HTMLDivElement>(null)
@@ -145,7 +131,6 @@ export const AgentSettings = ({ autoRun, setAutoRun, onClose }: AgentSettingsPro
       setCommands("off")
       return
     }
-    // The composer's auto-run switch and the setting say the same thing.
     setCommands(mode === "run" ? "allow" : "ask")
     setAutoRun(mode === "run")
   }

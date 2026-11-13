@@ -1,40 +1,18 @@
-/**
- * The inline edit's diff, as it lives in the editor: a region of the
- * document showing old lines and new lines together, the decorations
- * that colour them, and the geometry that keeps them in place while the
- * model streams and other edits land around them.
- *
- * The service that asks the model and settles the verdict is in
- * service.ts.
- */
 import * as vscode from "vscode"
 
 import { DiffLayout, Span } from "./diff"
 
-/** A run of neighbouring diff lines that stands or falls together. */
 export interface Hunk {
   line: number
   removed: number[]
   added: number[]
 }
 
-/**
- * A merged diff living inside a document: where it is, which of its lines
- * are the old ones and which are the new ones.
- *
- * Renders are serialised so a fast stream cannot interleave two
- * replacements, and every edit up to and including the verdict shares one
- * undo stop. Edits made by anyone else are followed so the line numbers
- * stay right; one that cuts through a tracked line breaks the region.
- */
 export class DiffRegion {
   public readonly document: vscode.TextDocument
   public range: vscode.Range
-  /** Absolute line numbers of the old lines still shown. */
   public removed: number[] = []
-  /** Absolute line numbers of the new lines. */
   public added: number[] = []
-  /** Changed words within paired lines, on absolute lines. */
   public removedWords: Span[] = []
   public addedWords: Span[] = []
   public broken = false
@@ -48,13 +26,11 @@ export class DiffRegion {
     this.range = range
   }
 
-  /** Replace the region with a layout; resolves false once it cannot. */
   public render(layout: DiffLayout): Promise<boolean> {
     this._queue = this._queue.then(() => this.replace(layout))
     return this._queue
   }
 
-  /** The two sides of the diff as the document shows them right now. */
   public sides(): { baseline: string; proposed: string } {
     const lines = this.document.getText(this.range).split("\n")
     const base = this.range.start.line
@@ -66,7 +42,6 @@ export class DiffRegion {
     }
   }
 
-  /** The current state as a layout, so it can be rendered again later. */
   public snapshot(): DiffLayout {
     const base = this.range.start.line
     const local = (span: Span) => ({ ...span, line: span.line - base })
@@ -79,7 +54,6 @@ export class DiffRegion {
     }
   }
 
-  /** Delete the losing side's lines and close the undo stop. */
   public async settle(
     editor: vscode.TextEditor,
     verdict: "accept" | "reject",
@@ -114,7 +88,6 @@ export class DiffRegion {
       return false
     }
 
-    // Forget the settled hunks and close the gaps the deletions left.
     const gone = [...doomed].sort((a, b) => a - b)
     const shift = (line: number) => {
       let n = 0
@@ -138,12 +111,10 @@ export class DiffRegion {
     return true
   }
 
-  /** Nothing left to decide. */
   public get done() {
     return !this.removed.length && !this.added.length
   }
 
-  /** The diff lines grouped into runs of neighbours. */
   public get hunks(): Hunk[] {
     const lines = [
       ...this.removed.map((line) => ({ line, removed: true })),
@@ -163,7 +134,6 @@ export class DiffRegion {
     return hunks
   }
 
-  /** Follow changes somebody else made; false when they were our own. */
   public track(
     changes: readonly vscode.TextDocumentContentChangeEvent[]
   ): boolean {
@@ -174,9 +144,6 @@ export class DiffRegion {
       const last = change.range.end.line
       const delta = change.text.split("\n").length - 1 - (last - first)
       if (first > this.range.end.line) continue
-      // Lines strictly after the change's first line and up to its last
-      // one are gone (merged into the first); a tracked line among them
-      // means the diff no longer describes the document.
       const gone = (line: number) => line > first && line <= last
       if (this.removed.some(gone) || this.added.some(gone)) {
         this.broken = true
@@ -185,7 +152,6 @@ export class DiffRegion {
       const shift = (line: number) => (line > first ? line + delta : line)
       this.removed = this.removed.map(shift)
       this.added = this.added.map(shift)
-      // Typing on a highlighted line moves its columns; drop its highlights.
       const shiftSpan = (span: Span) => ({ ...span, line: shift(span.line) })
       const untouched = (span: Span) => span.line !== first
       this.removedWords = this.removedWords.filter(untouched).map(shiftSpan)
@@ -252,7 +218,6 @@ const DIFF_COLORS = {
   }
 }
 
-/** A "-" or "+" in the gutter, the SVG way, so no text moves. */
 const gutterMarker = (sign: "-" | "+") => {
   const svg =
     "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 16 16\">" +
@@ -262,7 +227,6 @@ const gutterMarker = (sign: "-" | "+") => {
   return vscode.Uri.parse(`data:image/svg+xml;utf8,${encodeURIComponent(svg)}`)
 }
 
-/** One line of a unified diff: sign in the gutter, tinted line, ruler mark. */
 export const diffLineDecoration = (sign: "-" | "+") =>
   vscode.window.createTextEditorDecorationType({
     backgroundColor: new vscode.ThemeColor(DIFF_COLORS[sign].line),
@@ -274,18 +238,12 @@ export const diffLineDecoration = (sign: "-" | "+") =>
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
   })
 
-/** The changed words within a line, tinted harder, as GitHub does. */
 export const diffWordDecoration = (sign: "-" | "+") =>
   vscode.window.createTextEditorDecorationType({
     backgroundColor: new vscode.ThemeColor(DIFF_COLORS[sign].words),
     rangeBehavior: vscode.DecorationRangeBehavior.ClosedClosed
   })
 
-/**
- * Ranges that delete the given lines, line breaks included, so nothing is
- * left behind. Consecutive lines become one range: neighbouring ranges
- * would overlap at the end of the document, which an edit does not allow.
- */
 const lineRuns = (
   document: vscode.TextDocument,
   lines: number[]
@@ -313,7 +271,6 @@ const lineRuns = (
   return runs
 }
 
-/** Where `text` ends when inserted at `start`. */
 const endOf = (start: vscode.Position, text: string): vscode.Range => {
   const lines = text.split("\n")
   const last = lines[lines.length - 1]

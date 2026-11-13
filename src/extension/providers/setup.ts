@@ -1,10 +1,3 @@
-/**
- * First run. Pointer used to write three Ollama providers on start whether
- * or not Ollama existed, so the first thing a new user saw was an error.
- * Now: if nothing is configured, look for whatever local server is
- * actually running and use that; if none is, say so once and point at
- * the providers tab, where the person picks.
- */
 import { commands, ExtensionContext, window } from "vscode"
 
 import { POINTER_COMMAND_NAME } from "../../common/constants"
@@ -16,7 +9,6 @@ import { PointerProvider } from "../../common/types"
 import { applyDiscoveredServer, discoverLocalServers } from "./discovery"
 import { ProviderStore } from "./store"
 
-/** Set once the "nothing found" notice has been shown, so it is shown once. */
 const SETUP_NOTICE_KEY = "pointer.provider-setup-notice-shown"
 
 const JOB_NAMES: Record<string, string> = {
@@ -35,11 +27,6 @@ export const openProviderTab = async () => {
 
 let setupDone: Promise<void> = Promise.resolve()
 
-/**
- * Anything that reads the provider list at start (the sidebar, when VS Code
- * restores it open) waits on this, so it never shows an empty list that
- * discovery is about to fill.
- */
 export const whenProviderSetupDone = () => setupDone
 
 export const setUpProvidersOnFirstRun = (

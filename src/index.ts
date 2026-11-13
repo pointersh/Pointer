@@ -48,15 +48,10 @@ import { fixTerminalError } from "./extension/terminal/fix"
 import { FullScreenProvider } from "./extension/webview/panel"
 import { SidebarProvider } from "./extension/webview/sidebar"
 
-/**
- * The editor commands whose answer is prose rather than code: these go
- * to the chat.
- */
 const TEMPLATE_COMMANDS: Record<string, string> = {
   [POINTER_COMMAND_NAME.explain]: "explain"
 }
 
-/** The editor commands that rewrite the selection in place, via inline edit. */
 const EDIT_COMMANDS: Record<string, string> = {
   [POINTER_COMMAND_NAME.refactor]:
     "Refactor this code to improve readability and efficiency without changing its behaviour.",
@@ -66,7 +61,6 @@ const EDIT_COMMANDS: Record<string, string> = {
     "Add documentation comments in the standard format for this language (JSDoc, docstrings, etc.). Keep the code itself unchanged."
 }
 
-/** Clicking the idle status bar item: the most-used toggles, one click away. */
 async function showStatusBarMenu() {
   const picked = await window.showQuickPick(
     [
@@ -109,13 +103,11 @@ async function showStatusBarMenu() {
   }
 }
 
-/** `codellama:7b-code via Ollama at http://localhost:11434/api/generate`. */
 const describeProvider = (provider: PointerProvider | undefined) =>
   provider
     ? `${provider.modelName} via ${provider.label} at ${providerUrl(provider) || "(no address)"}`
     : "none"
 
-/** What a bug report needs first: version, editor, and which models are wired up. */
 const logStartup = (context: ExtensionContext, startedAt: number) => {
   const version = context.extension.packageJSON.version
   const read = (key: string) => context.globalState.get<PointerProvider>(key)
@@ -129,8 +121,6 @@ const logStartup = (context: ExtensionContext, startedAt: number) => {
 
 export async function activate(context: ExtensionContext) {
   setContext(context)
-  // Every model request runs on the tracker: the spinner, the stop
-  // keybinding and the stop command all read it.
   const generations = new GenerationTracker()
   context.subscriptions.push(
     generations.onDidChange(({ stoppable }) => {
@@ -152,10 +142,7 @@ export async function activate(context: ExtensionContext) {
   const templateProvider = new TemplateProvider(templateDir)
   const sessionManager = new SessionManager()
 
-  // Gateway tokens live in secret storage; requests read them from memory.
 
-  // Nothing configured yet: use whichever local server is running, or say
-  // so. Runs in the background; the sidebar waits on it before listing.
   const providerSetup = setUpProvidersOnFirstRun(
     context,
     new ProviderStore(context)
@@ -189,7 +176,6 @@ export async function activate(context: ExtensionContext) {
     sidebarProvider.streamTemplateCompletion(template)
   }
 
-  // The chat service only exists once the sidebar has been shown.
   const requireChat = async () => {
     if (!sidebarProvider.chat) {
       await commands.executeCommand(POINTER_COMMAND_NAME.focusSidebar)
@@ -372,8 +358,6 @@ export async function activate(context: ExtensionContext) {
       commands.executeCommand("workbench.action.closeSidebar")
       fullScreenProvider.createOrShowPanel()
     }),
-    // From the editor (no arguments), or the explorer (clicked uri plus the
-    // whole multi-selection as the second argument).
     commands.registerCommand(
       POINTER_COMMAND_NAME.addFileToContext,
       async (clicked?: vscode.Uri, selected?: vscode.Uri[]) => {
@@ -445,8 +429,6 @@ export async function activate(context: ExtensionContext) {
         }
       }
     ),
-    // Kept alive while hidden, so a draft, a reply still streaming and the
-    // scroll position survive switching to another view.
     window.registerWebviewViewProvider("pointer.sidebar", sidebarProvider, {
       webviewOptions: { retainContextWhenHidden: true }
     }),

@@ -1,29 +1,15 @@
-/**
- * Inline edit prompts and reply parsing. Pure: no vscode, no network.
- *
- * The model is asked to return the rewritten code and nothing else, but
- * models being models, the reply is parsed defensively: a fenced block is
- * unwrapped (even while it is still streaming), reasoning tags are dropped,
- * and the original's indentation and trailing newline are restored.
- */
 import { SYSTEM, USER } from "../../common/constants"
 import { ChatCompletionMessage } from "../../common/types"
 
 export interface EditRequest {
-  /** What the user asked for, e.g. "add null checks". */
   instruction: string
-  /** The code being rewritten. */
   code: string
-  /** Language name for the prompt and the fence, e.g. "typescript". */
   language?: string
-  /** Workspace-relative file name, shown to the model for context. */
   fileName?: string
-  /** A few lines either side of the selection; never edited. */
   before?: string
   after?: string
 }
 
-/** How much of the file around the selection travels with the request. */
 export const EDIT_CONTEXT_LINES = 40
 export const EDIT_CONTEXT_CHARS = 6000
 
@@ -43,7 +29,6 @@ export const EDIT_SYSTEM_PROMPT = [
 const fence = (language: string | undefined, body: string) =>
   `\`\`\`${language || ""}\n${body}\n\`\`\``
 
-/** The user turn: file, surrounding context, the code, and the instruction. */
 export const buildEditPrompt = (request: EditRequest): string => {
   const parts: string[] = []
   if (request.fileName) parts.push(`File: ${request.fileName}`)
@@ -73,34 +58,23 @@ export const buildEditMessages = (
   { role: USER, content: buildEditPrompt(request) }
 ]
 
-/** Drop `<think>…</think>`; an unterminated block (still streaming) yields "". */
 const stripReasoning = (text: string) =>
   text
     .replace(/<(think|thinking)>[\s\S]*?<\/\1>/gi, "")
     .replace(/<(think|thinking)>[\s\S]*$/i, "")
 
-/**
- * The code inside the reply. Works on partial replies too, so the editor
- * can be updated as tokens arrive:
- *
- * - text before an opening fence is chatter and is dropped,
- * - an opening fence without its closing fence yields what came after it,
- * - a reply with no fence at all is taken verbatim.
- */
 export const extractEditedCode = (reply: string): string => {
   const text = stripReasoning(reply)
   const open = text.match(/(^|\n)[ \t]*```[^\n]*\n?/)
   if (!open || open.index === undefined) return text.replace(/^\s*\n/, "")
 
   const start = open.index + open[0].length
-  // The closing fence is a line of its own; "```js" inside the code is not.
   const close = text.slice(start).match(/(^|\n)[ \t]*```[ \t]*(\n|$)/)
   return close?.index === undefined
     ? text.slice(start)
     : text.slice(start, start + close.index)
 }
 
-/** The leading whitespace shared by every non-blank line. */
 export const commonIndent = (text: string): string => {
   let indent: string | undefined
   for (const line of text.split("\n")) {
@@ -118,11 +92,6 @@ export const commonIndent = (text: string): string => {
   return indent ?? ""
 }
 
-/**
- * Line up the reply with the code it replaces. Models routinely strip the
- * indentation of a nested selection, or add one; the editor expects the
- * replacement to sit where the original sat.
- */
 export const matchIndentation = (edited: string, original: string): string => {
   const wanted = commonIndent(original)
   const got = commonIndent(edited)
@@ -137,17 +106,9 @@ export const matchIndentation = (edited: string, original: string): string => {
     .join("\n")
 }
 
-/**
- * What a reply looks like so far: unwrapped and re-indented, but with its
- * unfinished last line and trailing whitespace left alone.
- */
 export const previewEdit = (reply: string, original: string): string =>
   matchIndentation(extractEditedCode(reply), original)
 
-/**
- * The final replacement text for a completed reply: unwrapped, re-indented,
- * and ending the way the original ended.
- */
 export const finalizeEdit = (reply: string, original: string): string => {
   let code = extractEditedCode(reply).replace(/\s+$/, "")
   if (!code.trim()) return original
@@ -156,7 +117,6 @@ export const finalizeEdit = (reply: string, original: string): string => {
   return code + trailing
 }
 
-/** Whole lines around a selection, capped so huge files stay affordable. */
 export const clampContext = (text: string, fromEnd: boolean): string => {
   if (text.length <= EDIT_CONTEXT_CHARS) return text
   return fromEnd

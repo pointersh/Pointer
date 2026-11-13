@@ -1,19 +1,3 @@
-/**
- * What agent mode changed in the workspace while writing one reply, and
- * the way back. Edits apply straight away by default, so every file an
- * edit, a new file, a delete, a move or a rename reaches is kept as it was
- * before the reply first touched it. When the reply ends, the files that
- * really changed are listed under it with their line counts, and each can
- * be compared with what it was or put back.
- *
- * What the edit tools change is kept as they change it; what a command
- * the agent ran changed is read from git afterwards
- * (`command-snapshot.ts`), so inside a repository commands are covered
- * too. Outside one, only the edit tools' changes are.
- *
- * Pure Node (no vscode): the copies are kept as one JSON file per reply
- * under the extension's workspace storage, the newest replies only.
- */
 import { createHash, randomUUID } from "crypto"
 import fs from "fs"
 import path from "path"
@@ -22,20 +6,14 @@ import { FileChangeView, ReplyChangesView } from "../../common/types"
 import { diffLines } from "../edit/diff"
 import { looksBinary } from "../embeddings/indexable"
 
-/** Larger files are listed but not copied, so not undone from the chat. */
 export const MAX_KEPT_FILE_BYTES = 1024 * 1024
-/** Replies whose copies are kept; older ones can no longer be undone from the chat. */
 export const MAX_KEPT_REPLIES = 50
-/** How long the record waits for a change still landing when the reply ended. */
 const PENDING_WAIT_MS = 5000
 
-/** A file's text, or `null` when it is not there; `undefined` when it cannot be kept (binary, too large). */
 export type FileState = string | null | undefined
 
 export interface ChangedFile extends FileChangeView {
-  /** What it was before the reply: `null` when it did not exist. */
   before: string | null
-  /** A hash of what the reply left, to tell whether it changed since; `null` when the reply left nothing. */
   afterHash: string | null
 }
 
@@ -61,10 +39,6 @@ const counts = (before: string | null, after: string | null) => {
   return { added, removed }
 }
 
-/**
- * A file as it is now: as the editor has it when it is open there,
- * unsaved changes included, else from disk.
- */
 export const readState = async (
   file: string,
   open?: (file: string) => Promise<string | undefined>
@@ -77,8 +51,6 @@ export const readState = async (
     if (stat.size > MAX_KEPT_FILE_BYTES) return undefined
     const buffer = await fs.promises.readFile(file)
     if (looksBinary(buffer)) return undefined
-    // As the editor has it: without a byte-order mark, which it keeps
-    // apart and writes back itself.
     const text = buffer.toString("utf8")
     return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text
   } catch (error) {
@@ -86,12 +58,9 @@ export const readState = async (
   }
 }
 
-/** The files one reply touches, kept as they were before it first did. */
 export class ReplyChanges {
   readonly id = randomUUID()
-  /** Absolute path → what it was; `undefined` when it could not be kept. */
   private readonly _before = new Map<string, FileState>()
-  /** Changes still landing: a stop does not wait for a tool, but the record does. */
   private readonly _pending = new Set<Promise<unknown>>()
 
   constructor(
@@ -99,17 +68,12 @@ export class ReplyChanges {
     private readonly _open?: (file: string) => Promise<string | undefined>
   ) {}
 
-  /** Keep a file as it is, the first time the reply is about to change it. */
   async touch(file: string): Promise<void> {
     const absolute = path.resolve(file)
     if (this._before.has(absolute)) return
     this._before.set(absolute, await readState(absolute, this._open))
   }
 
-  /**
-   * Keep a file as it was before a change already made (by a command),
-   * unless the reply kept it earlier: the first copy is the one undo needs.
-   */
   touchWith(file: string, before: FileState): void {
     const absolute = path.resolve(file)
     if (!this._before.has(absolute)) this._before.set(absolute, before)
@@ -119,7 +83,6 @@ export class ReplyChanges {
     return this._before.size
   }
 
-  /** A change being made; `record` waits for it (a while), so one still landing after a stop is listed. */
   hold<T>(work: Promise<T>): Promise<T> {
     this._pending.add(work)
     const done = () => this._pending.delete(work)
@@ -127,7 +90,6 @@ export class ReplyChanges {
     return work
   }
 
-  /** What the reply changed, read now; undefined when nothing did. */
   async record(): Promise<ChangeRecord | undefined> {
     if (this._pending.size) {
       let timer: ReturnType<typeof setTimeout> | undefined
@@ -142,7 +104,6 @@ export class ReplyChanges {
       const after = await readState(absolute, this._open)
       if (before !== undefined && after !== undefined && before === after) continue
       if (before === null && after === null) continue
-      // Neither side could be read (a binary file the tools cannot edit): nothing to say.
       if (before === undefined && after === undefined) continue
       const relative = path.relative(this.root, absolute).split(path.sep).join("/")
       const status = before === null ? "created" : after === null ? "deleted" : "modified"
@@ -162,7 +123,6 @@ export class ReplyChanges {
   }
 }
 
-/** What the chat shows of a record: no copies, no hashes. */
 export const viewOf = (record: ChangeRecord): ReplyChangesView => ({
   id: record.id,
   files: record.files.map(({ path: file, status, added, removed, undone, noUndo }) => ({
@@ -175,19 +135,13 @@ export const viewOf = (record: ChangeRecord): ReplyChangesView => ({
   }))
 })
 
-/** One file's way back: what to write (`null` to remove it), and whether it changed after the reply. */
 export interface UndoStep {
   path: string
   absolute: string
   restore: string | null
-  /** Changed after the reply (by the user or a later reply); undoing loses that. */
   drifted: boolean
 }
 
-/**
- * How to put `paths` (all of the record's, by default) back as they were
- * before the reply, leaving out what is already undone or was never kept.
- */
 export const planUndo = async (
   record: ChangeRecord,
   paths: string[] | undefined,
@@ -208,7 +162,6 @@ export const planUndo = async (
   return steps
 }
 
-/** One JSON file per reply, the newest `max` kept. */
 export class ChangeStore {
   constructor(
     private readonly _dir: string,
@@ -216,7 +169,6 @@ export class ChangeStore {
   ) {}
 
   private fileOf(id: string) {
-    // Ids are ours (uuids), but they come back from the webview.
     if (!/^[\w-]+$/.test(id)) throw new Error("Not a change id.")
     return path.join(this._dir, `${id}.json`)
   }
@@ -235,7 +187,6 @@ export class ChangeStore {
     }
   }
 
-  /** Mark files put back; the record is kept, so the chat shows them as undone. */
   markUndone(id: string, paths: string[]): ChangeRecord | undefined {
     const record = this.load(id)
     if (!record) return undefined

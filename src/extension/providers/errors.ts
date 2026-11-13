@@ -1,8 +1,3 @@
-/**
- * Turns the errors an LLM client throws into something a person can act on.
- * The inference layer decides what kind of failure it was; this file only
- * puts words to it. Pure: no vscode imports, so it is unit-tested directly.
- */
 import { isAbortError, toInferenceError } from "../inference/errors"
 
 export { isAbortError }
@@ -84,7 +79,6 @@ export const describeProviderError = (
   return `${summary}\n\n\`${raw}\``
 }
 
-/** The same explanation without markdown, for plain-text surfaces. */
 export const describeProviderErrorPlain = (
   error: unknown,
   provider: ProviderSummary
@@ -94,7 +88,6 @@ export const describeProviderErrorPlain = (
     .replace(/`/g, "")
     .replace(/\n\n/g, " — ")
 
-/** Reasoning models wrap their thinking in tags; only the answer is wanted. */
 export const stripThinking = (text: string): string =>
   text
     .replace(/<(think|thinking)>[\s\S]*?<\/\1>/gi, "")

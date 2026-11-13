@@ -5,12 +5,6 @@ import { ModelStatus } from "../../common/model-status"
 import { PointerProvider } from "../../common/types"
 import { bridge } from "../messaging"
 
-/**
- * What the chat model's server says about it right now. Asked when the
- * provider or model changes, when a reply ends (the model is loaded by
- * then, and may hold a different context), and when the window regains
- * focus (a local server unloads an idle model after a few minutes).
- */
 export const useModelStatus = (provider: PointerProvider | null, busy: boolean) => {
   const [status, setStatus] = useState<ModelStatus | null>(null)
   const [starting, setStarting] = useState(false)
@@ -40,7 +34,6 @@ export const useModelStatus = (provider: PointerProvider | null, busy: boolean) 
     return () => window.removeEventListener("focus", refresh)
   }, [refresh])
 
-  // The click answers at once; the status is asked again until the model is in memory.
   const loading = !!status?.loading
   useEffect(() => {
     if (!loading) return

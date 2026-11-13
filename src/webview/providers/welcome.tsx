@@ -11,7 +11,6 @@ import styles from "../styles/providers.module.css"
 interface Props {
   onChoose: (type: ProviderType) => void
   onImport: () => void
-  /** A found server was taken up; these providers now exist. */
   onUsed: (created: PointerProvider[]) => void
 }
 
@@ -22,11 +21,6 @@ type Search =
 const serverKey = (server: DiscoveredServer) =>
   `${server.provider}|${server.apiHostname}|${server.apiPort}`
 
-/**
- * What the providers tab shows when there are none: a search of the usual
- * local ports, with one click to use whatever answered, and the way to the
- * gallery for everyone else. Nothing is written until the person says so.
- */
 export const Welcome = ({ onChoose, onImport, onUsed }: Props) => {
   const { t } = useTranslation()
   const { discoverServers, useDiscoveredServer } = useProviders()

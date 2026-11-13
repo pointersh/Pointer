@@ -168,7 +168,6 @@ suite("Chat edit_file", () => {
     assert.strictEqual(fs.readFileSync(path.join(repo, "a.ts"), "utf8"), "export const a = 1\n")
     assert.ok(!fs.existsSync(path.join(repo, "b.ts")))
 
-    // Outside a repository a command runs as ever, and nothing is listed.
     const plain = new ReplyChanges(path.dirname(file))
     const loose = terminalCommands(() => "allow", path.dirname(file), undefined, { changes: plain })
     assert.strictEqual((await loose.run("echo hi > loose.txt")).exitCode, 0)
@@ -179,7 +178,6 @@ suite("Chat edit_file", () => {
     const removed = await edit("function f() {\n  return a\n}\n", "", "apply")
     assert.ok(removed.ok, removed.message)
     assert.strictEqual(fs.readFileSync(file, "utf8"), "const a = 1\n")
-    // The last line, with no line break after it: the one before goes instead.
     const tail = path.join(path.dirname(file), "tail.ts")
     fs.writeFileSync(tail, "const a = 1\nconst b = 2")
     const plan = planReplacement(fs.readFileSync(tail, "utf8"), "const b = 2", "") as Replacement
@@ -231,7 +229,6 @@ suite("Chat edit_file", () => {
       assert.strictEqual(ok.exitCode, 0)
       const failed = await commands.run("sh -c 'exit 3'")
       assert.strictEqual(failed.exitCode, 3)
-      // A command that leaves the shell elsewhere does not move the next one.
       await commands.run("cd /")
       const where = await commands.run("pwd")
       assert.match(where.output, new RegExp(`${fs.realpathSync(path.dirname(file))}|${path.dirname(file)}`))
@@ -318,7 +315,6 @@ suite("Chat edit_file", () => {
     assert.ok(Date.now() - started < 3000)
     assert.strictEqual(outcome.stoppedByUser, true)
     assert.match(outcome.output, /started/)
-    // The reply's own stop is not the user's stop on the step.
     const reply = new AbortController()
     const next = commands.run("sleep 10", reply.signal)
     await new Promise((resolve) => setTimeout(resolve, 300))
@@ -341,7 +337,6 @@ suite("Chat edit_file", () => {
     assert.strictEqual(commands.mode, "allow")
     assert.strictEqual((await commands.run("echo two")).ran, true)
     assert.deepStrictEqual(asked, ["echo one"])
-    // Always run holds for that exact command, however it is spaced.
     mode = "ask"
     always.add(normalCommand("echo  three "))
     assert.strictEqual((await commands.run("echo three")).ran, true)
@@ -363,7 +358,6 @@ suite("Chat edit_file", () => {
     git("commit", "-qm", "first")
     fs.writeFileSync(path.join(repo, "changed.ts"), "export const a = 2\n")
     fs.writeFileSync(path.join(repo, "new.ts"), "export const n = 1\n")
-    // Local settings git is told to look away from: it reports them clean whatever they hold.
     git("update-index", "--skip-worktree", "local.json")
     fs.writeFileSync(path.join(repo, "local.json"), "{\"mine\": true}\n")
 
@@ -402,7 +396,6 @@ suite("Chat edit_file", () => {
     await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(path.join(dir, "secret.ts")))
     assert.strictEqual(editorHint(view), "")
 
-    // An open document is read as the editor has it, unsaved changes and all.
     const shown = await vscode.window.showTextDocument(await vscode.workspace.openTextDocument(file))
     await shown.edit((b) => b.insert(new vscode.Position(0, 0), "// unsaved\n"))
     assert.match((await openDocumentText(file)) ?? "", /^\/\/ unsaved\n/)
@@ -425,7 +418,6 @@ suite("Chat edit_file", () => {
     assert.strictEqual(asked[0], "delete moved/b.ts")
     assert.ok(fs.existsSync(path.join(dir, "moved", "b.ts")))
 
-    // Not in a git repository: nothing could bring the file back, so even applying asks.
     const removed = await apply.remove(path.join(dir, "moved", "b.ts"))
     assert.ok(removed.ok, removed.message)
     assert.strictEqual(asked[1], "delete moved/b.ts\n(git has no copy of it as it is now)")
@@ -449,14 +441,11 @@ suite("Chat edit_file", () => {
     )
     const fixed = await apply.edit(file, plan(file, "  return a.nope", "  return a"))
     assert.strictEqual(fixed.newErrors, undefined, "a fix reports nothing")
-    // Open and checked now: an error the edit causes away from its own lines is named too.
     const away = await apply.edit(file, plan(file, "const a = 1", "const b = 1"))
     assert.strictEqual(away.newErrors, 1, away.message)
     assert.match(away.message, /in a\.ts that was not there before:\n3: Cannot find name 'a'/)
     await apply.edit(file, plan(file, "const b = 1", "const a = 1"))
 
-    // A file not open until the edit: the errors it already had are not put
-    // down to the edit, and one on the lines the edit wrote is.
     const old = path.join(dir, "old.ts")
     fs.writeFileSync(old, "const wrong: number = \"text\"\nexport const value = 1\nexport const other = 1\n")
     const unrelated = await apply.edit(old, plan(old, "export const value = 1", "export const value = 2"))
@@ -498,7 +487,6 @@ suite("Chat edit_file", () => {
       assert.deepStrictEqual(context.selection, { startLine: 2, endLine: 3, text: "function f() {\n  return a" })
       assert.ok(context.openFiles.includes(file))
 
-      // The built-in TypeScript server answers in the test host.
       const references = await knowledge.references(file, 0, 6)
       assert.deepStrictEqual(references.map((r) => [r.file, r.line]), [[file, 1], [file, 3]])
       const definition = await knowledge.definition(file, 2, 9)

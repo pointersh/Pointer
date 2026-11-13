@@ -11,10 +11,6 @@ import { GenerationTracker } from "./generations"
 const ICON_IDLE = "$(code)"
 const ICON_BUSY = "$(loading~spin)"
 
-/**
- * The one status bar item pointer owns. It spins while the generation
- * tracker has anything running, and otherwise reflects the current settings.
- */
 export class PointerStatusBar {
   private readonly _subscription: { dispose(): void }
 
@@ -37,7 +33,6 @@ export class PointerStatusBar {
     this._item.show()
   }
 
-  /** Re-read settings and the active FIM provider; no-op while busy. */
   public refresh() {
     if (this._generations.state.busy) return
 

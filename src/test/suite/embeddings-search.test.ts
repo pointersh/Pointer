@@ -23,17 +23,11 @@ const chunk = (file: string, startLine: number, score: number): Candidate & { sc
   score
 })
 
-/**
- * A search over fakes: the database answers with fixed rows, the reranker
- * answers with the score baked into each row's fixture. Only the plumbing
- * around them is under test.
- */
 const searchWith = (
   rows: (Candidate & { score: number })[],
   overrides: {
     embedFails?: boolean
     noReranker?: boolean
-    /** Sees the file filter of every retrieval. */
     onRetrieve?: (files: string[] | undefined) => void
     parse?: FileParser
   } = {}
@@ -107,8 +101,6 @@ suite("Embeddings: search report", () => {
       ["/w/a.ts", "/w/f.ts"]
     )
     assert.strictEqual(result.candidates, 6)
-    // Highest first, and never more than a few: the point is to say what
-    // came closest, not to list the whole rejected pile.
     assert.deepStrictEqual(
       result.nearMisses.map((hit) => [hit.file, hit.score]),
       [["/w/b.ts", 0.07], ["/w/d.ts", 0.05], ["/w/e.ts", 0.02]]
@@ -125,7 +117,6 @@ suite("Embeddings: search report", () => {
     )
     assert.deepStrictEqual(result.hits, [])
     assert.match(result.note || "", /embedding server/)
-    // Retrieval still ran: the keyword pass does not need a vector.
     assert.ok(stages.some((p) => p.stage === "retrieving"))
   })
 
@@ -166,7 +157,6 @@ suite("Embeddings: focus files and widening", () => {
       "question",
       options({ focus: ["/w/hot.ts"] })
     )
-    // Two global passes and two focus passes, the latter restricted.
     assert.deepStrictEqual(
       filters.filter(Boolean),
       [["/w/hot.ts"], ["/w/hot.ts"]]

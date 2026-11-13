@@ -1,14 +1,3 @@
-/**
- * Model Context Protocol servers as agent tools: a server the user names
- * in `pointer.chatToolsMcpServers` is started as a process and spoken to
- * over its standard input and output, newline-delimited JSON-RPC 2.0, as
- * the protocol's stdio transport has it. Only what the agent needs is
- * spoken: the handshake, listing tools (page by page) and calling one.
- * Resources, prompts, sampling and the HTTP transport are not.
- *
- * Plain Node, no SDK, so it runs in the extension, the tests and the eval
- * alike; what a call needs from the editor (approval) comes from the host.
- */
 import { ChildProcess, spawn } from "child_process"
 
 import type { ToolParameter, ToolSpec } from "./protocol"
@@ -16,11 +5,8 @@ import type { ToolParameter, ToolSpec } from "./protocol"
 export const MCP_PROTOCOL_VERSION = "2025-06-18"
 const START_TIMEOUT_MS = 10_000
 const CALL_TIMEOUT_MS = 30_000
-/** A description longer than this is cut: the tool list is in every request. */
 const MAX_DESCRIPTION_CHARS = 200
-/** More tools than this from one server, and small models start to pick badly; the host says so. */
 export const MANY_MCP_TOOLS = 20
-/** Pages of `tools/list` read at most, against a server that pages for ever. */
 const MAX_LIST_PAGES = 20
 const MAX_STDERR_CHARS = 4000
 
@@ -31,7 +17,6 @@ export interface McpServerConfig {
   cwd?: string
 }
 
-/** A JSON schema, as far as the tools read one. */
 export interface JsonSchema {
   type?: string | string[]
   description?: string
@@ -47,7 +32,6 @@ export interface McpTool {
 }
 
 export interface McpCallResult {
-  /** The text the server returned; other content named in brackets. */
   text: string
   isError: boolean
 }
@@ -59,15 +43,12 @@ interface Pending {
 }
 
 export interface McpClientOptions {
-  /** Where the server runs when its configuration names no folder. */
   cwd: string
   startTimeoutMs?: number
   callTimeoutMs?: number
-  /** What the server writes to its standard error, for the log. */
   onStderr?(text: string): void
 }
 
-/** One server: its process and the requests in flight to it. */
 export class McpClient {
   private _child?: ChildProcess
   private _nextId = 1
@@ -82,7 +63,6 @@ export class McpClient {
     private readonly _options: McpClientOptions
   ) {}
 
-  /** Start the server and shake hands with it, once; later calls wait on the first. */
   start(): Promise<void> {
     this._started ??= this.begin().catch((error) => {
       this.close()
@@ -118,7 +98,6 @@ export class McpClient {
     this.notify("notifications/initialized")
   }
 
-  /** Every tool the server offers, page by page. */
   async listTools(): Promise<McpTool[]> {
     await this.start()
     const tools: McpTool[] = []
@@ -145,7 +124,6 @@ export class McpClient {
     return { text: contentText(result), isError: result?.isError === true }
   }
 
-  /** Stop the server; whatever is in flight fails with the reason. */
   close() {
     this.end("it was closed")
     const child = this._child
@@ -218,11 +196,9 @@ export class McpClient {
     try {
       message = JSON.parse(line)
     } catch {
-      // Not ours: a server that prints to its output besides the protocol.
       return
     }
     if (message.method !== undefined) {
-      // A request from the server: a ping is answered; the rest are not spoken here.
       if (message.id !== undefined) {
         this.send(
           message.method === "ping"
@@ -246,7 +222,6 @@ export class McpClient {
   }
 }
 
-/** What a call returned, as text: text items in order, the rest named in brackets. */
 export const contentText = (result: { content?: unknown[]; structuredContent?: unknown } | undefined): string => {
   const parts = (result?.content ?? []).map((item) => {
     const part = item as { type?: string; text?: string; name?: string; uri?: string; resource?: { uri?: string; text?: string } }
@@ -262,7 +237,6 @@ export const contentText = (result: { content?: unknown[]; structuredContent?: u
   return result?.structuredContent === undefined ? "" : JSON.stringify(result.structuredContent)
 }
 
-/** `<server>__<tool>`, in the characters and length tool names may have everywhere (OpenAI's rule is the narrowest). */
 export const qualifiedToolName = (server: string, tool: string) =>
   `${server}__${tool}`.replace(/[^A-Za-z0-9_-]/g, "_").slice(0, 64)
 
@@ -273,11 +247,6 @@ const clipDescription = (text: string | undefined) => {
 
 const typeOf = (schema: JsonSchema | undefined) => (Array.isArray(schema?.type) ? schema?.type[0] : schema?.type)
 
-/**
- * Arguments as the tools receive them (every value a string; a native
- * call's numbers and objects arrive as their JSON) turned back into what
- * the server's schema asks for.
- */
 export const coerceArguments = (schema: JsonSchema | undefined, args: Record<string, string>): Record<string, unknown> => {
   const properties = schema?.properties ?? {}
   return Object.fromEntries(
@@ -300,14 +269,11 @@ export const coerceArguments = (schema: JsonSchema | undefined, args: Record<str
   )
 }
 
-/** An MCP tool as the agent is offered it. */
 export interface McpToolSpec extends ToolSpec {
   server: string
-  /** The tool's own name, as the server knows it. */
   tool: string
 }
 
-/** A server's tools as the agent sees them; `taken` holds names already in use, so two servers never clash. */
 export const mcpToolSpecs = (server: string, tools: McpTool[], taken: Set<string>): McpToolSpec[] =>
   tools.flatMap((tool) => {
     let name = qualifiedToolName(server, tool.name)

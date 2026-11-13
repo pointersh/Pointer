@@ -34,7 +34,6 @@ import { resolveLanguageId, stripShellPrompts } from "./code-actions"
 import { FileHandler } from "./file-handler"
 import { FileTreeProvider } from "./file-tree"
 
-/** Prefix under which a scoped context value lives in extension storage. */
 const storageKeyFor = (scope: string, key: string) => `${scope}-${key}`
 
 export class BaseProvider {
@@ -122,13 +121,6 @@ export class BaseProvider {
     logger.info("Provider services initialized successfully")
   }
 
-  /**
-   * Every channel this provider owns, in one table.
-   *
-   * Handlers are plain functions of their payload: return a value and the
-   * bridge routes it back to whoever asked (or broadcasts it if nobody is
-   * waiting on a specific reply). Nothing here mentions `postMessage`.
-   */
   private registerHandlers(bridge: ExtensionBridge) {
     bridge.handleAll({
       [EVENT_NAME.pointerAcceptSolution]: (code) =>
@@ -239,9 +231,6 @@ export class BaseProvider {
     this.chat?.templateCompletion(template)
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*  Context items                                                          */
-  /* ---------------------------------------------------------------------- */
 
   private readContextItems = () =>
     this.context?.workspaceState.get<AnyContextItem[]>(
@@ -273,9 +262,6 @@ export class BaseProvider {
     this.bridge?.emit(EVENT_NAME.pointerUpdateContextItems, items)
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*  Scoped context storage                                                 */
-  /* ---------------------------------------------------------------------- */
 
   private readGlobalContext = (key: string): ContextValue => ({
     key,
@@ -317,15 +303,11 @@ export class BaseProvider {
     this.bridge?.emit(EVENT_NAME.pointerSessionContext, { key, value })
   }
 
-  /* ---------------------------------------------------------------------- */
 
-  /** From the chat's button or the command: both sides start over. */
   public newConversation = () => {
     this.conversationHistory?.resetConversation()
     this.chat?.resetConversation()
     this.bridge?.emit(EVENT_NAME.pointerNewConversation)
-    // A reply still being written belongs to the conversation left; the
-    // chat has cleared what it queued there before the reply stops.
     this.chat?.discardReply()
   }
 
@@ -340,16 +322,6 @@ export class BaseProvider {
     await vscode.window.showTextDocument(document)
   }
 
-  /*
-   * Pasted, not executed: the user reads the command in the terminal and
-   * presses Enter themselves. Models get commands wrong often enough that an
-   * auto-run button would be a foot-gun.
-   */
-  /*
-   * Straight into the last editor, as if typed: a selection is replaced,
-   * otherwise the code goes in at the cursor. Apply is for changes to
-   * review; this is for a snippet that only adds.
-   */
   private insertAtCursor = async (code: string) => {
     const editor = vscode.window.activeTextEditor
     if (!editor) {

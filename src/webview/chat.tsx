@@ -51,9 +51,7 @@ const COMPOSER_MIN_HEIGHT = 44
 const COMPOSER_HEIGHT_KEY = "pointer.composerHeight"
 const PROMPT_HISTORY_KEY = "pointer.promptHistory"
 const PROMPT_HISTORY_LIMIT = 50
-/** Two presses of Esc this close together clear the draft. */
 const DOUBLE_ESCAPE_MS = 800
-/** Where a key belongs to whatever has focus, not to the chat. */
 const KEY_OWNERS =
   "input, textarea, select, .ProseMirror, [contenteditable='true'], " +
   "vscode-text-field, vscode-text-area, vscode-dropdown"
@@ -69,21 +67,14 @@ const loadPromptHistory = (): string[] => {
 
 interface QueuedMessage {
   id: string
-  /** As the composer had it, so it can go back there. */
   html: string
-  /** As sent: paragraphs joined with line breaks. */
   input: string
   text: string
   mentions: MentionType[]
   images: ImageAttachment[]
-  /**
-   * Offered to the agent reply that is working, for the model to read at
-   * its next step; sent as a turn of its own if the reply ends first.
-   */
   steer?: boolean
 }
 
-/** A message's text with its line breaks, as the agent is handed it mid-reply. */
 const steeringText = (input: string) =>
   cheerio
     .load(input.replace(/<br\s*\/?>/g, "\n"))
@@ -107,13 +98,10 @@ export const Chat = (props: ChatProps): JSX.Element => {
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [messages, setMessages] = useState<ChatCompletionMessage[]>([])
-  // Nothing can answer without a chat provider, so the composer is off
-  // until one is set; the empty transcript says where to set it.
   const { chatProvider, ready: providersReady } = useProviders()
   const chatDisabled = providersReady && !chatProvider
   const model = useModelStatus(chatProvider, isLoading)
   const [draftChars, setDraftChars] = useState(0)
-  /** The conversation as the server last counted it; before any count, its length. */
   const conversationTokens = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const meta = messages[i].meta
@@ -130,27 +118,16 @@ export const Chat = (props: ChatProps): JSX.Element => {
     clear: clearSearchReport,
     take: takeSearchReport
   } = useWorkspaceSearch()
-  // Kept as the events arrive, not on render, so a step that comes in
-  // right behind a chunk of text is placed after that chunk.
   const completionRef = useRef<ChatCompletionMessage | null | undefined>()
   completionRef.current = completion
   const { steps: toolSteps, clear: clearToolSteps, take: takeToolSteps } = useToolSteps(
     () => getThinkingMessage(String(completionRef.current?.content ?? "")).message
   )
   const [isBottom, setIsBottom] = useState(false)
-  /*
-   * Following the reply as it grows is done here, not by Virtuoso's
-   * `followOutput`: that follows a growing last row only for a moment after
-   * each render and only on a change of its at-bottom state, so one jump
-   * of a tall code block leaves it behind for good. Here every change in
-   * the transcript's height, while following, pins the scroller to its
-   * end; scrolling up lets go, and coming back to the end takes hold again.
-   */
   const [scroller, setScroller] = useState<HTMLElement | null>(null)
   const followRef = useRef(true)
   const [following, setFollowingState] = useState(true)
   const lastTopRef = useRef(0)
-  /** Until when the end is still held after a reply stops, while its last rows settle. */
   const settleUntilRef = useRef(0)
   const setFollowing = useCallback((follow: boolean) => {
     followRef.current = follow
@@ -164,9 +141,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
 
   useEffect(() => {
     if (!scroller) return
-    // Only the reader lets go. The list moves the scroller itself as rows
-    // are measured, so a scroll up counts only just after a wheel, a touch,
-    // a key, or while the scrollbar is held.
     let intent = 0
     let dragging = false
     let repin = 0
@@ -178,7 +152,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
       if (["ArrowUp", "PageUp", "Home"].includes(event.key)) meant()
     }
     const onDown = (event: MouseEvent) => {
-      // A press on the scroller itself, not on what is in it, is on its scrollbar.
       if (event.target === scroller) dragging = true
     }
     const onUp = () => {
@@ -191,8 +164,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
       if (byReader && scroller.scrollTop < lastTopRef.current - 1 && gap > 24) setFollowing(false)
       else if (gap <= 24 && !followRef.current) setFollowing(true)
       lastTopRef.current = scroller.scrollTop
-      // The list also moves the scroller with no change of height (making
-      // up for a row it measured): while following, that is put right too.
       if (gap > 1 && followRef.current && !byReader && !repin) {
         repin = requestAnimationFrame(() => {
           repin = 0
@@ -206,15 +177,10 @@ export const Chat = (props: ChatProps): JSX.Element => {
       scroller.scrollTop = scroller.scrollHeight
       lastTopRef.current = scroller.scrollTop
     }
-    // A transcript just opened starts at its end. (Virtuoso's own
-    // `initialTopMostItemIndex` keeps scrolling back to the top of that row
-    // for as long as rows are still being measured, which a reply that
-    // starts streaming at once never lets finish.)
     settleUntilRef.current = Date.now() + 1000
     onResize()
     const observer = new ResizeObserver(onResize)
     observer.observe(scroller)
-    // Rows not rendered are the list's padding, so its border box is the transcript's whole height.
     const list = scroller.querySelector("[data-testid=virtuoso-item-list]")
     if (list) observer.observe(list, { box: "border-box" })
     scroller.addEventListener("scroll", onScroll, { passive: true })
@@ -235,8 +201,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     }
   }, [scroller, setFollowing])
 
-  // A reply starting (a message sent, regenerated, edited, continued) takes
-  // the reader to it; one ending is held to its end while it settles.
   useEffect(() => {
     if (isLoading) {
       setFollowing(true)
@@ -258,16 +222,9 @@ export const Chat = (props: ChatProps): JSX.Element => {
   const chatRef = useRef<HTMLTextAreaElement>(null)
   const editorWrapRef = useRef<HTMLDivElement>(null)
   const resizeRef = useRef<{ startY: number; startHeight: number } | null>(null)
-  // Sent prompts, oldest first, recalled with the arrow keys. `recallIndex`
-  // counts back from the newest; -1 is the draft being typed.
   const promptHistoryRef = useRef<string[]>(loadPromptHistory())
   const recallIndexRef = useRef(-1)
   const draftRef = useRef("")
-  /*
-   * Messages typed while a reply is running: each goes out when the one
-   * before it is answered. Stopping the reply puts them back in the
-   * composer instead, since what they followed on from was cut short.
-   */
   const [queued, setQueued] = useState<QueuedMessage[]>([])
   const queuedRef = useRef<QueuedMessage[]>([])
   const userStoppedRef = useRef(false)
@@ -287,8 +244,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
       return
     }
 
-    // A reply keeps the workspace search that fed it, so the sources stay
-    // with the message once it is saved. A new user turn starts afresh.
     let incoming = added
     if (added.role === ASSISTANT) {
       const context = takeSearchReport()
@@ -373,7 +328,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     const [next, ...rest] = queuedRef.current
     if (next && !stopped) {
       updateQueue(rest)
-      // After this event's own state updates, so the reply is in the transcript first.
       setTimeout(() => sendRef.current(next), 0)
       return
     }
@@ -388,9 +342,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     setQueued(next)
   }
 
-  // A queued message the model has read is in the reply now, no longer
-  // waiting. Taken as the steps arrive, ahead of the reply's end, which
-  // sends what is still queued.
   useServerEvent(EVENT_NAME.pointerToolSteps, (incoming) => {
     const read = new Set((incoming ?? []).filter((step) => step.said).map((step) => step.id))
     if (!read.size) return
@@ -398,7 +349,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     if (left.length !== queuedRef.current.length) updateQueue(left)
   })
 
-  /* Queued messages back in the composer, after anything already typed there. */
   const restoreQueue = () => {
     const editor = editorRef.current
     const waiting = queuedRef.current
@@ -456,7 +406,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     })
   }
 
-  /** A reply's changed files after an undo: kept with the message and saved. */
   const handleChangesUpdate = useCallback(
     (index: number, changes: ReplyChangesView) => {
       setMessages((prev) => {
@@ -491,7 +440,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
             .replace(/<\/p>/g, "<br>")
             .replace(/<br>$/, ""),
           images: images && images.length > 0 ? images : undefined,
-          // The user rewrote it: what a feature recorded no longer applies.
           prompt: undefined
         }
       ]
@@ -524,7 +472,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     return mentions
   }, [])
 
-  /* Images are left out: they are large and belong to the turn they were sent with. */
   const rememberPrompt = (html: string) => {
     const prompt = html.replace(/<img[^>]*>/g, "").trim()
     recallIndexRef.current = -1
@@ -537,12 +484,9 @@ export const Chat = (props: ChatProps): JSX.Element => {
         PROMPT_HISTORY_KEY,
         JSON.stringify(promptHistoryRef.current)
       )
-    } catch {
-      // A full or blocked store only costs the history.
-    }
+    } catch {}
   }
 
-  /** Step through sent prompts; false leaves the key to the editor. */
   const recallPrompt = useCallback((step: -1 | 1, isEmpty: boolean) => {
     const editor = editorRef.current
     const history = promptHistoryRef.current
@@ -566,7 +510,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     editorRef.current?.commands.clearContent()
   }, [])
 
-  /* The draft goes into the prompt history, so the up arrow brings it back. */
   const clearDraft = useCallback(() => {
     const editor = editorRef.current
     if (!editor || editor.isEmpty) return false
@@ -576,14 +519,11 @@ export const Chat = (props: ChatProps): JSX.Element => {
     return true
   }, [])
 
-  /* A command or change waiting on the user, answered from the keys. */
   const waitingStepRef = useRef<ToolStepView>()
   waitingStepRef.current = toolSteps.find((step) => step.status === "waiting")
   const approveWaiting = useCallback((how: "run" | "always" | "skip") => {
     const step = waitingStepRef.current
     if (!step) return false
-    // Shift+Enter means Always run, which only a command that can run
-    // unasked has; on a change or such a command it is a new line.
     if (how === "always" && (step.approval !== "command" || step.noAlways)) return false
     answerToolStep(step, how)
     return true
@@ -596,11 +536,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     return true
   }, [])
 
-  /*
-   * Esc closes the shortcuts, else skips what a tool is waiting on, else
-   * stops a reply, else clears the draft on the second press. False leaves
-   * the key to the editor.
-   */
   const handleEscape = useCallback(() => {
     if (approveWaiting("skip")) return true
     if (stopIfGenerating()) return true
@@ -619,7 +554,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     return true
   }, [approveWaiting, clearDraft, stopIfGenerating, t])
 
-  /* Ctrl+C with nothing selected; with a selection it is still a copy. */
   const handleInterrupt = useCallback(() => {
     if (!window.getSelection()?.isCollapsed) return false
     return stopIfGenerating() || clearDraft()
@@ -635,7 +569,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
 
   useEffect(() => () => clearTimeout(hintTimerRef.current), [])
 
-  /** One message to the model: into the transcript and out to the extension. */
   const sendMessage = (message: QueuedMessage) => {
     generatingRef.current = true
     setIsLoading(true)
@@ -672,11 +605,9 @@ export const Chat = (props: ChatProps): JSX.Element => {
       return updatedMessages
     })
   }
-  // The queue sends from an event handler; it always reaches this render's.
   const sendRef = useRef(sendMessage)
   sendRef.current = sendMessage
 
-  /** Sends the composer's message, or queues it while a reply is running. */
   const handleSubmitForm = useCallback(() => {
     const html = editorRef.current?.getHTML() || ""
     const input = html
@@ -705,8 +636,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     rememberPrompt(html)
 
     if (generatingRef.current) {
-      // In agent mode the model can read it between steps; one that brings
-      // files or images waits for a turn of its own, where those are added.
       const steer = agentModeRef.current && !message.mentions.length && !message.images.length
       updateQueue([...queuedRef.current, { ...message, steer }])
       if (steer) emit(EVENT_NAME.pointerSteer, { id: message.id, text: steeringText(input) })
@@ -715,12 +644,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     sendRef.current(message)
   }, [chatDisabled])
 
-  /*
-   * A stopped reply is picked up by asking for the rest. The transcript
-   * shows a short "Continue"; the model is told not to start over. One that
-   * ran out of tool steps goes back to the task, with what its tools did
-   * in the notes this turn carries.
-   */
   const handleContinue = useCallback(() => {
     if (generatingRef.current || chatDisabled) return
     generatingRef.current = true
@@ -760,7 +683,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     })
   }, [conversation?.title, messages])
 
-  // The sidebar's title-bar menu asks; the panel has its own button.
   useServerEvent(EVENT_NAME.pointerExportConversation, handleOpenAsMarkdown)
 
   const handleNewConversation = useCallback(() => {
@@ -773,7 +695,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     emit(EVENT_NAME.pointerNewConversation)
   }, [setActiveConversation, t])
 
-  // The composer's key map outlives a render, so it calls through a ref.
   const newConversationRef = useRef(handleNewConversation)
   newConversationRef.current = handleNewConversation
 
@@ -783,10 +704,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     return true
   }, [stopIfGenerating])
 
-  /*
-   * The same keys with the focus on the transcript rather than the composer.
-   * Anything typed there goes to the composer.
-   */
   useEffect(() => {
     if (!active) return
     const onKeyDown = (e: KeyboardEvent) => {
@@ -805,7 +722,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
       } else if (e.key === "Escape") {
         handled = handleEscape()
       } else if (e.key.length === 1 && e.key !== " " && !chatDisabled) {
-        // Not handled: the key itself lands in the composer.
         if (!target?.closest("button, vscode-button, a, summary")) {
           editorRef.current?.commands.focus("end")
         }
@@ -826,8 +742,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     emit(EVENT_NAME.pointerOpenFile, filePath)
   }, [])
 
-  // Coming back to the chat hides the other tabs' back button and puts the
-  // cursor in the composer, as opening it did when it was remounted.
   useEffect(() => {
     if (!active) return
     emit(EVENT_NAME.pointerHideBackButton)
@@ -842,8 +756,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     editorRef.current?.commands.focus()
   }, [])
 
-  // Switching conversation shows its messages, including none for a new one.
-  // Messages queued in the one left belong to it, and are not sent here.
   useEffect(() => {
     if (conversation?.id) setMessages(conversation.messages || [])
     if (queuedRef.current.length) updateQueue([])
@@ -891,11 +803,9 @@ export const Chat = (props: ChatProps): JSX.Element => {
         }),
         Placeholder.configure({
           placeholder: t("placeholder"),
-          // Still shown while the composer is off for want of a provider.
           showOnlyWhenEditable: false
         })
       ],
-      // Typing into a recalled prompt makes it the draft.
       onUpdate: ({ editor }) => {
         setDraftChars(editor.getText().length)
         recallIndexRef.current = -1
@@ -1038,10 +948,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     localStorage.setItem(COMPOSER_HEIGHT_KEY, String(composerHeight))
   }, [composerHeight])
 
-  /*
-   * Dragging the strip above the composer grows the typing area upwards,
-   * so a long prompt can be written without the transcript being in the way.
-   */
   const handleResizeStart = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       const wrap = editorWrapRef.current
@@ -1067,7 +973,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     []
   )
 
-  /* Anywhere in the box is fair game for a click: focus the editor at the end. */
   const handleComposerMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
       const target = e.target as HTMLElement
@@ -1136,8 +1041,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     [handleOpenFile, removeContextItem]
   )
 
-  // The reply in progress is a row of its own, after the messages: when it
-  // ends, the finished message takes that row's place and nothing moves.
   const pending = isLoading || !!completion
   const itemContent = useCallback(
     (index: number) => (

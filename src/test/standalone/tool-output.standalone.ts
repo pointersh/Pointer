@@ -1,7 +1,3 @@
-/**
- * Tool step output read back into code, diffs and locations for the chat
- * to highlight, using what the real tools print.
- */
 import * as assert from "node:assert"
 import * as fs from "node:fs"
 import * as os from "node:os"
@@ -60,7 +56,6 @@ test("search hits and located lines keep their paths and lines", () => {
     { path: "src/a.ts", line: 12, text: "export class A {" }
   ])
   assert.strictEqual(parseLocatedLines("No matches."), undefined)
-  // grep groups its matches under each file.
   const grouped = parseLocatedLines("(Nothing matched as a regular expression; these match the text as written.)\nsrc/a.ts\n3: const a = 1\n9: a + 1\n… 4 more in this file\nsrc/b.ts\n1: import { a }")
   assert.deepStrictEqual(grouped, [
     { path: "src/a.ts", line: 3, text: "const a = 1" },
@@ -68,7 +63,6 @@ test("search hits and located lines keep their paths and lines", () => {
     { path: "src/b.ts", line: 1, text: "import { a }" }
   ])
   assert.deepStrictEqual(groupByFile(grouped ?? []).map((g) => [g.path, g.lines.length]), [["src/a.ts", 2], ["src/b.ts", 1]])
-  // A few matches come with the lines beside them, as rg -C prints them.
   assert.deepStrictEqual(parseLocatedLines("package.json\n361-       {\n362:         \"key\": \"ctrl+i\",\n363-         \"mac\": \"cmd+i\",\n--\n400: x"), [
     { path: "package.json", line: 361, text: "      {", context: true },
     { path: "package.json", line: 362, text: "        \"key\": \"ctrl+i\"," },

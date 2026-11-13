@@ -1,9 +1,3 @@
-/**
- * A server reached at an address: Ollama, llama.cpp, LM Studio, vLLM, or an
- * OpenAI-compatible server.
- * Which route and body each job uses is decided from the configured
- * provider kind here and nowhere else.
- */
 import { TokenJS } from "fluency.js"
 
 import { API_PROVIDERS } from "../../../common/constants"
@@ -63,7 +57,6 @@ const OPENWEBUI_MODELS: ListRoute = {
   parse: OPENAI_MODELS.parse
 }
 
-/** Which listing routes to try, most likely first. */
 const listRoutesFor = (provider: string): ListRoute[] => {
   switch (provider) {
     case API_PROVIDERS.Ollama:
@@ -86,7 +79,6 @@ export class HttpInferenceProvider implements InferenceProvider {
     return ["fim", "chat", "embeddings"]
   }
 
-  /** The base address; an unset host means the machine this runs on. */
   private origin() {
     return getProviderOrigin({
       ...this._config,
@@ -94,7 +86,6 @@ export class HttpInferenceProvider implements InferenceProvider {
     })
   }
 
-  /** The route the configured job is served at. */
   private url() {
     return `${this.origin()}${this._config.apiPath || ""}`
   }
@@ -165,11 +156,6 @@ export class HttpInferenceProvider implements InferenceProvider {
     return usage ? { vectors, usage } : { vectors }
   }
 
-  /**
-   * Asks the server what it has. Every candidate route is tried at once and
-   * the first (by preference) that answers with a list wins, so an Ollama
-   * behind a proxy that only speaks `/v1/models` still gets a dropdown.
-   */
   public async models(options?: InferenceOptions): Promise<InferenceModel[]> {
     const base = this.origin()
     const attempts = await Promise.allSettled(

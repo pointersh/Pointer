@@ -1,10 +1,3 @@
-/**
- * Looks for a model server already running on this machine.
- *
- * Every usual address (Ollama, LM Studio, llama.cpp, Oobabooga, LiteLLM,
- * Open WebUI, and any OpenAI-compatible server on 8080) is asked for its
- * model list at once; whichever answer is what pointer sets itself up with.
- */
 import { v4 as uuidv4 } from "uuid"
 import { workspace } from "vscode"
 
@@ -22,17 +15,11 @@ import { PointerProvider } from "../../common/types"
 import { listProviderModels } from "./probe"
 import { ProviderStore } from "./store"
 
-/**
- * The Ollama address from settings. Usually the default, in which case it
- * just replaces the built-in Ollama candidate; a custom port gets tried in
- * addition to the usual one.
- */
 const configuredOllama = (): LocalServerCandidate => {
   const config = workspace.getConfiguration("pointer")
   const hostname = config.get<string>("ollamaHostname") || "localhost"
   return {
     provider: API_PROVIDERS.Ollama,
-    // 0.0.0.0 is where Ollama *listens*; it is not an address to call.
     apiHostname: hostname === "0.0.0.0" ? "localhost" : hostname,
     apiPort: config.get<number>("ollamaApiPort") || 11434,
     apiProtocol: config.get<boolean>("ollamaUseTls") ? "https" : "http"
@@ -61,7 +48,6 @@ const probe = async (
   }
 }
 
-/** Every server that answered, best first. Never rejects. */
 export const discoverLocalServers = async (
   extras: LocalServerCandidate[] = [configuredOllama()]
 ): Promise<DiscoveredServer[]> => {
@@ -82,10 +68,6 @@ export const discoverLocalServers = async (
   return found
 }
 
-/**
- * Creates providers for a found server and makes them active for any job
- * that has none. Returns what was created.
- */
 export const applyDiscoveredServer = async (
   store: ProviderStore,
   server: DiscoveredServer

@@ -9,7 +9,6 @@ const parts = (message: ChatCompletionMessage) => message.content as unknown as 
 const textOf = (message: ChatCompletionMessage) =>
   typeof message.content === "string" ? message.content : parts(message)[0].text
 
-/** A context that records what it was asked and answers with `extra`. */
 const fakeContext = (extra = "") => {
   const asked: { question: string; sources: Set<ContextSource>; history: ChatCompletionMessage[] }[] = []
   const context: TurnContext = {
@@ -78,7 +77,6 @@ suite("Chat turn", () => {
       "and"
     ])
     assert.deepStrictEqual([...asked[0].sources], ["problems"])
-    // The search follows up on the history as the model sees it, sources included.
     assert.strictEqual(asked[0].history[2].content, "why ?")
     assert.strictEqual(asked[0].history[1].context, report)
   })

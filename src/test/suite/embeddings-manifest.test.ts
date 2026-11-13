@@ -78,8 +78,6 @@ suite("Embeddings: manifest publication", () => {
   test("a failed rename cleans its temporary file and does not poison later saves", async () => {
     await withStore(async (db, dir) => {
       await db.saveManifest(manifest(1))
-      // A directory at the destination deterministically refuses replacement
-      // on every platform without relying on process privileges.
       const destination = path.join(dir, "manifest.json")
       fs.unlinkSync(destination)
       fs.mkdirSync(destination)

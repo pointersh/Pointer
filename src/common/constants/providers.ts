@@ -23,7 +23,6 @@ export const API_PROVIDERS = {
   ...OPEN_AI_COMPATIBLE_PROVIDERS
 }
 
-/** How each provider is named in the UI. */
 export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   [API_PROVIDERS.Anthropic]: "Anthropic",
   [API_PROVIDERS.Cohere]: "Cohere",
@@ -45,11 +44,6 @@ export const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   [API_PROVIDERS.Qvac]: "QVAC"
 }
 
-/**
- * The blank custom form. Any server speaking the OpenAI API is the
- * general case; the port is Ollama's, which is the most common thing to
- * find there and also serves `/v1`.
- */
 export const DEFAULT_PROVIDER_FORM_VALUES = {
   apiHostname: "localhost",
   apiKey: "",

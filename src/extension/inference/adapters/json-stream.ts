@@ -1,15 +1,8 @@
-/**
- * A POST whose reply arrives as JSON lines or server-sent events, read as
- * an async iterable of parsed objects. Every local server (Ollama,
- * llama.cpp, LM Studio, vLLM) and the OpenAI completions API stream this way.
- */
 import { logger } from "../../../common/logger"
 
 import { StreamResponse } from "./fim-dialects"
 
-/** Waiting on the first byte for longer than this is a failure. */
 const CONNECT_TIMEOUT_MS = 60000
-/** How much of an error body is worth reading in the log. */
 const MAX_ERROR_BODY = 400
 
 export function isStreamWithDataPrefix(stringBuffer: string) {
@@ -32,17 +25,11 @@ export function safeParseJsonResponse(
   }
 }
 
-/**
- * The server usually says what went wrong in the body ("model not found",
- * "context length exceeded"); keep that on the error so the log shows it.
- */
 export const responseError = async (response: Response) => {
   let detail = ""
   try {
     detail = (await response.text()).trim().slice(0, MAX_ERROR_BODY)
-  } catch {
-    // The status alone will have to do.
-  }
+  } catch {}
   const error = new Error(
     `Server responded with status code: ${response.status}${detail ? ` ${detail}` : ""}`
   ) as Error & { status?: number }
@@ -50,10 +37,6 @@ export const responseError = async (response: Response) => {
   return error
 }
 
-/**
- * The request as a person would read it: the prompt (or messages) as
- * text, and the rest of the body as one JSON line. Debug level only.
- */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const logRequest = (url: string, body: any) => {
   const { prompt, messages, ...rest } = body ?? {}
@@ -76,10 +59,6 @@ export interface JsonStreamRequest {
   signal?: AbortSignal
 }
 
-/**
- * Yields each parsed line as it arrives. Stopping early (a `break`, or the
- * signal firing) cancels the response so the server stops generating.
- */
 export async function* streamJsonLines(
   request: JsonStreamRequest
 ): AsyncGenerator<StreamResponse> {
@@ -135,8 +114,6 @@ export async function* streamJsonLines(
           "The model may still be loading."
       )
     } else if (error instanceof Error) {
-      // The caller reports this with the provider named; here only the
-      // raw detail, for when that summary is not enough.
       logger.debug(`Request to ${url} failed: ${error.message}`)
     }
     throw error

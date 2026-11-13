@@ -1,4 +1,3 @@
-/** The one line the extension, the webview and the gateway show for what was thrown. */
 import * as assert from "assert"
 
 import { messageOf } from "../../common/errors"

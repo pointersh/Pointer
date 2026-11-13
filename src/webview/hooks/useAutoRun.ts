@@ -5,12 +5,6 @@ import { bridge } from "../messaging"
 
 import { StorageType, useStorageContext } from "./useStorageContext"
 
-/**
- * Whether agent mode runs the model's commands without asking. Kept in
- * global storage like agent mode itself; until it is first switched,
- * `pointer.chatToolsCommands` decides (`allow` is on). `available` is false
- * when that setting is `off`: there are no commands to run.
- */
 export const useAutoRun = () => {
   const { context, setContext, loaded } = useStorageContext<boolean>(
     StorageType.Global,

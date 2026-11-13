@@ -4,17 +4,9 @@ import { logger } from "../../common/logger"
 
 import { runFailed, stripAnsi, TerminalRun } from "./output"
 
-/** Per terminal, how many finished commands are remembered. */
 const RUNS_PER_TERMINAL = 5
-/** Bytes of output kept per run while it streams; the tail is what matters. */
 const MAX_CAPTURE_CHARS = 200_000
 
-/**
- * What ran in the integrated terminals and what came back, via VS Code's
- * shell integration. Nothing is captured for terminals whose shell has no
- * integration (a plain `sh`, or the setting turned off); `@terminal` and
- * "fix the last error" then say so instead of guessing.
- */
 export class TerminalHistory implements Disposable {
   private readonly _runs = new Map<Terminal, TerminalRun[]>()
   private readonly _active = new Map<TerminalShellExecution, { output: string }>()
@@ -47,12 +39,10 @@ export class TerminalHistory implements Disposable {
     )
   }
 
-  /** Whether any terminal has reported a command so far. */
   public get hasRuns(): boolean {
     return this._runs.size > 0
   }
 
-  /** The most recent finished command: in the active terminal if it has one. */
   public last(): TerminalRun | undefined {
     const active = window.activeTerminal
     const fromActive = active && this._runs.get(active)?.at(-1)
@@ -60,7 +50,6 @@ export class TerminalHistory implements Disposable {
     return this.all().at(-1)
   }
 
-  /** The most recent command that failed, if any is remembered. */
   public lastFailed(): TerminalRun | undefined {
     const active = window.activeTerminal
     const fromActive = active && this._runs.get(active)?.filter(runFailed).at(-1)

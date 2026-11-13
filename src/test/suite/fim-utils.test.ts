@@ -312,8 +312,6 @@ suite("FIM utilities", () => {
       const starts = new Set<string>()
       let reused = 0
       let previous = ""
-      // The cursor at the end of each of forty lines in turn, as when a
-      // block is written top to bottom.
       for (let line = 200; line < 240; line++) {
         const { prefix } = getPrefixSuffix(100, document, endOfLine(document, line))
         const asked = line - 85

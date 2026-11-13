@@ -1,10 +1,3 @@
-/**
- * A Model Context Protocol server over standard input and output, for the
- * tests: two pages of tools, one that says its arguments back, one that
- * adds numbers (so typed arguments can be seen arriving typed), one that
- * reports an error, one that never answers and one that exits mid-call.
- * It also prints a line that is not the protocol, as real servers do.
- */
 import * as readline from "readline"
 
 const send = (message: unknown) => process.stdout.write(`${JSON.stringify(message)}\n`)
@@ -39,7 +32,6 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
   switch (message.method) {
     case "initialize":
       reply({ protocolVersion: message.params?.protocolVersion, capabilities: { tools: {} }, serverInfo: { name: "fake", version: "1" } })
-      // A server may ask its client things; this one pings.
       send({ jsonrpc: "2.0", id: "server-1", method: "ping" })
       return
     case "tools/list":
@@ -58,7 +50,6 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
       return reply({ content: [{ type: "text", text: `called ${name}` }] })
     }
     default:
-      // Notifications and anything else: no answer.
       return
   }
 })

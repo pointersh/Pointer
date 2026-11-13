@@ -75,10 +75,6 @@ export class FileHandler {
     return dirMatch
   }
 
-  /**
-   * Opens a workspace file, scrolled to and selecting the given lines when
-   * there are any (a chunk the workspace search used, a pinned selection).
-   */
   public async handleOpenFile(target: string | FileLocation) {
     const symbol = typeof target === "string" ? decodeSymbolRef(target) : undefined
     const location: FileLocation = symbol

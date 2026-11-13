@@ -1,9 +1,3 @@
-/**
- * Project instructions for agent mode: the root's `AGENTS.md` (or the file
- * read in its place) in the system prompt, and a folder's own `AGENTS.md`
- * with the first tool result that reaches it. Scripted clients stand in
- * for the model; the tools and files are real.
- */
 import * as assert from "node:assert"
 import * as fs from "node:fs"
 import * as os from "node:os"

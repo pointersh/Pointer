@@ -1,8 +1,3 @@
-/**
- * A hosted API. Chat goes through its SDK; the jobs it serves at a plain
- * HTTP endpoint (Mistral and OpenRouter completions, OpenAI embeddings)
- * are delegated to the HTTP adapter at the configured address.
- */
 import { TokenJS } from "fluency.js"
 
 import { API_PROVIDERS } from "../../../common/constants"
@@ -43,7 +38,6 @@ export class HostedInferenceProvider implements InferenceProvider {
   }
 
   public chat(request: ChatRequest, options?: InferenceOptions) {
-    // Tools on OpenAI go through the Responses API; see openai-responses.ts.
     if (this._config.provider === API_PROVIDERS.OpenAI && needsResponsesApi(request)) {
       return responsesChat(this._config, request, options)
     }

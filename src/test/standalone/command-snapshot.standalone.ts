@@ -1,8 +1,3 @@
-/**
- * What a command changed in a git working tree, read from two snapshots
- * of the tree taken through a copy of the index: tracked and untracked
- * files, `.gitignore` honoured, the user's staging untouched.
- */
 import * as assert from "node:assert"
 import { execFileSync } from "node:child_process"
 import * as fs from "node:fs"
@@ -30,7 +25,6 @@ const repository = (files: Record<string, string | Buffer>) => {
 
 test("a command's changes are read from the tree before and after: changed, made, removed; ignored files never", async () => {
   const { root, git } = repository({ ".gitignore": "dist/\n", "src/a.ts": "const a = 1\n", "old.ts": "gone soon\n", "dist/out.js": "x" })
-  // Work in progress before the command: kept as it was, not as committed.
   fs.writeFileSync(path.join(root, "src/a.ts"), "const a = 2 // unsaved idea\n")
   git("add", "src/a.ts")
   const staged = git("diff", "--cached", "--name-only")

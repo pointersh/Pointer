@@ -1,10 +1,3 @@
-/**
- * What the chat's tools must never do, checked against real files and a
- * real git repository: read what a `.gitignore` hides (through a file
- * read, a search, or git's history), reach outside the workspace, or let
- * one tool's failure end a reply. And what the secret shield owes a tool
- * call: the real value going in, the placeholder going back out.
- */
 import * as assert from "node:assert"
 import { execFileSync } from "node:child_process"
 import * as fs from "node:fs"
@@ -104,7 +97,6 @@ test("read_file counts lines as an editor does and never shows a byte-order mark
     "an end before the start reads the start line"
   )
   assert.match((await read({ path: "three.ts", start_line: "9" })).output, /has only 3 lines/)
-  // The edit planner sees the same text: line 1 of a file with a mark is still found.
   const edited: string[] = []
   const editing = workspaceTools(root, [], {
     edits: {
@@ -136,7 +128,6 @@ test("grep tries a pattern the way the model meant it: as text, or with its back
   write(root, "package.json", "{ \"key\": \"ctrl+i\", \"command\": \"pointer.edit\" }\n")
   const tools = workspaceTools(root)
   const grep = (pattern: string) => tools.run({ name: "grep", args: { pattern } })
-  // `\+` written for the regex, then escaped once more for the JSON it travelled in.
   const doubled = await grep("ctrl\\\\+i")
   assert.strictEqual(
     doubled.output,
@@ -159,11 +150,9 @@ test("grep shows a few matches per file so one noisy file does not hide the rest
   assert.deepStrictEqual(lines.slice(12), ["b/quiet.ts", "1: const hit = 2"])
   assert.strictEqual(grep.summary, "searched for `hit` · 31 matches in 2 files", "a match past a line's first 2000 characters is not looked for")
 
-  // More files match than there is room to show: the rest are named with their counts, busiest first.
   const wide = fs.mkdtempSync(path.join(os.tmpdir(), "pointer-grepwide-"))
   for (let i = 0; i < 8; i++) write(wide, `f${i}.ts`, Array.from({ length: i === 7 ? 3 : 9 }, () => "needle").join("\n"))
   const many = (await workspaceTools(wide).run({ name: "grep", args: { pattern: "needle" } })).output.split("\n")
-  // 40 lines go to the first files in order; the fifth is cut short and the rest only named.
   assert.deepStrictEqual(many.slice(-3), [
     "4: needle",
     "… 5 more in this file",
@@ -177,7 +166,6 @@ const repoWithHistory = () => {
   git("init", "-q")
   git("config", "user.email", "t@example.com")
   git("config", "user.name", "T")
-  // The user's own settings must not be able to change what the filter reads.
   git("config", "diff.noprefix", "true")
   git("config", "color.ui", "always")
   write(root, ".env", "API_KEY=sk-live-oldsecret\n")
@@ -228,7 +216,6 @@ test("git cannot be talked into reading outside the workspace or around .gitigno
   write(root, "config/prod.json", "{\"password\": \"TRACKED-SECRET-2\"}\n")
   git("commit", "-qam", "second")
   const second = git("rev-parse", "HEAD:config/prod.json")
-  // Ignored from now on, but still in the index and the history.
   write(root, ".gitignore", "/config/prod.json\n.env\n")
   write(root, ".env", "TOKEN=UNTRACKED-SECRET\n")
   const tools = workspaceTools(root)
@@ -267,7 +254,6 @@ test("git cannot be talked into reading outside the workspace or around .gitigno
   const history = await run("log -p")
   assert.doesNotMatch(history.output, /TRACKED-SECRET/)
 
-  // What the tool is for still works.
   assert.match((await run("show HEAD:src/a.ts")).output, /export const a = 1/)
   assert.match((await run("show ./src/a.ts")).output, /exit code/, "a path that is not hidden goes through")
   assert.match((await run("log --oneline -2")).output, /second\n.*first/)
@@ -291,7 +277,6 @@ test("a link is judged by where it leads, and protected files in any case", () =
   for (const file of [".VSCode/settings.json", ".GITIGNORE", "packages/a/.GitIgnore", "team.code-workspace"]) {
     assert.ok(isProtectedPath(file), file)
   }
-  // A link at a new file's path, even one that leads nowhere, would be written through.
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), "pointer-dangle-"))
   fs.symlinkSync(path.join(outside, "target.txt"), path.join(root, "dangling.txt"))
   assert.throws(() => view.resolveNew("dangling.txt"), /already exists/)
@@ -385,7 +370,6 @@ test("the shield gives a tool the real value and sends the model's own calls bac
     chat(request: ChatRequest) {
       seen.push(structuredClone(request))
       return (async function* (): AsyncGenerator<ChatChunk> {
-        // The model edits the line it was shown, placeholders and all.
         yield {
           content: "",
           finishReason: "stop",
@@ -417,7 +401,6 @@ test("the shield gives a tool the real value and sends the model's own calls bac
   assert.strictEqual(args.find, `token = "${TOKEN}"`, "the edit can find the real line in the file")
   assert.ok(args.replace.endsWith(`key: ${PRIVATE_KEY}`), "a value with line breaks and quotes comes back as valid JSON")
 
-  // The loop sends the call back as part of the conversation: redacted again.
   const next = [
     ...messages,
     {

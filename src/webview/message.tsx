@@ -37,12 +37,7 @@ import styles from "./styles/message.module.css"
 interface MessageProps {
   index?: number
   isAssistant?: boolean
-  /**
-   * The workspace search behind a reply still streaming. A finished reply
-   * carries its own in `message.context`.
-   */
   context?: WorkspaceSearchReport
-  /** Tool steps behind a reply still streaming; a finished reply carries its own. */
   steps?: ToolStepView[]
   isLoading?: boolean
   message?: ChatCompletionMessage
@@ -57,9 +52,7 @@ interface MessageProps {
   ) => void
   onHeightChange?: () => void
   onDeleteImage?: (id: string) => void
-  /** Ask for the rest of a reply the user stopped. Only the last reply offers it. */
   onContinue?: () => void
-  /** Keep a reply's changed files as they stand after an undo. */
   onChangesUpdate?: (index: number, changes: ReplyChangesView) => void
 }
 
@@ -99,10 +92,9 @@ const ThinkingSection = React.memo(
     const isStreamingRef = useRef(false)
 
     useEffect(() => {
-      // If thinking content changed and is longer, we're streaming
       if (thinking.length > prevThinkingRef.current.length) {
         isStreamingRef.current = true
-        setIsCollapsed(false) // Auto-expand during streaming
+        setIsCollapsed(false)
       } else {
         isStreamingRef.current = false
       }
@@ -141,19 +133,11 @@ const ThinkingSection = React.memo(
 const formatDuration = (ms: number) =>
   ms < 1000 ? `${ms}ms` : ms < 60_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`
 
-/** 12412 as "12.4k": enough to see how full a context is. */
 const compactCount = (count: number) =>
   count < 1000 ? String(count) : count < 10_000 ? `${(count / 1000).toFixed(1)}k` : `${Math.round(count / 1000)}k`
 
-/** From here a context is close enough to full to say so. */
 const CONTEXT_NEARLY_FULL = 0.8
 
-/**
- * One quiet line under a reply: which model wrote it, how long it took,
- * and, when the backend counted, how fast and how much of the model's
- * context the conversation now takes. Old conversations have no meta and
- * show nothing.
- */
 const ReplyFooter = ({
   meta,
   onContinue,
@@ -161,7 +145,6 @@ const ReplyFooter = ({
 }: {
   meta: ReplyMeta
   onContinue?: () => void
-  /** The reply's copy and regenerate, at the line's end. */
   actions?: React.ReactNode
 }) => {
   const { t } = useTranslation()
@@ -224,7 +207,6 @@ const ReplyFooter = ({
   )
 }
 
-/** How many credentials the secret shield kept out of the request, and which kinds. */
 const WithheldBadge = ({ withheld }: { withheld: NonNullable<ReplyMeta["withheld"]> }) => {
   const { t } = useTranslation()
   const count = withheld.reduce((sum, { count }) => sum + count, 0)
@@ -237,7 +219,6 @@ const WithheldBadge = ({ withheld }: { withheld: NonNullable<ReplyMeta["withheld
   )
 }
 
-/** The project's instruction files agent mode followed; opens the first. */
 const InstructionsBadge = ({ files }: { files: string[] }) => {
   const { t } = useTranslation()
   return (
@@ -253,13 +234,8 @@ const InstructionsBadge = ({ files }: { files: string[] }) => {
   )
 }
 
-/** Taller than this, a user turn (usually pasted code) folds away. */
 const COLLAPSE_HEIGHT = 240
 
-/*
- * A long question pushes its answer off screen. It shows its first lines and
- * a toggle; the whole of it is still what was sent.
- */
 const Collapsible = ({ children }: { children: React.ReactNode }) => {
   const { t } = useTranslation()
   const ref = useRef<HTMLDivElement>(null)
@@ -591,7 +567,6 @@ export const Message: React.FC<MessageProps> = ({
     [renderCodeBlock, renderContent, message?.images]
   )
 
-  // A reply can be all steps and no text: its tools ran, then it was stopped.
   if (!message) return null
   if (!message.content && !message.toolSteps?.length && !steps?.length) return null
 
@@ -600,7 +575,6 @@ export const Message: React.FC<MessageProps> = ({
   )
 
   const conversationLength = messages?.length || 0
-  // A reply with a footer keeps its actions at the end of it; anything else floats them over its corner.
   const footerActions = message.role === ASSISTANT && !!message.meta && !editing
 
   const options = (

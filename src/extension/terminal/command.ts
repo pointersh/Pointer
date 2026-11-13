@@ -12,11 +12,9 @@ export interface ShellCommandRequest {
   platform: string
   shell: string
   cwd?: string
-  /** The previous command and its output, so "again but verbose" works. */
   previous?: { commandLine: string; output: string }
 }
 
-/** The one-shot prompt: everything a small model needs, nothing it does not. */
 export const buildShellCommandPrompt = (input: ShellCommandRequest): string => {
   const parts = [
     `Write a single ${input.shell} command line for ${input.platform} that does the following:`,
@@ -48,10 +46,6 @@ const shellName = () => {
   return shell.split(/[\\/]/).pop() || "sh"
 }
 
-/**
- * Describe what you want, get a command, check it, run it. The command is
- * shown in an editable box before anything happens; Escape runs nothing.
- */
 export const runDescribedCommand = async (
   chat: Chat,
   history: TerminalHistory

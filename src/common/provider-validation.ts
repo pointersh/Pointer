@@ -1,11 +1,3 @@
-/**
- * Everything pointer knows about what makes a provider configuration valid,
- * and how to tidy one up before it is saved.
- *
- * Pure: no vscode or React imports, so it runs identically in the webview
- * form (for inline feedback) and in the extension (as the guard on save and
- * import), and is unit tested directly.
- */
 import {
   API_PROVIDERS,
   OPEN_AI_COMPATIBLE_PROVIDERS
@@ -16,10 +8,6 @@ export type ProviderType = "chat" | "embedding"
 
 export const PROVIDER_TYPES: ProviderType[] = ["chat", "embedding"]
 
-/**
- * APIs pointer talks to through fluency.js. They have a fixed public endpoint,
- * so for chat the hostname, port and path fields do not apply.
- */
 export const HOSTED_PROVIDERS: string[] = [
   API_PROVIDERS.Anthropic,
   API_PROVIDERS.OpenAI,
@@ -31,13 +19,11 @@ export const HOSTED_PROVIDERS: string[] = [
   API_PROVIDERS.Gemini
 ]
 
-/** Providers that will reject a request without a key. */
 const KEY_REQUIRED_PROVIDERS: string[] = [
   ...HOSTED_PROVIDERS,
   API_PROVIDERS.Deepseek
 ]
 
-/** Hosted APIs that offer no completions endpoint pointer can drive for FIM. */
 const CHAT_ONLY_PROVIDERS: string[] = [
   API_PROVIDERS.Anthropic,
   API_PROVIDERS.Groq,
@@ -52,15 +38,9 @@ export const isHostedProvider = (provider: string) =>
 export const isOpenAICompatibleProvider = (provider: string) =>
   (Object.values(OPEN_AI_COMPATIBLE_PROVIDERS) as string[]).includes(provider)
 
-/**
- * Whether the hostname / port / path fields matter for this provider + type.
- * Chat with a hosted API goes through fluency.js and ignores them; everything
- * else is a raw HTTP request to the address the user gives.
- */
 export const usesEndpoint = (provider: string, type: string) =>
   type !== "chat" || !isHostedProvider(provider)
 
-/** Whether the person configures the hostname / port / path themselves. */
 export const hasConfigurableEndpoint = (provider: string, type: string) =>
   usesEndpoint(provider, type)
 
@@ -77,11 +57,6 @@ export interface EndpointDefaults {
   apiPath?: string
 }
 
-/**
- * Where each server usually listens and which route serves each job. The
- * chat path is the OpenAI-style *base* (fluency.js appends
- * `/chat/completions`); FIM and embedding paths are the full route.
- */
 const ENDPOINT_DEFAULTS: Record<
   string,
   Partial<Record<ProviderType, EndpointDefaults>>
@@ -139,14 +114,10 @@ export const getEndpointDefaults = (
 ): EndpointDefaults | undefined =>
   ENDPOINT_DEFAULTS[provider]?.[type as ProviderType]
 
-/* -------------------------------------------------------------------------- */
-/*  Normalisation                                                             */
-/* -------------------------------------------------------------------------- */
 
 const trim = (value: unknown) =>
   typeof value === "string" ? value.trim() : ""
 
-/** Junk stays NaN rather than vanishing, so validation can point at it. */
 const parsePort = (value: unknown): number | undefined => {
   if (value === undefined || value === null || value === "") return undefined
   return Number(String(value).trim())
@@ -158,10 +129,6 @@ const ensureLeadingSlash = (path: string) =>
 const stripTrailingSlash = (path: string) =>
   path.length > 1 ? path.replace(/\/+$/, "") : path
 
-/**
- * People paste whole URLs into the hostname box. Rather than reject that,
- * take it apart: `https://my-box:8080/v1` fills the protocol, port and path.
- */
 const splitPastedUrl = (hostname: string) => {
   const match = /^(?:(https?):\/\/)?([^/:]+)(?::(\d+))?(\/.*)?$/i.exec(hostname)
   if (!match) return { hostname }
@@ -174,12 +141,6 @@ const splitPastedUrl = (hostname: string) => {
   }
 }
 
-/**
- * Cleans a provider up for saving: trims, coerces the port to a number,
- * unpicks a pasted URL, fixes the path shape, and drops fields that only
- * make sense for another type. Never throws; `validateProvider` reports what
- * is still wrong afterwards.
- */
 export const normalizeProvider = (input: PointerProvider): PointerProvider => {
   const type = (
     PROVIDER_TYPES.includes(trim(input.type) as ProviderType)
@@ -197,8 +158,6 @@ export const normalizeProvider = (input: PointerProvider): PointerProvider => {
 
   let path = stripTrailingSlash(ensureLeadingSlash(trim(input.apiPath)))
   if (!path && pasted.path) path = pasted.path
-  // fluency.js adds the route itself; a user following older docs will
-  // have included it, which then 404s.
   if (type === "chat" && isOpenAICompatibleProvider(providerName)) {
     path = path.replace(/\/chat\/completions$/i, "")
   }
@@ -220,16 +179,11 @@ export const normalizeProvider = (input: PointerProvider): PointerProvider => {
   return normalized
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Validation                                                                */
-/* -------------------------------------------------------------------------- */
 
 export type ProviderField = keyof PointerProvider
 
 export interface ProviderValidation {
-  /** Field -> message. Empty when the provider can be saved. */
   errors: Partial<Record<ProviderField, string>>
-  /** Things that will probably not work but are allowed. */
   warnings: string[]
   valid: boolean
 }
@@ -240,10 +194,6 @@ const IPV6_PATTERN = /^\[?[0-9a-f:]+\]?$/i
 const isValidHostname = (hostname: string) =>
   HOSTNAME_PATTERN.test(hostname) || IPV6_PATTERN.test(hostname)
 
-/**
- * Judges a provider as it is; run `normalizeProvider` first when checking
- * something that came from a form so trivial whitespace is not an error.
- */
 export const validateProvider = (
   provider: PointerProvider
 ): ProviderValidation => {
@@ -341,11 +291,7 @@ export const validateProvider = (
   return { errors, warnings, valid: Object.keys(errors).length === 0 }
 }
 
-/* -------------------------------------------------------------------------- */
-/*  Presentation helpers                                                      */
-/* -------------------------------------------------------------------------- */
 
-/** The base address, without the route: `http://localhost:11434`. */
 export const getProviderOrigin = (provider: PointerProvider) => {
   if (!provider.apiHostname) return ""
   const protocol = provider.apiProtocol || "http"
@@ -353,10 +299,6 @@ export const getProviderOrigin = (provider: PointerProvider) => {
   return `${protocol}://${provider.apiHostname}${port}`
 }
 
-/**
- * The URL a request will actually hit, for showing the user. Empty for a
- * hosted chat provider, which has no configurable address.
- */
 export const describeProviderEndpoint = (provider: PointerProvider) => {
   if (!hasConfigurableEndpoint(provider.provider, provider.type)) return ""
   const origin = getProviderOrigin(provider)
@@ -369,7 +311,6 @@ export const describeProviderEndpoint = (provider: PointerProvider) => {
   return `${origin}${route}`
 }
 
-/** A one-line human summary: `codellama:7b-code · localhost:11434`. */
 export const summarizeProvider = (provider: PointerProvider) => {
   const where = usesEndpoint(provider.provider, provider.type)
     ? `${provider.apiHostname || "?"}${provider.apiPort ? `:${provider.apiPort}` : ""}`
@@ -377,7 +318,6 @@ export const summarizeProvider = (provider: PointerProvider) => {
   return [provider.modelName || "no model", where].join(" · ")
 }
 
-/** Import files are user-supplied; only keep entries that are providers. */
 export const isProviderLike = (value: unknown): value is PointerProvider => {
   if (typeof value !== "object" || value === null) return false
   const candidate = value as Record<string, unknown>

@@ -1,22 +1,9 @@
-/**
- * The tool steps of the reply being written, as the chat shows them: each
- * call appears when it starts, fills in when it finishes, and a command
- * waits in it for the user's Run or Skip. The webview gets the whole list
- * each time something changes and keeps it with the reply.
- */
 import { ToolStepView } from "../../common/types"
 import { ToolStart, ToolStep } from "../tools/loop"
 
-/**
- * Characters of a tool's output, and of each of its arguments, kept for
- * the user to read. The steps are saved with the conversation, so a
- * created file's whole content or a long diff is not kept in full; the
- * model's own copy is not cut here.
- */
 const MAX_SHOWN_OUTPUT = 4000
 const MAX_SHOWN_ARG = 2000
 const MAX_ARG_IN_SUMMARY = 80
-/** What a running command has printed is shown as its tail, refreshed this often. */
 const MAX_LIVE_OUTPUT = 2000
 const LIVE_EVERY_MS = 250
 
@@ -32,7 +19,6 @@ const firstArg = (args: Record<string, string>) => {
   return line.length > MAX_ARG_IN_SUMMARY ? `${line.slice(0, MAX_ARG_IN_SUMMARY)}…` : line
 }
 
-/** What a call is doing, before it has a summary of its own. */
 const startSummary = ({ name, args }: ToolStart) => {
   const what = firstArg(args)
   return what ? `${name} \`${what}\`` : name
@@ -46,12 +32,10 @@ export class ToolSteps {
   private readonly _stopped = new Set<string>()
   private _live: { id: string; output: string } | undefined
   private _liveTimer: ReturnType<typeof setTimeout> | undefined
-  /** The reply was discarded: its late steps are not sent, until the next reply starts. */
   private _muted = false
 
   constructor(private readonly _emit: (steps: ToolStepView[]) => void) {}
 
-  /** A new reply: forget the last one's steps and any command still waiting. */
   public reset() {
     this.cancelWaiting()
     this._muted = false
@@ -98,13 +82,11 @@ export class ToolSteps {
     })
   }
 
-  /** A message the user sent mid-reply, shown where the model read it. */
   public said(id: string, text: string) {
     this._steps = [...this._steps, { id: `said.${id}`, name: "said", summary: text, status: "done", said: true }]
     this.send()
   }
 
-  /** How to stop the running step's command alone; its step gets a stop button. */
   public stoppable(stop: () => void) {
     const step = [...this._steps].reverse().find((s) => s.status === "running")
     if (!step) return
@@ -112,7 +94,6 @@ export class ToolSteps {
     this.update(step.id, { stoppable: true })
   }
 
-  /** The user's stop on a running step: that command ends, the reply goes on. */
   public stop(id: string) {
     const stop = this._stoppers.get(id)
     if (!stop) return
@@ -122,10 +103,6 @@ export class ToolSteps {
     stop()
   }
 
-  /**
-   * What the running step has printed so far (a command's output), sent
-   * at most a few times a second; `finish` replaces it with the result.
-   */
   public progress(output: string) {
     const step = [...this._steps].reverse().find((s) => s.status === "running")
     if (!step) return
@@ -139,11 +116,6 @@ export class ToolSteps {
     }, LIVE_EVERY_MS)
   }
 
-  /**
-   * Hold the running step until the user answers in the chat: a command
-   * to run, or a change to make that has no diff to review. Resolves
-   * false if they skip it, stop the reply, or a new one starts.
-   */
   public approve(
     detail: string,
     approval: "command" | "change" = "command",
@@ -166,7 +138,6 @@ export class ToolSteps {
     })
   }
 
-  /** The user's Run or Skip, from the webview. */
   public answer(id: string, run: boolean) {
     const resolve = this._waiting.get(id)
     if (!resolve) return
@@ -175,16 +146,10 @@ export class ToolSteps {
     resolve(run)
   }
 
-  /** Stopping the reply skips whatever is waiting. */
   public cancelWaiting() {
     for (const id of [...this._waiting.keys()]) this.answer(id, false)
   }
 
-  /**
-   * The reply is over. A step still running or waiting was cut off by a
-   * stop or a failure, and says so rather than spinning for ever in the
-   * saved conversation.
-   */
   public settle() {
     this.cancelWaiting()
     if (!this._steps.some((step) => step.status === "running" || step.status === "waiting")) return
@@ -201,10 +166,6 @@ export class ToolSteps {
     this.send()
   }
 
-  /**
-   * The reply is being thrown away (the user left its conversation):
-   * whatever waits is skipped, and nothing more is sent for it.
-   */
   public discard() {
     this.cancelWaiting()
     this._muted = true

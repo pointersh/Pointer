@@ -10,11 +10,8 @@ interface MessageListProps {
   message: ChatCompletionMessage
   messages: ChatCompletionMessage[]
   completion?: ChatCompletionMessage | null
-  /** The row of the reply in progress, which comes after the messages: the typing indicator, then the reply as it streams. */
   pending?: boolean
-  /** The workspace search for the reply in progress, shown under it. */
   context?: WorkspaceSearchReport
-  /** The tool steps of the reply in progress, shown above it. */
   steps?: ToolStepView[]
   isLoading: boolean
   index: number
@@ -55,12 +52,10 @@ const MessageItem = memo(
     const isAgentMessage = message?.role === "assistant"
     const isLastMessage = index === messages?.length - 1
     const messageKey = `${message?.role}-0`
-    // A reply the user stopped, or one that used every tool step it had.
     const canContinue =
       isAgentMessage && isLastMessage && !isLoading && !!(message.meta?.stopped || message.meta?.outOfSteps)
 
     if (pending) {
-      // Never an empty row: Virtuoso measures nothing as an error.
       return completion ? (
         <Message
           key={`completion-${messageKey}`}

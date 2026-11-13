@@ -34,14 +34,12 @@ suite("Embeddings: database", () => {
     const db = new EmbeddingDatabase(dir)
     try {
       await db.connect()
-      // An index run that died before finishWrites: rows, no keyword index.
       await db.replaceFiles([], [
         row("src/a.ts", "connection details are loaded here", 0.1),
         row("src/b.ts", "function unrelated() {}", 0.9)
       ])
       const hits = await db.textSearch(keywordQuery("connection details"), 5)
       assert.deepStrictEqual(hits.map((hit) => hit.file), ["src/a.ts"])
-      // And the repair sticks: the next search needs no rebuild.
       const again = await db.textSearch(keywordQuery("unrelated"), 5)
       assert.deepStrictEqual(again.map((hit) => hit.file), ["src/b.ts"])
     } finally {
@@ -63,7 +61,6 @@ suite("Embeddings: database", () => {
       assert.strictEqual((await files("status bar"))[0], "src/extension/status-bar.ts")
       assert.strictEqual((await files("statusBar"))[0], "src/extension/status-bar.ts")
       assert.strictEqual((await files("csp"))[0], "src/main/csp.ts")
-      // Stemming: "chunk" finds "chunks".
       assert.strictEqual((await files("chunk"))[0], "src/other.ts")
     })
   })

@@ -6,7 +6,6 @@ async function main() {
     const extensionDevelopmentPath = path.resolve(__dirname, "../../")
     const extensionTestsPath = path.resolve(__dirname, "./suite/index")
 
-    // Use the VSCode CLI test runner
     const cliPath = path.resolve(extensionDevelopmentPath, "node_modules", ".bin", "vscode-test")
 
     const args = [

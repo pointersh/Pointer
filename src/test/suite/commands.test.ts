@@ -1,11 +1,6 @@
 import * as assert from "assert"
 import * as vscode from "vscode"
 
-/**
- * Every command the manifest contributes must be registered once the
- * extension is active. One that is not still shows in the command palette
- * and fails with "command not found" (pointer.templates did until 4.3.5).
- */
 suite("Commands", () => {
   test("every contributed command is registered", async function () {
     this.timeout(30_000)

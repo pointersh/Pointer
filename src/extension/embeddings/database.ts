@@ -12,25 +12,16 @@ const KEYWORD_COLUMN = "keywords"
 const MANIFEST_FILE = "manifest.json"
 const MANIFEST_VERSION = 3
 
-/**
- * One stored row. A chunk is stored once per embedding window (see
- * `embeddingWindows`): every row of a chunk carries the whole chunk, and
- * `part` numbers the windows. The keyword index covers part 0 only, so a
- * chunk is one keyword hit; the vector search sees all parts and the
- * duplicates are folded. `file` is absolute so the chunk can be re-read.
- */
 export interface ChunkRow extends Record<string, unknown> {
   file: string
   content: string
   startLine: number
   endLine: number
-  /** The words of `content` and of the path, as `keywordText` makes them. */
   keywords: string
   part: number
   vector: number[]
 }
 
-/** What is known about one indexed file, to tell whether it changed. */
 export interface FileStamp {
   hash: string
   size: number
@@ -38,14 +29,8 @@ export interface FileStamp {
   chunks: number
 }
 
-/**
- * The index's own record of what it holds. Lives next to the LanceDB
- * tables. It is what makes an index run incremental: files whose stamp
- * matches are not read again, let alone embedded.
- */
 export interface IndexManifest {
   version: number
-  /** The embedding model the vectors came from. Vectors from two models don't mix. */
   model: string
   dimensions: number
   files: Record<string, FileStamp>
@@ -59,22 +44,9 @@ const emptyManifest = (model = "", dimensions = 0): IndexManifest => ({
   files: {}
 })
 
-/**
- * The workspace's vector store: one LanceDB table of chunks with both a
- * vector index and a full-text index over the same rows, plus the manifest.
- * Purely storage; embedding and searching logic lives in the indexer and
- * the search.
- */
-/** A `where` clause selecting the rows of these files. */
 const fileFilter = (files: string[]) =>
   `file IN (${files.map(sqlString).join(", ")})`
 
-/**
- * LanceDB is a native module, loaded on first connect rather than at
- * import: if its binding fails to load (it threw while sniffing glibc in
- * the WSL remote host), embeddings are unavailable but the extension
- * still activates.
- */
 let lanceModule: Promise<typeof lancedb> | undefined
 const loadLance = () => (lanceModule ??= import("@lancedb/lancedb"))
 
@@ -88,8 +60,6 @@ export class EmbeddingDatabase {
   public async connect() {
     const lance = await loadLance()
     this._db = await lance.connect(this._dbPath)
-    // Indexes from before the manifest existed are one table per workspace
-    // name; they cannot be updated incrementally, so start over.
     if (!fs.existsSync(this.manifestPath)) {
       for (const name of await this._db.tableNames()) {
         await this._db.dropTable(name).catch(() => undefined)
@@ -97,9 +67,6 @@ export class EmbeddingDatabase {
     }
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Manifest                                                                 */
-  /* ------------------------------------------------------------------------ */
 
   private get manifestPath() {
     return path.join(this._dbPath, MANIFEST_FILE)
@@ -120,8 +87,6 @@ export class EmbeddingDatabase {
   }
 
   public async saveManifest(manifest: IndexManifest) {
-    // Callers share and mutate this object across awaited indexing work.
-    // Keep that reference; snapshot only the bytes submitted for persistence.
     this._manifest = manifest
     const snapshot = JSON.stringify(manifest)
     const write = this._manifestWrite.then(async () => {
@@ -134,19 +99,14 @@ export class EmbeddingDatabase {
         await fs.promises.rm(tmp, { force: true }).catch(() => undefined)
       }
     })
-    // The caller sees its failure, but the next queued save can still run.
     this._manifestWrite = write.catch(() => undefined)
     await write
   }
 
-  /** Whether anything has been indexed. */
   public get hasIndex(): boolean {
     return Object.keys(this.manifest.files).length > 0
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Writes                                                                   */
-  /* ------------------------------------------------------------------------ */
 
   private async table(): Promise<lancedb.Table | undefined> {
     if (!this._db) return undefined
@@ -155,7 +115,6 @@ export class EmbeddingDatabase {
     return this._db.openTable(CHUNK_TABLE)
   }
 
-  /** Replaces every chunk of the given files with `rows`. */
   public async replaceFiles(files: string[], rows: ChunkRow[]) {
     if (!this._db) throw new Error("The embedding database is not open.")
     const table = await this.table()
@@ -176,7 +135,6 @@ export class EmbeddingDatabase {
     await table?.delete(fileFilter(files))
   }
 
-  /** Drops everything, ready for a rebuild. */
   public async reset() {
     if (this._db) {
       for (const name of await this._db.tableNames()) {
@@ -186,10 +144,6 @@ export class EmbeddingDatabase {
     await this.saveManifest(emptyManifest())
   }
 
-  /**
-   * Builds the keyword index over what was written and compacts the table.
-   * Cheap on an unchanged table; run it at the end of every index run.
-   */
   public async finishWrites() {
     const table = await this.table()
     if (!table) return
@@ -197,14 +151,10 @@ export class EmbeddingDatabase {
     await table.optimize()
   }
 
-  /** The BM25 index over `keywords`; built when missing. Returns whether it was. */
   private async ensureTextIndex(table: lancedb.Table): Promise<boolean> {
     const indices = await table.listIndices()
     if (indices.some((index) => index.columns.includes(KEYWORD_COLUMN))) return false
     const started = Date.now()
-    // The column is already lowercased words split from identifiers;
-    // stemming makes "chunks" find "chunk", and positions are not needed
-    // since nothing runs phrase queries.
     await table.createIndex(KEYWORD_COLUMN, {
       config: (await loadLance()).Index.fts({
         withPosition: false,
@@ -220,11 +170,7 @@ export class EmbeddingDatabase {
     return true
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Reads                                                                    */
-  /* ------------------------------------------------------------------------ */
 
-  /** Chunks in the store, each counted once however many windows it has. */
   public async countChunks(): Promise<number> {
     try {
       return (await (await this.table())?.countRows("part = 0")) ?? 0
@@ -242,11 +188,6 @@ export class EmbeddingDatabase {
     }))
   }
 
-  /**
-   * Nearest chunks by vector distance, best first; only from `files` when
-   * given. A chunk embedded in several windows is returned once, at the
-   * rank of its nearest window.
-   */
   public async vectorSearch(
     vector: number[],
     limit: number,
@@ -272,11 +213,6 @@ export class EmbeddingDatabase {
     }
   }
 
-  /**
-   * Chunks whose identifiers match the query's words (BM25), best first;
-   * only from `files` when given. The query must come from `keywordQuery`
-   * so it is split the way the index is.
-   */
   public async textSearch(
     query: string,
     limit: number,
@@ -294,8 +230,6 @@ export class EmbeddingDatabase {
       try {
         return await run()
       } catch (error) {
-        // An index run that died before its last step leaves rows with no
-        // keyword index. Build it now rather than failing every search.
         if (!/no inverted index/i.test(String(error))) throw error
         logger.warn("Keyword index missing (an earlier index run did not finish); building it")
         if (!(await this.ensureTextIndex(table))) throw error

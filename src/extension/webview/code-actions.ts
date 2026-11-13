@@ -1,6 +1,5 @@
 import * as vscode from "vscode"
 
-/** Markdown fence names that are not VS Code language ids. */
 const FENCE_ALIASES: Record<string, string> = {
   bash: "shellscript",
   sh: "shellscript",
@@ -35,10 +34,6 @@ const FENCE_ALIASES: Record<string, string> = {
   htm: "html"
 }
 
-/**
- * Turn a markdown fence name into a language id VS Code actually knows,
- * falling back to the active editor's language and then to plain text.
- */
 export const resolveLanguageId = async (
   fence: string | undefined,
   fallback: string | undefined
@@ -53,10 +48,6 @@ export const resolveLanguageId = async (
   return "plaintext"
 }
 
-/**
- * Models often quote shell sessions with a prompt in front of each command.
- * Drop `$ `, `> ` and `PS> ` so what lands in the terminal is runnable.
- */
 export const stripShellPrompts = (command: string): string =>
   command
     .split("\n")

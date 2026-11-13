@@ -9,10 +9,6 @@ const ACCEPT_KEY = mac ? "⌘⇧↩" : "Ctrl+Shift+Enter"
 const REJECT_KEY = mac ? "⌘⇧⌫" : "Ctrl+Shift+Backspace"
 const STOP_KEY = mac ? "⌃⇧/" : "Ctrl+Shift+/"
 
-/**
- * The buttons above an inline edit: "Stop" while it streams, then
- * "Accept" and "Reject" while the diff waits for a verdict.
- */
 export class InlineEditCodeLensProvider implements vscode.CodeLensProvider {
   public readonly onDidChangeCodeLenses: vscode.Event<void>
 

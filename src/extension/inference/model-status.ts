@@ -1,9 +1,3 @@
-/**
- * Where the chat model runs and what state its server has it in, asked
- * without loading anything: Ollama's list of running models, LM Studio's
- * model list, llama.cpp's properties. A hosted API is not asked; it is
- * always ready as far as the chat can tell.
- */
 import { API_PROVIDERS } from "../../common/constants"
 import type { ModelPlace, ModelStatus } from "../../common/model-status"
 import { HOSTED_PROVIDERS } from "../../common/provider-validation"
@@ -22,7 +16,6 @@ const keyOf = (provider: PointerProvider) =>
 
 const loadTimes = new Map<string, number>()
 
-/** pointer loaded this model and it took this long; said next to it from then on. */
 export const rememberLoad = (provider: PointerProvider, ms: number) => loadTimes.set(keyOf(provider), ms)
 
 interface Loaded {

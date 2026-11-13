@@ -29,8 +29,6 @@ suite("Embeddings: ranking", () => {
     const a = candidate("a.ts", 0)
     const b = candidate("b.ts", 0)
     const c = candidate("c.ts", 0)
-    // a leads the semantic list only; b is second in both; c leads the
-    // keyword list only. Two second places beat one first place.
     const fused = fuseRankings([[a, b], [c, b]])
     assert.strictEqual(fused[0].file, "b.ts")
     assert.strictEqual(fused.length, 3)
@@ -83,7 +81,6 @@ suite("Embeddings: ranking", () => {
       assert.ok(query.split(" ").includes(word), `${word} in "${query}"`)
     }
     assert.ok(!query.includes("?"))
-    // Stop words match every chunk and drown the real ones.
     assert.ok(!query.split(" ").includes("where"), query)
     assert.ok(!query.split(" ").includes("does"), query)
     assert.strictEqual(keywordQuery("?? !!"), "")
@@ -98,7 +95,6 @@ suite("Embeddings: ranking", () => {
     for (const word of ["statusbar", "status", "bar", "statusbaritem", "item", "max", "file", "bytes"]) {
       assert.ok(words.includes(word), `${word} in "${text}"`)
     }
-    // A plain word is stored once, not once whole and once as its only part.
     assert.deepStrictEqual(keywordText("const chunk").split(" "), ["const", "chunk"])
     assert.ok(words.every((word) => word === word.toLowerCase()))
   })

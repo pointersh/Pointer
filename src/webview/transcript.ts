@@ -3,7 +3,6 @@ import { ChatCompletionMessage } from "../common/types"
 
 import { getThinkingMessage } from "./utils"
 
-/** The composer's HTML as markdown: line breaks, `@mentions`, fenced code. */
 const composerMarkdown = (html: string): string => {
   const root = document.createElement("div")
   root.innerHTML = html
@@ -28,7 +27,6 @@ const composerMarkdown = (html: string): string => {
   return walk(root).replace(/\n{3,}/g, "\n\n").trim()
 }
 
-/** A reply with what the user said while it worked quoted where the model read it. */
 const withSaid = (reply: string, steps: ChatCompletionMessage["toolSteps"]): string => {
   const said = (steps ?? []).filter((step) => step.said).sort((a, b) => (a.at ?? 0) - (b.at ?? 0))
   if (!said.length) return reply
@@ -42,10 +40,6 @@ const withSaid = (reply: string, steps: ChatCompletionMessage["toolSteps"]): str
   return out + reply.slice(from)
 }
 
-/**
- * A conversation as one markdown document, for keeping or sharing. Replies
- * lose their thinking; user turns lose the composer's markup.
- */
 export const conversationMarkdown = (
   title: string | undefined,
   messages: ChatCompletionMessage[]

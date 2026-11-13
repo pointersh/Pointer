@@ -20,13 +20,6 @@ import { ExtensionBridge } from "../messaging/bridge"
 import { WorkspaceIndex } from "./index"
 import { IndexRunResult } from "./indexer"
 
-/**
- * The embeddings tab's side of the index: starts update and rebuild runs,
- * cancels them, and reports status and progress. Progress goes to the
- * webview (a bar in the tab) and to a VS Code notification (visible from
- * any tab). A run stops at the first provider failure with the reason
- * shown in both.
- */
 export class EmbeddingService implements Disposable {
   private _cancel?: CancellationTokenSource
   private _progress: EmbeddingProgress = {

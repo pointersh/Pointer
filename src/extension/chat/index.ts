@@ -63,37 +63,23 @@ import {
 import { ToolSteps } from "./tool-steps"
 import { buildChatTurn } from "./turn"
 
-/** Templates whose answer benefits from `@workspace`-style lookups. */
 const TEMPLATES_WITH_RAG = ["explain"]
-/** A model that has not loaded by now is not going to: the server is stuck or out of memory. */
 const LOAD_TIMEOUT_MS = 5 * 60_000
 
 const loadKey = (provider: PointerProvider) =>
   [provider.provider, provider.apiHostname ?? "", provider.apiPort ?? "", provider.modelName].join("|")
-/** A server on this machine or the network can be asked to load the model; a hosted API cannot. */
 const shouldWarm = (provider: PointerProvider) => {
   const place = placeOf(provider)
   return place === "machine" || place === "network"
 }
 
-/** The steps an agent reply may take, as `pointer.chatToolsMaxSteps` may set them. */
 const MIN_STEPS_SETTING = 4
 const MAX_STEPS_SETTING = 40
 
-/**
- * The chat feature's front door.
- *
- * Takes what the webview or a command hands over, turns it into the
- * messages the model is sent (`buildChatTurn`, with `ChatContextBuilder`
- * for the context) and runs them (`ChatGeneration`) against whichever
- * provider the inference layer resolves. Holds the running conversation,
- * replies included, between turns.
- */
 export class Chat extends Base {
   private _conversation: ChatCompletionMessage[] = []
   private readonly _backgroundRuns = new Set<GenerationRun>()
   private _suggestion?: GenerationRun
-  /** Models pointer is loading at the user's request, and why the last load of one failed. */
   private readonly _loading = new Set<string>()
   private readonly _loadErrors = new Map<string, string>()
   private readonly _bridge: ExtensionBridge
@@ -102,23 +88,14 @@ export class Chat extends Base {
   private readonly _search: WorkspaceSearch | undefined
   private readonly _steps: ToolSteps
   private readonly _stopSubscription: { dispose(): void }
-  /** What agent replies changed, kept so each can be compared or undone from the chat. */
   private _changes?: { store: ChangeStore; editor: ReplyChangesEditor }
-  /** The MCP servers in the user's settings, running for this chat. */
   private readonly _mcp = new McpHost(
     () => this.config.get<Record<string, unknown>>("chatToolsMcpServers", {}),
     () => this.workspaceRoot()
   )
-  /** A typed message's context is being gathered; its reply has not started. */
   private _preparing = false
-  /**
-   * Messages the user queued while an agent reply works, offered for the
-   * model to read at its next step. Only taken while that reply runs: one
-   * offered too late stays the webview's, to send as a turn of its own.
-   */
   private _steering: { id: string; text: string }[] = []
   private _steerable = false
-  /** Aborted when this chat goes: the commands it started end with it. */
   private readonly _lifetime = new AbortController()
   private readonly _generations: GenerationTracker
 
@@ -134,7 +111,6 @@ export class Chat extends Base {
     this._bridge = bridge
     this._search = search
     this._steps = new ToolSteps((steps) => bridge.emit(EVENT_NAME.pointerToolSteps, steps))
-    // Stopping the reply skips a command still waiting for Run or Skip.
     this._stopSubscription = generations.onDidStop(() => this._steps.cancelWaiting())
     this._generation = new ChatGeneration(bridge, generations)
     this._context = new ChatContextBuilder(
@@ -145,9 +121,6 @@ export class Chat extends Base {
     )
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Public API                                                               */
-  /* ------------------------------------------------------------------------ */
 
   public get cancelled(): boolean {
     return this._generation.cancelled
@@ -158,21 +131,15 @@ export class Chat extends Base {
     this._generation.abort()
   }
 
-  /** Stop every chat request, including background titles and draft hints. */
   public abortAll = () => {
     this.abort()
     this._suggestion?.abort()
     for (const run of [...this._backgroundRuns]) run.abort()
   }
 
-  /**
-   * Run, Always run or Skip, on a command waiting in the tool steps.
-   * Always run keeps that exact command, to run unasked from then on.
-   */
   public answerToolApproval(id: string, run: boolean, always = false) {
     const step = this._steps.steps.find((s) => s.id === id)
     if (run && always && step?.approval === "command" && step.command) {
-      // An MCP tool is kept by name: its arguments differ from call to call.
       const list = step.mcpTool ? GLOBAL_STORAGE_KEY.alwaysRunMcpTools : GLOBAL_STORAGE_KEY.alwaysRunCommands
       const key = `${EVENT_NAME.pointerGlobalContext}-${list}`
       const kept = this.context?.globalState.get<string[]>(key) ?? []
@@ -182,10 +149,6 @@ export class Chat extends Base {
     this._steps.answer(id, run)
   }
 
-  /**
-   * Whether a call to an MCP tool may go ahead: asked in the steps, unless
-   * the user chose Always run for that tool.
-   */
   private approveMcp(detail: string, tool: McpToolSpec): Promise<boolean> {
     const name = `${tool.server}/${tool.tool}`
     const kept = this.context?.globalState.get<string[]>(
@@ -195,26 +158,16 @@ export class Chat extends Base {
     return this._steps.approve(detail, "command", { always: true, mcpTool: name })
   }
 
-  /** Whether a reply is being written now. */
   public get replying(): boolean {
     return this._generation.running || this._preparing
   }
 
-  /**
-   * Stop the reply and keep none of it, nor its steps: the user started a
-   * new conversation or opened another one while it was being written, or
-   * while its context was still being gathered (then it never starts).
-   */
   public discardReply() {
     if (!this.replying) return
     this._steps.discard()
     this._generation.discard()
   }
 
-  /**
-   * Where what agent replies changed is kept: the workspace's storage,
-   * made on first use.
-   */
   private changes() {
     if (!this._changes) {
       const storage = (this.context?.storageUri ?? this.context?.globalStorageUri)?.fsPath ?? os.tmpdir()
@@ -224,28 +177,23 @@ export class Chat extends Base {
     return this._changes
   }
 
-  /** A file a reply changed, beside what it was before. */
   public openChange(id: string, file: string) {
     return this.changes().editor.openDiff(id, file)
   }
 
-  /** Put a reply's changed files (all, or `paths`) back as they were. */
   public undoChanges(id: string, paths?: string[]) {
     return this.changes().editor.undo(id, paths)
   }
 
-  /** The stop button on a running command: ends it, and the reply carries on. */
   public stopToolStep(id: string) {
     this._steps.stop(id)
   }
 
-  /** A queued message offered to the agent reply that is working (`text`), or taken back. */
   public steer(id: string, text?: string) {
     this._steering = this._steering.filter((entry) => entry.id !== id)
     if (text?.trim() && this._steerable) this._steering.push({ id, text: text.trim() })
   }
 
-  /** The messages on offer, handed to the model now and shown in the steps where it read them. */
   private takeSteering(): string[] {
     const taken = this._steering
     this._steering = []
@@ -270,27 +218,21 @@ export class Chat extends Base {
     this._conversation = []
   }
 
-  /** A message typed in the chat, with whatever the user attached. */
   public async completion(
     messages: ChatCompletionMessage[],
     mentions?: MentionType[]
   ): Promise<string | undefined> {
     const provider = this.start()
     if (!provider) return undefined
-    // Gathering context can take a while (a workspace search); a conversation
-    // left meanwhile stops this reply too.
     this._preparing = true
     let view: WorkspaceView | undefined
     try {
       view = this.toolsView()
-      // The user's MCP servers, started (or restarted) for an agent reply.
       if (view && this._mcp.configured) await this._mcp.ready()
       this._conversation = await buildChatTurn(messages, {
         systemPrompt: () => this._context.systemPrompt(),
         additionalContext: async (question, sources, history) => {
           const context = await this._context.additionalContext(question, sources, mentions, history)
-          // With tools, where the user is in the editor comes with the
-          // question, so "this function" needs no tool call to place.
           const hint = view ? editorHint(view) : ""
           return hint ? `${hint}\n\n${context}` : context
         }
@@ -301,7 +243,6 @@ export class Chat extends Base {
     return this.run(provider, "", view)
   }
 
-  /** A code action (explain, refactor…) run over the editor selection. */
   public async templateCompletion(template: string, context?: string) {
     const provider = this.start()
     if (!provider) return ""
@@ -309,11 +250,6 @@ export class Chat extends Base {
     return this.run(provider)
   }
 
-  /**
-   * A question raised by a command rather than typed: shown in the chat as
-   * if the user had sent `display`, answered from `prompt` with `attached`
-   * code, and kept in the conversation so follow-ups work.
-   */
   public async ask(
     display: string,
     prompt: string,
@@ -341,11 +277,6 @@ export class Chat extends Base {
     return this.run(provider)
   }
 
-  /**
-   * Stream a reply to exactly these messages, skipping the chat's own prompt
-   * building (system prompt, editor selection, workspace context). The reply
-   * is shown in the chat as it arrives and returned when complete.
-   */
   public async streamMessages(
     messages: ChatCompletionMessage[],
     prefix = ""
@@ -356,7 +287,6 @@ export class Chat extends Base {
     return this.run(provider, prefix)
   }
 
-  /** One-shot, no UI: used for conversation titles and commit messages. */
   public async generateSimpleCompletion(
     prompt: string
   ): Promise<string | undefined> {
@@ -391,11 +321,7 @@ export class Chat extends Base {
     }
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Internals                                                                */
-  /* ------------------------------------------------------------------------ */
 
-  /** Where the chat model runs, whether its server has it loaded, how much it holds. */
   public async modelStatus(): Promise<ModelStatus | null> {
     const provider = this.getProvider()
     if (!provider?.modelName) return null
@@ -406,14 +332,6 @@ export class Chat extends Base {
     return failed && !status.loaded ? { ...status, loadError: failed } : status
   }
 
-  /**
-   * Starts loading the chat model on its local server, so the first reply
-   * does not wait for it, and answers at once: a large model takes longer
-   * to load than a request from the chat may wait. The chat asks for the
-   * status again until it is loaded. The load is a one-token chat request,
-   * sent the way a real message is, so the server loads the model exactly
-   * as the first message would.
-   */
   public async warmModel(): Promise<ModelStatus | null> {
     const provider = this.getProvider()
     if (!provider?.modelName) return null
@@ -449,17 +367,12 @@ export class Chat extends Base {
     return this.modelStatus()
   }
 
-  /** Common preamble: clear the stop flag, tell the webview the language. */
   private start(): PointerProvider | undefined {
     this._generation.reset()
     this._bridge.emit(EVENT_NAME.pointerSendLanguage, getLanguage())
     return this.getProvider()
   }
 
-  /**
-   * Agent mode, as the composer's switch left it (stored the way the webview
-   * stores global values). Until it is first switched, `pointer.chatTools`.
-   */
   private agentMode(): boolean {
     const stored = this.context?.globalState.get<boolean>(
       `${EVENT_NAME.pointerGlobalContext}-${GLOBAL_STORAGE_KEY.agentMode}`
@@ -467,12 +380,6 @@ export class Chat extends Base {
     return stored ?? this.config.get<boolean>("chatTools", false)
   }
 
-  /**
-   * Whether a command asks first: not when the composer's auto-run switch
-   * is on (until it is first switched, `pointer.chatToolsCommands`), nor
-   * when the user chose Always run for that exact command. Read for each
-   * command, so either holds for the rest of the reply.
-   */
   private commandMode(setting: ChatCommandMode, command: string): "ask" | "allow" {
     const state = this.context?.globalState
     const stored = state?.get<boolean>(`${EVENT_NAME.pointerGlobalContext}-${GLOBAL_STORAGE_KEY.autoRunCommands}`)
@@ -481,16 +388,10 @@ export class Chat extends Base {
     return kept?.includes(normalCommand(command)) ? "allow" : "ask"
   }
 
-  /** The folder agent mode works in: the first workspace folder. */
   protected workspaceRoot(): string | undefined {
     return workspace.workspaceFolders?.[0]?.uri.fsPath
   }
 
-  /**
-   * The workspace as the tools will see it, when the user has tools on
-   * and a folder open. Made once per reply: its ignore rules are read at
-   * the start and hold until the end.
-   */
   private toolsView(): WorkspaceView | undefined {
     if (!this.agentMode()) return undefined
     const root = this.workspaceRoot()
@@ -502,10 +403,6 @@ export class Chat extends Base {
     )
   }
 
-  /**
-   * Send the conversation; the reply joins it, so the next turn follows on.
-   * With a `view`, the model may work in the workspace first.
-   */
   private async run(provider: PointerProvider, prefix = "", view?: WorkspaceView) {
     let toolNotes: string | undefined
     let instructionFiles = (): string[] => []
@@ -513,7 +410,6 @@ export class Chat extends Base {
     let changed: ReplyChangesView | undefined
     const usage: ToolLoopUsage = {}
     let outOfSteps = false
-    // Asked now, so the reply can say how much of the context it used.
     void contextWindowOf(provider)
     this._steering = []
     this._steerable = !!view
@@ -527,14 +423,12 @@ export class Chat extends Base {
             onOutOfSteps: () => (outOfSteps = true)
           })
         : resolveInferenceProvider(provider),
-      // The agent's loop fits a long conversation to the context itself; a plain reply is fitted here.
       { model: provider.modelName, messages: view ? this._conversation : this.fitted(provider) },
       provider,
       prefix,
       {
         toolNotes: () => toolNotes,
         keepEmpty: () => !!view && this._steps.steps.length > 0,
-        // What the reply changed, read once it is over and kept for undo.
         settle: async () => {
           if (!tracked?.touched) return
           const record = await tracked.record()
@@ -572,7 +466,6 @@ export class Chat extends Base {
     return reply
   }
 
-  /** The conversation, with its oldest turns folded into a few lines when it has outgrown the model's context. */
   private fitted(provider: PointerProvider): ChatCompletionMessage[] {
     const window = knownContextWindow(provider) ?? assumedContextWindow(provider)
     if (!window) return this._conversation
@@ -583,12 +476,6 @@ export class Chat extends Base {
     return messages
   }
 
-  /**
-   * The provider's client with the workspace's tools: reading and
-   * searching (by meaning too, when there is an index), what the language
-   * servers know, editing files and running commands, each as the
-   * settings say.
-   */
   private toolsClient(
     provider: PointerProvider,
     view: WorkspaceView,
@@ -643,8 +530,6 @@ export class Chat extends Base {
     return withTools(resolveInferenceProvider(provider), available, {
       mode: toolModeFor(provider.provider),
       maxSteps: Math.min(MAX_STEPS_SETTING, Math.max(MIN_STEPS_SETTING, this.config.get<number>("chatToolsMaxSteps", DEFAULT_MAX_STEPS) || DEFAULT_MAX_STEPS)),
-      // OpenAI's reasoning models think silently on the chat route; at their
-      // default effort one tool step can take minutes.
       reasoningEffort: provider.provider === API_PROVIDERS.OpenAI ? "low" : undefined,
       contextWindow: async () => {
         const told = await contextWindowOf(provider)
@@ -684,8 +569,6 @@ export class Chat extends Base {
             ? `Chat tools · ${provider.modelName} refused native tool calls, using the text protocol: ${reason}`
             : `Chat tools · ${provider.modelName} does not take a reasoning effort, carrying on without: ${reason}`
         ),
-      // A step cut off by a stop or a failure is marked so before the
-      // reply (and its steps) are saved.
       onEnd: () => this._steps.settle()
     })
   }
@@ -707,8 +590,6 @@ export class Chat extends Base {
       content:
         `${kebabToSentence(template)}\n\n\n<pre><code>${selection}</code></pre>`.trim() ||
         " ",
-      // Like a typed turn, the conversation keeps the question; what the
-      // workspace search adds is for this reply only.
       prompt: prompt.trim()
     })
 

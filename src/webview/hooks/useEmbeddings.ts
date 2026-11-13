@@ -12,7 +12,6 @@ const IDLE: EmbeddingProgress = {
   currentFiles: []
 }
 
-/** The workspace index: what is there, and what is happening to it. */
 export const useEmbeddings = () => {
   const status = useServerState(EMBEDDING_EVENT_NAME.getStatus)
   const [progress, setProgress] = useState<EmbeddingProgress>(IDLE)
@@ -26,9 +25,7 @@ export const useEmbeddings = () => {
     status: status.data,
     statusLoading: status.isLoading,
     progress,
-    /** Embed what changed since the last run. */
     update: () => emit(EMBEDDING_EVENT_NAME.embed),
-    /** Start over: needed after switching embedding model or chunk sizes. */
     rebuild: () => emit(EMBEDDING_EVENT_NAME.rebuild),
     cancel: () => emit(EMBEDDING_EVENT_NAME.cancel)
   }

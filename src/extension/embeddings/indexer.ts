@@ -14,17 +14,8 @@ import { Embedder } from "./embedder"
 import { isIndexablePath, looksBinary } from "./indexable"
 import { keywordText, pathKeywords } from "./rank"
 
-/** Rows are written once this many files are ready, or at the end. */
 const WRITE_EVERY_FILES = 25
-/** Files bigger than this are skipped: minified bundles, data dumps. */
 const MAX_FILE_BYTES = 512 * 1024
-/**
- * Characters of a chunk embedded at once, with its path in front. Sized for
- * the smallest common embedding model: Ollama runs all-minilm with a
- * 256-token window and drops everything after it without a word, and code
- * is about three characters a token. A chunk longer than this is embedded
- * in overlapping windows, one row each.
- */
 const EMBED_WINDOW_CHARS = 600
 const EMBED_WINDOW_OVERLAP = 80
 
@@ -32,26 +23,22 @@ export type IndexPhase = "scanning" | "embedding" | "finishing"
 
 export interface IndexProgress {
   phase: IndexPhase
-  /** Files embedded so far, of the ones that changed. */
   processed: number
   total: number
   currentFiles: string[]
 }
 
 export interface IndexRunOptions {
-  /** `update` embeds only what changed since the last run; `rebuild` starts over. */
   mode: "update" | "rebuild"
   token?: vscode.CancellationToken
   onProgress?: (progress: IndexProgress) => void
 }
 
 export interface IndexRunResult {
-  /** Files (re)embedded in this run. */
   embedded: number
   chunks: number
   unchanged: number
   removed: number
-  /** Files in the index after the run. */
   files: number
 }
 
@@ -62,13 +49,6 @@ interface ScannedFile {
   mtimeMs: number
 }
 
-/**
- * Keeps the index in step with the workspace. A run scans the folders,
- * compares each file's stamp with the manifest, embeds what is new or
- * changed, drops what is gone, and stamps the manifest. Cancelling keeps
- * everything written so far, so the next run picks up where this one
- * stopped.
- */
 export class WorkspaceIndexer {
   constructor(
     private readonly _context: vscode.ExtensionContext,
@@ -76,9 +56,6 @@ export class WorkspaceIndexer {
     private readonly _embedder: Embedder
   ) {}
 
-  /* ------------------------------------------------------------------------ */
-  /*  Scanning                                                                 */
-  /* ------------------------------------------------------------------------ */
 
   private buildIgnore(rootPath: string): Ignore {
     const ig = ignore()
@@ -95,7 +72,6 @@ export class WorkspaceIndexer {
     return ig
   }
 
-  /** Whether one path would be picked up by a scan of its workspace folder. */
   public isIndexable(file: string): boolean {
     const folder = vscode.workspace.getWorkspaceFolder(vscode.Uri.file(file))
     if (!folder || !isIndexablePath(file)) return false
@@ -132,9 +108,7 @@ export class WorkspaceIndexer {
             if (stats.size > 0 && stats.size <= MAX_FILE_BYTES) {
               found.push({ file, relative, size: stats.size, mtimeMs: stats.mtimeMs })
             }
-          } catch {
-            // Vanished between readdir and stat; nothing to index.
-          }
+          } catch {}
         }
       }
     }
@@ -150,21 +124,11 @@ export class WorkspaceIndexer {
     return files
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Embedding one file                                                       */
-  /* ------------------------------------------------------------------------ */
 
   private hash(buffer: Buffer): string {
     return crypto.createHash("sha1").update(buffer as Uint8Array).digest("hex")
   }
 
-  /**
-   * The rows for one file, or nothing when it is unchanged, binary, or
-   * empty. Each chunk is embedded with its path in front: the model then
-   * knows `parse()` in `src/dates.ts` is about dates, which a bare snippet
-   * cannot say. Long chunks are embedded in windows, one row per window,
-   * so no line of the file is beyond the model's reach.
-   */
   private async embedFile(
     scanned: ScannedFile,
     previous: FileStamp | undefined
@@ -221,11 +185,7 @@ export class WorkspaceIndexer {
     }
   }
 
-  /* ------------------------------------------------------------------------ */
-  /*  Runs                                                                     */
-  /* ------------------------------------------------------------------------ */
 
-  /** Whether the index was built with a different model than the active one. */
   public get modelChanged(): boolean {
     const indexed = this._db.manifest.model
     const active = this._embedder.model
@@ -293,9 +253,6 @@ export class WorkspaceIndexer {
       await this._db.saveManifest(manifest)
     }
 
-    // Stopping early clears the queue. A cleared task's promise from
-    // `add` never settles, so the run waits for the queue to drain rather
-    // than for every task; each task swallows its own errors.
     const queue = new PQueue({ concurrency: this._embedder.parallel })
     token?.onCancellationRequested(() => queue.clear())
     report()
@@ -337,8 +294,6 @@ export class WorkspaceIndexer {
 
     onProgress?.({ phase: "finishing", processed, total, currentFiles: [] })
     await flush()
-    // Whatever was written must stay searchable by keyword too, even when
-    // the run is about to report a failure.
     try {
       await this._db.finishWrites()
     } catch (error) {
@@ -359,10 +314,6 @@ export class WorkspaceIndexer {
     }
   }
 
-  /**
-   * Re-embeds one file after it was saved. Silent and best-effort: a failure
-   * here is logged, not shown, since the user did not ask for anything.
-   */
   public async updateFile(file: string): Promise<boolean> {
     if (!this._db.hasIndex || this.modelChanged || !this.isIndexable(file)) return false
     const manifest = this._db.manifest
@@ -393,7 +344,6 @@ export class WorkspaceIndexer {
     }
   }
 
-  /** Forgets a file that was deleted from the workspace. */
   public async removeFile(file: string): Promise<boolean> {
     const manifest = this._db.manifest
     if (!manifest.files[file]) return false

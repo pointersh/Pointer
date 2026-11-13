@@ -18,9 +18,7 @@ import {
   TerminalRun
 } from "./output"
 
-/** How many referenced files travel to the chat with the error. */
 const MAX_ATTACHED = 3
-/** Lines either side of a referenced line when no enclosing symbol is known. */
 const CONTEXT_LINES = 20
 
 interface ResolvedLocation extends FileLocation {
@@ -28,10 +26,6 @@ interface ResolvedLocation extends FileLocation {
   relative: string
 }
 
-/**
- * The lines from an output that name the problem: the last few mentioning
- * an error, else the last few lines. Short enough to be an instruction.
- */
 export const summariseError = (output: string, maxChars = 400): string => {
   const lines = stripAnsi(output)
     .split("\n")
@@ -48,7 +42,6 @@ export const summariseError = (output: string, maxChars = 400): string => {
 const escapeHtml = (text: string) =>
   text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
 
-/** Locations from the output that are real files in this workspace. */
 const resolveLocations = (run: TerminalRun): ResolvedLocation[] => {
   const roots = [
     ...(run.cwd ? [run.cwd] : []),
@@ -72,7 +65,6 @@ const resolveLocations = (run: TerminalRun): ResolvedLocation[] => {
   return resolved
 }
 
-/** The code around a referenced line: its enclosing symbol, else a window. */
 const entryFor = async (location: ResolvedLocation): Promise<ContextEntry> => {
   const document = await workspace.openTextDocument(location.uri)
   const zeroLine = Math.max(0, location.line - 1)
@@ -108,9 +100,7 @@ const sendToChat = async (
   for (const location of locations.slice(0, MAX_ATTACHED)) {
     try {
       entries.push(await entryFor(location))
-    } catch {
-      // The file vanished between the check and the read; skip it.
-    }
+    } catch {}
   }
   const shown = tailOutput(run.output, { maxChars: 3000, maxLines: 40 })
   const display =
@@ -146,11 +136,6 @@ const fixInEditor = async (
   await commands.executeCommand(POINTER_COMMAND_NAME.edit, args)
 }
 
-/**
- * "Fix the last terminal error": the most recent failed command's output goes
- * to the chat with the files it names attached, or, when it names one line
- * in this workspace, straight into an inline edit there.
- */
 export const fixTerminalError = async (
   chat: Chat,
   history: TerminalHistory

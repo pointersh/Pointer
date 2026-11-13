@@ -21,15 +21,6 @@ const ACTIVE_KEYS: Record<ProviderType, string> = {
   embedding: ACTIVE_EMBEDDINGS_PROVIDER_STORAGE_KEY
 }
 
-/**
- * Where providers live. The list is either in global state or in a JSON
- * file (a setting); the active chat / FIM / embedding provider is a
- * separate global-state entry each, so the request paths can read it
- * without touching the list.
- *
- * Nothing here talks to the webview: the store is usable from activation,
- * before any sidebar exists, which is when first-run setup happens.
- */
 export class ProviderStore {
   private readonly _location: string
 
@@ -39,9 +30,6 @@ export class ProviderStore {
       "globalState"
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*  The list                                                               */
-  /* ---------------------------------------------------------------------- */
 
   public async getProviders(): Promise<Providers> {
     const providers =
@@ -66,10 +54,6 @@ export class ProviderStore {
     return Object.keys(await this.getProviders()).length > 0
   }
 
-  /**
-   * A file-backed store that is empty may be a fresh switch from global
-   * state; carry the old list over rather than starting from nothing.
-   */
   public async migrateLegacy(): Promise<boolean> {
     if (this._location !== "file") return false
     if (await this.hasProviders()) return false
@@ -81,9 +65,6 @@ export class ProviderStore {
     return true
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*  Active providers                                                       */
-  /* ---------------------------------------------------------------------- */
 
   public getActive(type: ProviderType): PointerProvider | undefined {
     return this._context.globalState.get<PointerProvider>(ACTIVE_KEYS[type])
@@ -99,11 +80,6 @@ export class ProviderStore {
     }
   }
 
-  /**
-   * Adds providers to the list and makes each the active one for its job
-   * where that job has none yet. Returns the types whose active entry
-   * changed, so a caller with a webview can announce them.
-   */
   public async addAll(providers: PointerProvider[]): Promise<ProviderType[]> {
     const all = await this.getProviders()
     const activated: ProviderType[] = []
@@ -118,11 +94,6 @@ export class ProviderStore {
     return activated
   }
 
-  /**
-   * An active entry can point at a provider that no longer exists (deleted
-   * from a file, or an older build that never cleared it). Fall back to any
-   * provider of the same type so the feature keeps working.
-   */
   public async repairActive(): Promise<void> {
     const providers = Object.values(await this.getProviders())
     for (const type of PROVIDER_TYPES) {
@@ -133,9 +104,6 @@ export class ProviderStore {
     }
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*  File backing                                                            */
-  /* ---------------------------------------------------------------------- */
 
   private _fileUri() {
     return Uri.joinPath(this._context.globalStorageUri, POINTER_PROVIDERS_FILENAME)

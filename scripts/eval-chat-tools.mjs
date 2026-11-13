@@ -1,22 +1,4 @@
 #!/usr/bin/env node
-/**
- * How well a chat model answers questions about this repository with the
- * read-only tools, against the same model answering without them; with
- * `--edits`, how well it changes code with `propose_edit` instead.
- *
- *   npx tsc -p . --outDir out
- *   node scripts/eval-chat-tools.mjs [model] [--base http://localhost:11434/v1] [--runs 1] [--only plain,native,text] [--limit 3]
- *   node scripts/eval-chat-tools.mjs [model] --edits [--only native,text] [--runs 1]
- *   node scripts/eval-chat-tools.mjs [model] --context 8192     (trim as if the context were this small)
- *   node scripts/eval-chat-tools.mjs [model] --workspace ../other-checkout   (ask about another copy of the repository)
- *
- * Edit tasks run in a throwaway git worktree of HEAD with edits applied
- * as they come (the default \`apply\` mode), then the file is checked and
- * the project type-checked.
- *
- * Goes through the extension's own inference layer (the OpenAI-compatible
- * route, as the chat uses it), so what works here works in the editor.
- */
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import { createRequire } from "node:module"
@@ -38,10 +20,8 @@ const flag = (name, fallback) => {
 const model = args.find((a, i) => !a.startsWith("--") && !args[i - 1]?.startsWith("--")) ?? "qwen3-coder:30b"
 const base = new URL(flag("base", "http://localhost:11434/v1"))
 const runs = Number(flag("runs", "1"))
-/** The folder the questions are asked about; this repository unless another checkout is named. */
 const target = path.resolve(flag("workspace", root))
 const editing = args.includes("--edits")
-/** Plan for a context this small, to see how a model copes when old results are trimmed. */
 const contextTokens = Number(flag("context", "0")) || undefined
 const modes = flag("only", editing ? "native,text" : "plain,native,text").split(",")
 
@@ -186,7 +166,6 @@ const EDIT_TASKS = [
   },
   {
     ask: "Rename WARM_INTERVAL_MS to REWARM_INTERVAL_MS everywhere it is used.",
-    // This script names the constant too, so renaming it here is right as well.
     files: ["src/extension/completion/warm-up.ts", "src/test/suite/warm-up.test.ts", "scripts/eval-chat-tools.mjs"],
     file: "src/extension/completion/warm-up.ts",
     expect: /export const REWARM_INTERVAL_MS\b/,
@@ -195,7 +174,7 @@ const EDIT_TASKS = [
         execFileSync("git", ["grep", "-qw", "WARM_INTERVAL_MS", "--", "src"], { cwd: tree })
         return false
       } catch (error) {
-        if (error.status === 1) return true // no uses left
+        if (error.status === 1) return true
         throw error
       }
     }
@@ -218,7 +197,6 @@ const EDIT_TASKS = [
   }
 ]
 
-/** A worktree of HEAD to edit, with the real node_modules for type-checking. */
 const makeTree = () => {
   const tree = fs.mkdtempSync(path.join(os.tmpdir(), "pointer-edit-eval-"))
   fs.rmSync(tree, { recursive: true })
@@ -232,7 +210,6 @@ const resetTree = (tree) => {
   execFileSync("git", ["clean", "-fdq", "-e", "node_modules"], { cwd: tree })
 }
 
-/** Edits as the editor takes them with `pointer.chatToolsEdits` set to `apply`: written straight away. */
 const applyingSink = (log) => ({
   mode: "apply",
   async edit(file, replacement) {
@@ -250,7 +227,6 @@ const applyingSink = (log) => ({
   }
 })
 
-/** Commands as `allow` mode runs them: straight away, in the worktree. */
 const commandRunner = (tree, ran) => ({
   mode: "allow",
   async run(command) {

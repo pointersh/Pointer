@@ -1,8 +1,3 @@
-/**
- * Knowing how full a model's context is: asking the server for its token
- * counts and its context size, and the chat's steps saying how a reply
- * ended. A local fake stands in for Ollama and llama.cpp.
- */
 import type { TokenJS } from "fluency.js"
 import * as assert from "node:assert"
 import * as http from "node:http"
@@ -193,8 +188,6 @@ test("a step cut off by a stop says so, and what is kept of a step is held to a 
 })
 
 test("a tool call with no arguments goes back as {} so the SDKs can parse it", () => {
-  // Anthropic streams nothing for a tool without parameters; fluency's
-  // conversion then ran JSON.parse("") and the next step failed.
   const call = (args: string) =>
     ({ role: "assistant", content: null, tool_calls: [{ id: "t", type: "function", function: { name: "editor_context", arguments: args } }] }) as unknown as ChatCompletionMessage
   const argsOf = (message: ChatCompletionMessage) =>

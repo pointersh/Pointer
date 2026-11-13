@@ -1,22 +1,13 @@
 import { supportedLanguages } from "../../common/languages"
 
-/**
- * One piece of code the user attached to a chat message: a whole file, or a
- * line range from one. Pure data so the formatting is unit-testable; reading
- * the files happens in the chat service.
- */
 export interface ContextEntry {
-  /** Workspace-relative path, shown to the model. */
   path: string
   content: string
-  /** Zero-based, inclusive; absent for whole files. */
   range?: { startLine: number; endLine: number }
 }
 
 export interface ContextBudget {
-  /** Characters kept per entry before it is cut with a note. */
   maxEntryChars: number
-  /** Characters across all entries; later entries are dropped past this. */
   maxTotalChars: number
 }
 
@@ -34,13 +25,6 @@ const EXTENSION_TO_LANGUAGE: Record<string, string> = Object.entries(
   return acc
 }, {})
 
-/**
- * Paths reach the chat in two shapes: the @mention picker lists files as
- * `/src/a.ts` (workspace-relative with a leading slash) while pinned items use
- * `src/a.ts`. Strip the leading separators so both mean the same file and
- * dedupe against each other. A path that is genuinely absolute (a file
- * outside the workspace) is returned untouched.
- */
 export const normalizeWorkspacePath = (filePath: string): string => {
   const trimmed = filePath.trim()
   if (/^[A-Za-z]:[\\/]/.test(trimmed)) return trimmed
@@ -52,12 +36,6 @@ export interface WorkspaceRoot {
   fsPath: string
 }
 
-/**
- * Absolute paths a context path could mean, most likely first. In a
- * multi-root workspace `asRelativePath` prefixes the folder name
- * (`api/src/a.ts`), so that prefix is resolved against its own folder before
- * the path is tried under every root; a genuinely absolute path goes last.
- */
 export const workspacePathCandidates = (
   filePath: string,
   roots: WorkspaceRoot[]
@@ -80,7 +58,6 @@ export const workspacePathCandidates = (
   return [...new Set(candidates)]
 }
 
-/** Markdown fence hint for a path, so the model knows what it is reading. */
 export const languageForPath = (filePath: string): string => {
   const dot = filePath.lastIndexOf(".")
   if (dot === -1) return ""
@@ -92,10 +69,6 @@ const entryKey = (entry: ContextEntry) =>
     ? `${entry.path}:${entry.range.startLine}-${entry.range.endLine}`
     : entry.path
 
-/**
- * The same file can arrive twice (an @mention and a pinned item), and a
- * pinned selection is redundant once its whole file is attached.
- */
 export const dedupeContextEntries = (
   entries: ContextEntry[]
 ): ContextEntry[] => {
@@ -113,7 +86,6 @@ export const dedupeContextEntries = (
 }
 
 const fence = (content: string) => {
-  // Pick a fence longer than any run of backticks inside the content.
   const longest = Math.max(
     2,
     ...Array.from(content.matchAll(/`+/g), (match) => match[0].length)
@@ -132,10 +104,6 @@ const formatEntry = (entry: ContextEntry, content: string): string => {
   return `${heading}\n${ticks}${language}\n${content}\n${ticks}`
 }
 
-/**
- * Render attached code for the prompt. Each entry gets a heading and a fenced
- * block so the model can tell where one file ends and the next begins.
- */
 export const formatContextEntries = (
   entries: ContextEntry[],
   budget: ContextBudget = DEFAULT_CONTEXT_BUDGET

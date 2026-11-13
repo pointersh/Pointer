@@ -25,8 +25,6 @@ const withIndex = async (
     parallel: 1,
     embed: async (inputs: string[]) => inputs.map(() => [0.1, 0.2, 0.3])
   } as unknown as Embedder
-  // Supply the editor's file discovery boundary; the real indexer still reads,
-  // chunks, embeds and persists both files through its public run method.
   const indexer = new WorkspaceIndexer(context, db, embedder)
   Object.assign(indexer, {
     isIndexable: () => true,

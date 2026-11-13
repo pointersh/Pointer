@@ -10,9 +10,7 @@ import WorkspaceContext from "./workspace-context"
 import styles from "./styles/typing-indicator.module.css"
 
 interface TypingIndicatorProps {
-  /** The workspace search running for the reply that is on its way. */
   context?: WorkspaceSearchReport
-  /** Tools the model is using before it has written anything. */
   steps?: ToolStepView[]
 }
 

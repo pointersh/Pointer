@@ -5,12 +5,6 @@ import { bridge } from "../messaging"
 
 import { StorageType, useStorageContext } from "./useStorageContext"
 
-/**
- * Agent mode on or off. Kept in the extension's global storage, not in
- * settings: a settings write makes VS Code reload configuration, which
- * the user sees as a flicker. Until it is first switched, it follows the
- * `pointer.chatTools` setting.
- */
 export const useAgentMode = () => {
   const { context, setContext, loaded } = useStorageContext<boolean>(
     StorageType.Global,

@@ -4,7 +4,6 @@ import { POINTER_COMMAND_NAME } from "../../common/constants"
 
 import { InlineEditArgs } from "./service"
 
-/** Diagnostics worth offering a fix for; hints and infos are not bugs. */
 const FIXABLE = new Set([
   vscode.DiagnosticSeverity.Error,
   vscode.DiagnosticSeverity.Warning
@@ -12,12 +11,6 @@ const FIXABLE = new Set([
 
 const MAX_FIX_LINES = 60
 
-/**
- * The lightbulb: "Fix with Pointer" on an error or warning, and "Edit with
- * Pointer" on any selection. Both run the inline edit command; the fix
- * passes the diagnostic's message as the instruction, so there is nothing
- * to type.
- */
 export class InlineEditCodeActionProvider implements vscode.CodeActionProvider {
   public static readonly providedCodeActionKinds = [
     vscode.CodeActionKind.QuickFix,
@@ -71,11 +64,6 @@ export class InlineEditCodeActionProvider implements vscode.CodeActionProvider {
     return { title, command: POINTER_COMMAND_NAME.edit, arguments: [args] }
   }
 
-  /**
-   * A diagnostic often points at one token; the fix usually needs the
-   * statement around it. Give the model the whole lines, capped so a
-   * file-wide diagnostic does not turn into a file-wide rewrite.
-   */
   private fixRange(
     document: vscode.TextDocument,
     range: vscode.Range

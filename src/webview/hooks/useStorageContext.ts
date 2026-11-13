@@ -10,15 +10,6 @@ export enum StorageType {
   Workspace = "workspace"
 }
 
-/**
- * Each scope is one read channel and one write channel. The read channel
- * doubles as the change broadcast, so a value written by one component
- * reaches every other component watching the same key.
- *
- * This used to be three channels per *key* — `pointer-global-context-<key>` —
- * because the transport had no way to say which request a reply belonged to.
- * The bridge correlates replies by id now, so the key is payload, not name.
- */
 const CHANNELS: Record<
   StorageType,
   { read: ClientEventName; write: ClientEventName }
@@ -39,7 +30,6 @@ const CHANNELS: Record<
 
 export const useStorageContext = <T>(storageType: StorageType, key: string) => {
   const [context, setContextState] = useState<T | undefined>()
-  /** False until the first read answers; an unset key still reads as undefined. */
   const [loaded, setLoaded] = useState(false)
   const { read, write } = CHANNELS[storageType]
 

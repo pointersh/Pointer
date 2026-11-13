@@ -1,10 +1,3 @@
-/**
- * Channel names for the extension <-> webview protocol.
- *
- * These are just the *names*. The payload each name carries is declared once,
- * for both sides, in `src/common/messaging/protocol.ts` — and a compile-time
- * assertion there guarantees every name below is accounted for.
- */
 export const EVENT_NAME = {
   pointerAcceptSolution: "pointer-accept-solution",
   pointerAddMessage: "pointer-add-message",

@@ -14,7 +14,6 @@ const textOf = (content: ChatMessage["content"]): string =>
 
 type Part = { type: string; text?: string; image_url?: { url: string } }
 
-/** A user turn's parts in Responses terms; plain text stays a string. */
 const userContent = (
   content: ChatMessage["content"]
 ): string | Array<Record<string, unknown>> => {
@@ -28,7 +27,6 @@ const userContent = (
   )
 }
 
-/** Pure message codec shared by Responses adapters; each keeps its own request policy. */
 export const toResponsesInput = (messages: ChatMessage[]) => {
   const instructions: string[] = []
   const input: ResponsesInputItem[] = []

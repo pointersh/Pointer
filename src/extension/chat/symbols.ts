@@ -17,7 +17,6 @@ import { decodeSymbolRef, encodeSymbolRef } from "./symbol-ref"
 
 const MAX_RESULTS = 30
 
-/** Symbols worth attaching whole: things with a body. */
 const ATTACHABLE = new Set([
   SymbolKind.Class,
   SymbolKind.Constructor,
@@ -56,7 +55,6 @@ const flatten = (symbols: DocumentSymbol[], depth = 0): DocumentSymbol[] =>
     ...(depth < 2 ? flatten(symbol.children || [], depth + 1) : [])
   ])
 
-/** Language servers return either shape; nested ones are flattened. */
 const allSymbols = async (uri: Uri): Promise<AnySymbol[]> => {
   const symbols =
     (await commands.executeCommand<AnySymbol[]>(
@@ -74,11 +72,6 @@ const allSymbols = async (uri: Uri): Promise<AnySymbol[]> => {
 const rangeOf = (symbol: AnySymbol) =>
   isDocumentSymbol(symbol) ? symbol.range : symbol.location.range
 
-/**
- * What the `@symbol` picker shows. Without a query: the active file's own
- * symbols, since that is usually what the question is about. With one: a
- * workspace-wide search through whatever language servers are running.
- */
 export const searchSymbols = async (query: string): Promise<ContextItem[]> => {
   const trimmed = query.trim()
   if (!trimmed) {
@@ -115,11 +108,6 @@ export const searchSymbols = async (query: string): Promise<ContextItem[]> => {
     )
 }
 
-/**
- * The body of a mentioned symbol as it is now. The file's document symbols
- * are asked for again: the one starting on the remembered line wins, then
- * one with the same name (the file was edited above it), then nothing.
- */
 export const readSymbolEntry = async (
   id: string
 ): Promise<ContextEntry | undefined> => {
@@ -151,7 +139,6 @@ export const readSymbolEntry = async (
   }
 }
 
-/** For the file-location fallback: a symbol enclosing a line, if any. */
 export const symbolAtLine = async (
   uri: Uri,
   line: number

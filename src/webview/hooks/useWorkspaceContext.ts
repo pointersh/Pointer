@@ -4,7 +4,6 @@ import { EVENT_NAME } from "../../common/constants"
 import { AnyContextItem } from "../../common/types"
 import { emit, useServerEvent } from "../messaging"
 
-/** The files and selections the user has pinned to the conversation. */
 export const useWorkspaceContext = () => {
   const [contextItems, setContextItems] = useState<AnyContextItem[]>([])
 

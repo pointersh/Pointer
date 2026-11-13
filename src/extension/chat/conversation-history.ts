@@ -38,10 +38,6 @@ export class ConversationHistory extends Base {
       [CONVERSATION_EVENT_NAME.getActiveConversation]: () =>
         void this.getActiveConversation(),
       [CONVERSATION_EVENT_NAME.setActiveConversation]: (conversation) => {
-        // Another conversation opened while a reply is written: the reply
-        // belongs to the one left, and is not kept in this one. The chat
-        // hears of the switch first, so nothing it queued for the old
-        // conversation is sent when the reply stops.
         const active = this.context?.globalState.get<Conversation>(ACTIVE_CONVERSATION_STORAGE_KEY)
         const leaving = this._chatService.replying && conversation?.id !== active?.id
         this.setActiveConversation(conversation)
@@ -111,7 +107,6 @@ export class ConversationHistory extends Base {
     this.setActiveConversation(stamped)
   }
 
-  /** A title the user typed sticks: the model is not asked again. */
   renameConversation(id: string, title: string) {
     const conversations = this.getConversations() || {}
     const existing = conversations[id]
@@ -154,7 +149,6 @@ export class ConversationHistory extends Base {
     return conversation
   }
 
-  /** Deleting a conversation other than the open one leaves the chat alone. */
   removeConversation(conversation?: Conversation) {
     const conversations = this.getConversations() || {}
     if (!conversation?.id) return
@@ -177,11 +171,6 @@ export class ConversationHistory extends Base {
     this.setActiveConversation(undefined)
   }
 
-  /**
-   * The model names the conversation once, after the first reply, when the
-   * two messages say what it is about. Later saves keep that title rather
-   * than paying for another request every time a message lands.
-   */
   async saveConversation(conversation: Conversation) {
     const activeConversation = this.getActiveConversation()
     if (!activeConversation) return
@@ -239,7 +228,6 @@ export class ConversationHistory extends Base {
     }
   }
 
-  /** Models like to quote or prefix titles; a title is one short line. */
   private cleanTitle(text: string | undefined): string | undefined {
     if (!text) return undefined
     const firstLine = text

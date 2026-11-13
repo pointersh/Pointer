@@ -15,29 +15,8 @@ export type Handler<K extends ClientEventName> = (
   payload: PayloadOf<K>
 ) => ReplyOf<K> | Promise<ReplyOf<K>> | void | Promise<void>
 
-/**
- * Handlers are contravariant in their payload, so a table holding one per
- * channel has no single safe element type. `never` is the honest erasure: it
- * accepts every concrete handler and forces the one unavoidable cast to live
- * here, at the dispatch boundary, instead of at every registration site.
- */
 type ErasedHandler = (payload: never) => unknown
 
-/**
- * The extension's half of the message bus.
- *
- * One `onDidReceiveMessage` subscription per webview, one handler table, and
- * one place that knows how a reply gets back to its caller. Services register
- * the channels they own and never touch `webview.postMessage` directly.
- *
- * A handler simply returns its result:
- *
- *   bridge.handle(EVENT_NAME.pointerSendTheme, () => getTheme())
- *
- * If the caller used `request()` the value is routed back to that exact call;
- * otherwise it is broadcast on the same channel, which is what the
- * fire-a-request-then-listen components expect.
- */
 export class ExtensionBridge implements Disposable {
   private readonly _handlers = new Map<string, ErasedHandler>()
   private readonly _subscription: Disposable
@@ -49,11 +28,6 @@ export class ExtensionBridge implements Disposable {
     })
   }
 
-  /**
-   * Claim a channel. Each channel has exactly one owner — registering twice is
-   * a bug (two services silently answering the same question), so it warns
-   * loudly rather than quietly appending another listener.
-   */
   public handle<K extends ClientEventName>(type: K, handler: Handler<K>): this {
     if (this._handlers.has(type)) {
       logger.error(new Error(`Duplicate handler registered for "${type}"`))
@@ -62,7 +36,6 @@ export class ExtensionBridge implements Disposable {
     return this
   }
 
-  /** Register a whole table at once — the common case for a service. */
   public handleAll(handlers: {
     [K in ClientEventName]?: Handler<K>
   }): this {
@@ -72,7 +45,6 @@ export class ExtensionBridge implements Disposable {
     return this
   }
 
-  /** Push an unsolicited event to the webview. */
   public emit<K extends ServerEventName>(
     type: K,
     data?: ServerPayloadOf<K>
@@ -98,8 +70,6 @@ export class ExtensionBridge implements Disposable {
     try {
       const result = await handler(message.data as never)
       if (result === undefined) return
-      // A correlated reply goes only to its caller; anything else is a
-      // broadcast on the same channel.
       void this._webview.postMessage(
         id ? { type, id, data: result } : { type, data: result }
       )

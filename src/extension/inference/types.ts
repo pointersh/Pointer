@@ -1,12 +1,3 @@
-/**
- * The contract between pointer's features and whatever serves their models.
- *
- * A feature asks for a capability ("stream me a completion for this prompt",
- * "embed these texts") and an adapter behind `InferenceProvider` turns that
- * into what its server or SDK wants. Nothing above this layer knows a route,
- * a request body or a response shape, so a new backend is a new adapter and
- * nothing else.
- */
 import type { ShieldReport } from "../../common/secret-shield"
 import { ChatCompletionMessage, FimContextFile } from "../../common/types"
 
@@ -18,7 +9,6 @@ export const INFERENCE_CAPABILITIES: InferenceCapability[] = [
   "embeddings"
 ]
 
-/** A model as a provider advertises it, in pointer's terms. */
 export interface InferenceModel {
   id: string
   name: string
@@ -27,16 +17,7 @@ export interface InferenceModel {
 }
 
 export interface InferenceOptions {
-  /**
-   * Aborting stops the request. A stream being read at the time throws a
-   * `cancelled` error; one already finished, or one the consumer stopped
-   * reading, does nothing.
-   */
   signal?: AbortSignal
-  /**
-   * Called before sending when the secret shield replaced credentials in
-   * the request, with what kinds and how many (never the values).
-   */
   onShield?(report: ShieldReport[]): void
 }
 
@@ -51,34 +32,17 @@ export interface FimStructuredContext {
 
 export interface FimRequest {
   model: string
-  /** The hole as the model expects it: prefix, suffix and template applied. */
   prompt: string
-  /** The raw sides of the hole, for providers with a native FIM endpoint. */
   prefix?: string
   suffix?: string
-  /**
-   * Provider-neutral context for instruction models that should not receive
-   * provider-specific FIM marker dialects.
-   */
   context?: FimStructuredContext
   stop?: string[]
-  /** Cap on generated tokens. Unset or negative means the server's default. */
   maxTokens?: number
   temperature?: number
-  /** How long to keep the model loaded afterwards, on servers that ask. */
   keepAlive?: string | number
-  /**
-   * For models that only fill the hole as a chat turn: the chat `prompt` was
-   * rendered from. Chat endpoints send these; completion endpoints send
-   * `prompt`, which already carries the model's chat template.
-   */
   messages?: ChatMessage[]
 }
 
-/**
- * What a backend said it spent, when it says. Only ever reported, never
- * estimated: a backend that stays silent leaves this undefined.
- */
 export interface InferenceUsage {
   promptTokens?: number
   completionTokens?: number
@@ -86,24 +50,17 @@ export interface InferenceUsage {
 
 export interface FimChunk {
   text: string
-  /** Usually on the last chunk, from backends that count. */
   usage?: InferenceUsage
 }
 
-/**
- * The conversation shape the webview builds and history stores. It follows
- * the common role/content convention; adapters map it to their own API.
- */
 export type ChatMessage = ChatCompletionMessage
 
-/** A tool the model may call, described by a JSON schema for its arguments. */
 export interface ChatToolDefinition {
   name: string
   description: string
   parameters: Record<string, unknown>
 }
 
-/** A call the model made natively: `arguments` is the JSON text it wrote. */
 export interface ChatToolCall {
   id: string
   name: string
@@ -113,42 +70,20 @@ export interface ChatToolCall {
 export interface ChatRequest {
   model: string
   messages: ChatMessage[]
-  /**
-   * Tools offered through the server's own tool-calling, on providers that
-   * have it (OpenAI-compatible routes). Calls come back as `toolCalls`.
-   */
   tools?: ChatToolDefinition[]
   maxTokens?: number
   temperature?: number
-  /**
-   * `false` asks a reasoning model not to think before answering, on
-   * backends that take the request (Ollama). Others ignore it.
-   */
   think?: boolean
-  /**
-   * How long a reasoning model may think before answering, on OpenAI.
-   * Its chat route streams nothing while it thinks, so a tool loop asks
-   * for `low` to keep each step to seconds. Models that do not reason
-   * refuse the parameter.
-   */
   reasoningEffort?: "low" | "medium" | "high"
 }
 
-/**
- * Why a chat ended, when the backend says: `stop` is the model's own end,
- * `length` the output cap (`maxTokens` or the server's) cutting it off.
- */
 export type ChatFinishReason = "stop" | "length"
 
 export interface ChatChunk {
   content: string
-  /** Usually on the last chunk, from backends that count. */
   usage?: InferenceUsage
-  /** A reasoning model's thinking, when the backend streams it apart from the answer. */
   reasoning?: string
-  /** On the last chunk, from backends that say why they stopped. */
   finishReason?: ChatFinishReason
-  /** The model's tool calls, whole, once the reply that made them has ended. */
   toolCalls?: ChatToolCall[]
 }
 
@@ -158,24 +93,13 @@ export interface EmbeddingRequest {
 }
 
 export interface EmbeddingResponse {
-  /** One vector per input, in input order. */
   vectors: number[][]
   usage?: InferenceUsage
 }
 
-/**
- * Every capability streams: a provider that only answers whole yields once.
- * The consumer reads with `for await` either way.
- */
 export type InferenceStream<T> = AsyncIterable<T>
 
-/**
- * What an adapter implements. Only `capabilities()` is required; a provider
- * that cannot do a job leaves the method out and the layer refuses the call
- * with an `unsupported-capability` error before anything is sent.
- */
 export interface InferenceProvider {
-  /** The provider kind being served, e.g. `ollama` or `anthropic`. */
   readonly id: string
 
   capabilities(): InferenceCapability[]
@@ -195,9 +119,4 @@ export interface InferenceProvider {
   ): Promise<EmbeddingResponse>
 }
 
-/**
- * What the registry hands a feature: every method present, so the caller
- * never checks for one. Asking for a capability the provider lacks throws
- * `unsupported-capability`; any other failure arrives as an `InferenceError`.
- */
 export type InferenceClient = Required<InferenceProvider>

@@ -1,8 +1,3 @@
-/**
- * A file's declarations by line, found with patterns rather than a parser:
- * good enough to tell a model where to read next in a file too long to
- * show whole, or what was in a result trimmed out of its context.
- */
 
 const DECLARATION = new RegExp(
   [
@@ -16,12 +11,10 @@ const DECLARATION = new RegExp(
 const NOT_NAMES = new Set(["if", "for", "while", "switch", "catch", "return", "function", "else", "do", "try"])
 
 export interface Declaration {
-  /** From 1. */
   line: number
   name: string
 }
 
-/** The declarations in `lines[from..to)` (0-based), at most `max`. */
 export const outlineOf = (lines: string[], from = 0, to = lines.length, max = 60): { found: Declaration[]; more: boolean } => {
   const found: Declaration[] = []
   let more = false
@@ -40,6 +33,5 @@ export const outlineOf = (lines: string[], from = 0, to = lines.length, max = 60
   return { found, more }
 }
 
-/** `name (12), other (40)`, for one line of a result. */
 export const outlineText = (declarations: Declaration[]) =>
   declarations.map(({ line, name }) => `${name} (${line})`).join(", ")

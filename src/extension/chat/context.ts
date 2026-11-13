@@ -44,7 +44,6 @@ import { isSymbolRef } from "./symbol-ref"
 import { readSymbolEntry } from "./symbols"
 import { ContextSource, withoutSources } from "./turn"
 
-/** The user's question before this one, for a follow-up to lean on. */
 const previousQuestion = (history: ChatCompletionMessage[]): string | undefined => {
   for (let i = history.length - 1; i >= 0; i--) {
     const message = history[i]
@@ -55,7 +54,6 @@ const previousQuestion = (history: ChatCompletionMessage[]): string | undefined 
   return undefined
 }
 
-/** The files the last answer's sources came from, best first, absolute. */
 const previousSourceFiles = (
   history: ChatCompletionMessage[],
   root: string | undefined
@@ -70,11 +68,6 @@ const previousSourceFiles = (
   return []
 }
 
-/**
- * Everything that goes into a prompt besides the user's own words: the
- * system prompt, the editor selection, `@workspace` / `@problems` / `@git` /
- * `@terminal` lookups, and the files and symbols the user attached or pinned.
- */
 export class ChatContextBuilder {
   constructor(
     private readonly _context: ExtensionContext,
@@ -100,7 +93,6 @@ export class ChatContextBuilder {
     return own
   }
 
-  /** A code-action template (explain, refactor…) filled with the selection. */
   public async templatePrompt(
     template: string,
     language: CodeLanguageDetails,
@@ -116,11 +108,6 @@ export class ChatContextBuilder {
     return { prompt: prompt || "", selection }
   }
 
-  /**
-   * What `@workspace`, `@problems`, `@git` and `@terminal` pull in for a
-   * question. The earlier messages let a follow-up be searched with its
-   * question.
-   */
   public async ragContext(
     question: string,
     sources: ReadonlySet<ContextSource>,
@@ -150,20 +137,6 @@ export class ChatContextBuilder {
     return combined.trim() || null
   }
 
-  /**
-   * What the index has to say about the message. Runs for `@workspace`, or
-   * for every message when the user turned that on in the embeddings tab.
-   * Nothing when there is no index yet, so the toggle is safe to leave on;
-   * an explicit `@workspace` with no index is told so in the chat.
-   *
-   * A follow-up ("and how is it tested?") is searched together with the
-   * question before it, and the files the user is working in, plus the
-   * files the last answer used, are searched on their own so they are
-   * always in the running.
-   *
-   * Every stage is reported to the webview, which shows the search under
-   * the reply as it happens and keeps the sources with the message.
-   */
   private async workspaceContext(
     question: string,
     mentioned: boolean,
@@ -250,10 +223,6 @@ export class ChatContextBuilder {
     return this._templates.readTemplate<TemplateData>("relevant-code", { code })
   }
 
-  /**
-   * Where the user is working, hottest first: the active editor, the other
-   * visible ones, the files behind the last answer, then every open file.
-   */
   private focusFiles(previous: string[]): string[] {
     const files: string[] = []
     const add = (uri: { scheme: string; fsPath: string } | undefined) => {
@@ -270,7 +239,6 @@ export class ChatContextBuilder {
     return `${workspace.asRelativePath(hit.file)}:${hit.startLine + 1}-${hit.endLine + 1}`
   }
 
-  /** The block appended to the user's last message. */
   public async additionalContext(
     question: string,
     sources: ReadonlySet<ContextSource>,
@@ -297,7 +265,6 @@ export class ChatContextBuilder {
     return context
   }
 
-  /** Everything the user attached: @mentions in the message, then pinned items. */
   private async loadContextEntries(
     mentions: MentionType[],
     items: AnyContextItem[]
@@ -328,11 +295,6 @@ export class ChatContextBuilder {
     return entries
   }
 
-  /**
-   * A pinned selection follows the file: re-read the lines it covers so the
-   * model sees what is there now, and fall back to the snapshot taken when
-   * it was pinned if the file has gone.
-   */
   private async loadSelectionEntry(
     item: SelectionContextItem
   ): Promise<ContextEntry> {
@@ -350,13 +312,6 @@ export class ChatContextBuilder {
     }
   }
 
-  /**
-   * Current text of a workspace file: the editor buffer when it is open (so
-   * unsaved edits count), otherwise the file on disk. The path is resolved
-   * against every workspace folder (multi-root paths carry the folder name);
-   * a path that only makes sense as an absolute one (a file outside the
-   * workspace) is tried as-is after that.
-   */
   private async readWorkspaceFile(
     filePath: string
   ): Promise<string | undefined> {

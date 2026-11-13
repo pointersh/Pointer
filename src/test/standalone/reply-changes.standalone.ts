@@ -1,8 +1,3 @@
-/**
- * What a reply changed and the way back: files kept as they were before
- * the reply first touched them, listed with their line counts when they
- * really changed, and put back unless something changed them since.
- */
 import * as assert from "node:assert"
 import * as fs from "node:fs"
 import * as os from "node:os"
@@ -42,7 +37,6 @@ test("a reply's changes are listed by what really changed, with git's line count
   fs.rmSync(at("old.ts"))
   fs.writeFileSync(at("new.ts"), "export const made = 1\n")
   fs.renameSync(at("from.ts"), at("to.ts"))
-  // Touched twice: the copy is of the file as the reply first found it.
   await changes.touch(at("src/a.ts"))
 
   const record = await changes.record()
@@ -126,7 +120,6 @@ test("undo puts each file back, and says which changed after the reply", async (
   fs.writeFileSync(path.join(root, "b.ts"), "agent b\n")
   fs.writeFileSync(path.join(root, "c.ts"), "agent c\n")
   const record = (await changes.record())!
-  // The user goes on to change b.ts by hand.
   fs.writeFileSync(path.join(root, "b.ts"), "agent b, then the user\n")
   const steps = await planUndo(record, undefined)
   assert.deepStrictEqual(
@@ -152,7 +145,6 @@ test("the store keeps the newest replies, marks what was undone, and reads only 
     const record = (await changes.record())!
     store.save(record)
     ids.push(record.id)
-    // Saved a moment apart, so the oldest is plain.
     const old = new Date(Date.now() - (3 - i) * 1000)
     fs.utimesSync(path.join(dir, `${record.id}.json`), old, old)
   }

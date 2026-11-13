@@ -1,11 +1,6 @@
-/**
- * The completion request and streamed chunk as each server family shapes
- * them. This is the only place a provider name decides a wire format.
- */
 import { API_PROVIDERS, USER } from "../../../common/constants"
 import { ChatMessage, InferenceUsage } from "../types"
 
-/** OpenAI's completions API rejects more than four stop sequences. */
 const MAX_HOSTED_STOP_SEQUENCES = 4
 
 export interface RequestBodyBase {
@@ -20,7 +15,6 @@ export interface RequestOptionsOllama extends RequestBodyBase {
   model: string
   keep_alive?: string | number
   prompt?: string
-  /** Ollama: send the prompt as is, without the model's template. */
   raw?: boolean
   input?: string
   options: Record<string, unknown>
@@ -28,13 +22,11 @@ export interface RequestOptionsOllama extends RequestBodyBase {
 
 export interface StreamBodyOpenAI extends RequestBodyBase {
   max_tokens?: number
-  /** llama.cpp: reuse the evaluated prompt of the request before. */
   cache_prompt?: boolean
 }
 
 export type FimRequestBody = RequestBodyBase | RequestOptionsOllama | StreamBodyOpenAI
 
-/** One streamed line, in whichever dialect the server speaks. */
 export interface StreamResponse {
   model: string
   created_at: string
@@ -73,7 +65,6 @@ export interface StreamResponse {
     completion_tokens: number
     total_tokens: number
   }
-  /** llama.cpp `/completion` counts. */
   tokens_evaluated?: number
   tokens_predicted?: number
 }
@@ -81,11 +72,6 @@ export interface StreamResponse {
 const count = (value: unknown): number | undefined =>
   typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined
 
-/**
- * Token counts a streamed line carries, in whichever dialect: Ollama puts
- * them on its final line, OpenAI-style servers in `usage`, llama.cpp in
- * `tokens_*`. Nothing is estimated; a line without counts gives nothing.
- */
 export const usageFromResponse = (
   data: Partial<StreamResponse> | undefined
 ): InferenceUsage | undefined => {
@@ -107,7 +93,6 @@ export interface FimRequestOptions {
   model: string
   keepAlive?: string | number
   stop?: string[]
-  /** Set when `prompt` is this chat already rendered with its template. */
   messages?: ChatMessage[]
 }
 
@@ -117,7 +102,6 @@ export function createStreamRequestBodyFim(
   options: FimRequestOptions
 ): FimRequestBody {
   const stop = options.stop?.length ? options.stop : undefined
-  // Ollama and llama.cpp treat -1 as "no limit"; OpenAI-style APIs reject it.
   const maxTokens = options.numPredictFim > 0 ? options.numPredictFim : undefined
 
   switch (provider) {
@@ -128,7 +112,6 @@ export function createStreamRequestBodyFim(
         prompt,
         stream: true,
         keep_alive: options.keepAlive === "-1" ? -1 : options.keepAlive,
-        // The prompt is already a chat: Ollama must not template it again.
         ...(options.messages ? { raw: true } : {}),
         options: {
           temperature: options.temperature,
@@ -149,8 +132,6 @@ export function createStreamRequestBodyFim(
     case API_PROVIDERS.Deepseek:
     case API_PROVIDERS.Mistral:
     case API_PROVIDERS.OpenRouter:
-      // Hosted completion endpoints (Mistral's /v1/fim/completions among
-      // them) name the model in the body and refuse a request without it.
       return {
         model: options.model,
         prompt,
@@ -160,14 +141,10 @@ export function createStreamRequestBodyFim(
         stop: stop?.slice(0, MAX_HOSTED_STOP_SEQUENCES)
       }
     case API_PROVIDERS.LlamaCpp:
-      // llama-server in router mode picks the model by this field and
-      // refuses a request without it; a single-model server ignores it.
       return {
         ...(options.model ? { model: options.model } : {}),
         prompt,
         stream: true,
-        // Keep the work done on the part of the prompt the next request
-        // repeats. Newer servers do so unasked; older ones need telling.
         cache_prompt: true,
         temperature: options.temperature,
         max_tokens: maxTokens,
@@ -201,11 +178,6 @@ export function createStreamRequestBodyFim(
   }
 }
 
-/**
- * Pulls the streamed text out of a chunk. Providers are checked for their
- * native shape first, then every known shape is tried so a misconfigured
- * provider type still works as long as the server speaks a common dialect.
- */
 export const getFimDataFromProvider = (
   provider: string,
   data: StreamResponse | undefined
@@ -233,18 +205,13 @@ export const getFimDataFromProvider = (
 }
 
 interface EmbeddingResponseBody {
-  /** OpenAI-style `usage`, Ollama's `prompt_eval_count`. */
   usage?: { prompt_tokens?: number }
   prompt_eval_count?: number
-  /** OpenAI, LM Studio, vLLM, llama.cpp `/v1/embeddings`. */
   data?: Array<{ index?: number; embedding: number[] }>
-  /** Ollama `/api/embed`. */
   embeddings?: number[][]
-  /** llama.cpp `/embedding` and the legacy Ollama route. */
   embedding?: number[]
 }
 
-/** Every vector in a response, in input order, whatever the server's dialect. */
 export const vectorsFromResponse = (body: EmbeddingResponseBody): number[][] => {
   if (Array.isArray(body.data)) {
     return [...body.data]
@@ -257,7 +224,6 @@ export const vectorsFromResponse = (body: EmbeddingResponseBody): number[][] => 
   return []
 }
 
-/** The prompt tokens an embedding reply reports, if any. */
 export const usageFromEmbeddingResponse = (
   body: EmbeddingResponseBody
 ): InferenceUsage | undefined => {

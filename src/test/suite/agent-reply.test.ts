@@ -1,11 +1,3 @@
-/**
- * One agent reply from end to end, as close to a live window as a test
- * host gets: a typed message goes through the chat, a scripted model
- * reads a file, edits it and runs a command through the real tools, the
- * editor applies the edit, the reply is handed to the webview with its
- * steps, the project's instructions, the errors check and the files it
- * changed, and undo puts the workspace back.
- */
 import * as assert from "assert"
 import { execFileSync } from "child_process"
 import * as fs from "fs"
@@ -25,7 +17,6 @@ import { GenerationTracker } from "../../extension/generations"
 import { ChatRequest, InferenceProvider, providerRegistry } from "../../extension/inference"
 import { ExtensionBridge } from "../../extension/messaging/bridge"
 
-/** A model that answers each request with the next scripted reply. */
 class ScriptedModel implements InferenceProvider {
   public readonly id = "scripted-agent"
   public requests: ChatRequest[] = []
@@ -51,7 +42,6 @@ const provider: PointerProvider = {
   type: "chat"
 }
 
-/** The chat, working in a folder of the test's choosing. */
 class ChatIn extends Chat {
   public root = ""
   protected workspaceRoot() {
@@ -94,7 +84,6 @@ suite("Agent reply, end to end", function () {
       workspaceState: { get: () => undefined, update: async () => undefined },
       subscriptions: []
     } as unknown as vscode.ExtensionContext
-    // The bridge answers the chat it belongs to, made just below.
     const chatRef: { current?: ChatIn } = {}
     const asked: string[] = []
     const bridge = {
@@ -168,7 +157,6 @@ suite("Agent reply, end to end", function () {
       const reply = await chat.completion([{ role: "user", content: "Make a two, and make a file." } as ChatCompletionMessage])
       assert.strictEqual(reply, "I set a to 2 and made made.txt.")
 
-      // What the model was told and given back.
       const system = String(model.requests[0].messages[0].content)
       assert.match(system, /from AGENTS\.md[\s\S]*Keep exports named\./, "the project's instructions are in the prompt")
       const results = model.requests.map((request) => JSON.stringify(request.messages[request.messages.length - 1].content))
@@ -177,11 +165,9 @@ suite("Agent reply, end to end", function () {
       assert.doesNotMatch(results[3], /not assignable/, "and the fix brings none")
       assert.match(results[4], /exit code 0/)
 
-      // What the workspace now holds.
       assert.strictEqual(fs.readFileSync(path.join(root, "src", "a.ts"), "utf8"), "export const a = 2\n")
       assert.strictEqual(fs.readFileSync(path.join(root, "made.txt"), "utf8"), "made\n")
 
-      // What the webview was handed.
       const steps = emitted.filter((e) => e.type === EVENT_NAME.pointerToolSteps).pop()?.data as ToolStepView[]
       assert.deepStrictEqual(
         steps.map((s) => [s.name, s.status]),
@@ -206,7 +192,6 @@ suite("Agent reply, end to end", function () {
         ]
       )
 
-      // And the way back.
       const undone = await chat.undoChanges(changes.id)
       assert.strictEqual(undone.error, undefined)
       assert.strictEqual(fs.readFileSync(path.join(root, "src", "a.ts"), "utf8"), "export const a = 1\n")
@@ -246,7 +231,6 @@ suite("Agent reply, end to end", function () {
     const bridge = {
       emit: (type: string, data: unknown) => {
         emitted.push({ type, data })
-        // The user types while the first read runs.
         if (type === EVENT_NAME.pointerToolSteps && !offered && (data as ToolStepView[]).length) {
           offered = true
           chatRef.current?.steer("q1", "Look at b.ts too.")
@@ -258,7 +242,6 @@ suite("Agent reply, end to end", function () {
     const chat = new ChatIn(new GenerationTracker(), undefined, context, bridge, undefined)
     chatRef.current = chat
     chat.root = root
-    // Offered with no agent reply working: never taken by the next one.
     chat.steer("q0", "Too early.")
     try {
       await chat.completion([{ role: "user", content: "What are a and b?" } as ChatCompletionMessage])
@@ -283,7 +266,6 @@ suite("Agent reply, end to end", function () {
       assert.strictEqual(added.meta?.outOfSteps, true)
       assert.match(added.toolNotes ?? "", /The user, while you worked: Look at b\.ts too\./)
 
-      // Once the reply is over, an offer stays the webview's to send as a turn.
       chat.steer("q3", "Late.")
       model.requests = []
       await chat.completion([{ role: "user", content: "Again?" } as ChatCompletionMessage])

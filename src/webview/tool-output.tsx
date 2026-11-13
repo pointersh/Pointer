@@ -26,14 +26,11 @@ import styles from "./styles/tool-steps.module.css"
 interface CodeProps {
   code: string
   language: string
-  /** 1-based; line numbers are shown when set. */
   startLine?: number
 }
 
-/** Room for a line number and the space after it. */
 const GUTTER = "3.6em"
 
-/** Code highlighted as in the chat's code blocks, sized for a step. */
 export const Code = ({ code, language, startLine }: CodeProps) => {
   const theme = useCodeTheme()
   const numbered = startLine !== undefined
@@ -47,9 +44,6 @@ export const Code = ({ code, language, startLine }: CodeProps) => {
       className={styles.code}
       customStyle={{ margin: 0, padding: "6px 8px", background: "var(--tw-surface)", fontSize: "inherit" }}
       codeTagProps={{ style: { fontFamily: "var(--tw-mono)", fontSize: "inherit" } }}
-      // With numbers and wrapping both on, the highlighter makes each line a
-      // flex row, so every token becomes a column and wraps on its own. A
-      // line stays text instead, its number hung in the left margin.
       lineProps={numbered ? { style: { display: "block", paddingLeft: GUTTER } } : undefined}
       lineNumberStyle={{
         display: "inline-block",
@@ -67,7 +61,6 @@ export const Code = ({ code, language, startLine }: CodeProps) => {
   )
 }
 
-/** A unified diff, a line each, coloured like the editor's diff view. */
 const Diff = ({ lines }: { lines: DiffLine[] }) => (
   <pre className={styles.diff}>
     {lines.map((line, i) => (
@@ -80,14 +73,11 @@ const Diff = ({ lines }: { lines: DiffLine[] }) => (
 
 interface FileLinkProps {
   path: string
-  /** 1-based. */
   line?: number
   endLine?: number
-  /** Shown in place of the path and line, e.g. the line number alone under its file. */
   label?: string
 }
 
-/** A path that opens the file, at the line when there is one. */
 const FileLink = ({ path, line, endLine, label }: FileLinkProps) => (
   <button
     type="button"
@@ -132,7 +122,6 @@ const Args = ({ args }: { args: Record<string, string> }) => {
   )
 }
 
-/** What a step was given and what came back, shown the way that suits the tool. */
 export const ToolOutput = ({ step }: { step: ToolStepView }) => {
   const { t } = useTranslation()
   const args = step.args ?? {}

@@ -1,14 +1,3 @@
-/**
- * The tools beyond reading and editing: finding files by name, read-only
- * git, and what the editor knows (errors, references, definitions,
- * renames, what the user has open), plus deleting and moving files.
- *
- * Git and file finding are plain Node. The editor's knowledge comes
- * through an `EditorSink` the extension provides, so these tools are
- * offered only where there is an editor to ask. What the editor reports
- * is held to the same rules as everything else: a place outside the
- * workspace, or in a file `.gitignore` ignores, is named but never read.
- */
 import { execFile } from "child_process"
 import fs from "fs"
 import path from "path"
@@ -30,7 +19,6 @@ const MAX_GIT_OUTPUT = 10_000
 const GIT_TIMEOUT_MS = 20_000
 const MAX_LOCATIONS = 50
 
-/** A place in a file, as the editor reports it. `line` is 1-based. */
 export interface EditorLocation {
   file: string
   line: number
@@ -44,33 +32,24 @@ export interface EditorDiagnostic extends EditorLocation {
 
 export interface EditorContextView {
   activeFile?: string
-  /** 1-based. */
   cursorLine?: number
   selection?: { startLine: number; endLine: number; text: string }
   openFiles: string[]
 }
 
-/**
- * What the extension answers from VS Code and its language servers.
- * Positions are 0-based here, as the editor takes them.
- */
 export interface EditorSink {
   diagnostics(file?: string): Promise<EditorDiagnostic[]>
   references(file: string, line: number, character: number): Promise<EditorLocation[]>
   definition(file: string, line: number, character: number): Promise<EditorLocation[]>
-  /** Rename everywhere the language server knows of; applied or put to the user as the edit mode says. */
   rename(file: string, line: number, character: number, newName: string): Promise<EditOutcome & { files?: string[] }>
   context(): Promise<EditorContextView>
 }
 
-/** Deleting and moving files, applied or put to the user as the edit mode says. */
 export interface FileOpsSink {
   remove(file: string): Promise<EditOutcome>
   move(from: string, to: string): Promise<EditOutcome>
 }
 
-// The words in a glob, for looking around when it matches nothing:
-// "src/**" + "/*adapter*.ts" gives "adapter".
 const globWords = (glob: string) =>
   [...new Set(glob.toLowerCase().match(/[a-z][a-z0-9]{3,}/g) ?? [])].filter(
     (word) => !["src", "test", "tests", "index"].includes(word)
@@ -91,7 +70,6 @@ export const findFiles = (view: WorkspaceView): Tool => ({
     const matches = [...dirs.filter((rel) => regex.test(rel)).map((rel) => `${rel}/`), ...files].sort()
     const shown = matches.slice(0, MAX_FOUND_FILES)
     if (!shown.length) {
-      // A dead end costs a step; a folder with the same word in its name is usually where to look.
       const words = globWords(glob)
       const near = dirs
         .filter((rel) => words.some((word) => (rel.split("/").pop() ?? "").toLowerCase().includes(word)))
@@ -108,7 +86,6 @@ export const findFiles = (view: WorkspaceView): Tool => ({
   }
 })
 
-/** Whether `root` is in a git working tree: a `.git` in it or in a folder above. */
 export const insideGitRepository = (root: string): boolean => {
   for (let dir = root; ; dir = path.dirname(dir)) {
     if (fs.existsSync(path.join(dir, ".git"))) return true
@@ -116,11 +93,6 @@ export const insideGitRepository = (root: string): boolean => {
   }
 }
 
-/**
- * Settings a user's git configuration could turn another way, pinned so
- * the output is the same on every machine: no colour codes, and diff
- * headers that name each file as `a/path b/path`.
- */
 const GIT_PINNED = [
   "--no-pager",
   "-c", "color.ui=false",
@@ -147,11 +119,9 @@ const runGit = (root: string, args: string[], signal?: AbortSignal) =>
         resolve({ output, exitCode: code })
       }
     )
-    // Nothing is ever typed at it; a command that would wait for input gets none.
     child.stdin?.end()
   })
 
-/** `text` up to `max` characters, ending on a whole line where one is near. */
 const cutToLine = (text: string, max: number) => {
   if (text.length <= max) return text
   const newline = text.lastIndexOf("\n", max)
@@ -159,17 +129,11 @@ const cutToLine = (text: string, max: number) => {
 }
 
 export const git = (view: WorkspaceView): Tool => {
-  /** The workspace root's path inside its repository, e.g. `packages/app/`; empty at the top. */
   let prefix: Promise<string> | undefined
   const repoPrefix = () =>
     (prefix ??= runGit(view.root, ["rev-parse", "--show-prefix"]).then(({ output, exitCode }) =>
       exitCode === 0 ? output.trim() : ""
     ))
-  /**
-   * Whether a path from the workspace root is ignored, as the folder it
-   * is when it is one (`infra` under an `infra/` rule); a path that is
-   * not there is taken either way.
-   */
   const ignoredHere = (relative: string) => {
     if (!relative) return false
     let isDirectory: boolean | undefined
@@ -182,28 +146,11 @@ export const git = (view: WorkspaceView): Tool => {
       ? view.ignored(relative) || view.ignored(relative, true)
       : view.ignored(relative, isDirectory)
   }
-  /**
-   * Whether a path as the repository names it is one the tools may not
-   * show: ignored, or in a part of the repository outside the workspace
-   * folder (a sibling package, when one package is what is open).
-   */
   const hiddenIn = (inRepo: string, at: string) =>
     inRepo.startsWith(at) ? ignoredHere(inRepo.slice(at.length)) : at !== ""
-  /**
-   * The same for a path given from the workspace root, where git runs.
-   * Pathspec magic (`:/`, `:(top)`) addresses the repository's top, so it
-   * is refused with the rest.
-   */
   const hiddenHere = (relative: string) =>
     relative.startsWith(":") || /^\.\.(\/|$)/.test(path.posix.normalize(relative.replace(/\\/g, "/"))) || path.isAbsolute(relative) || ignoredHere(relative)
 
-  /**
-   * Why a word before `--` that is not an option may not go to git, if
-   * it may not: a path outside the workspace (git compares two paths
-   * anywhere on the machine when one is outside the repository), a hidden
-   * file named as itself, or an object id that is a file's contents,
-   * which `show` and `diff` would print whatever .gitignore says.
-   */
   const refuseBareArguments = async (args: string[], signal?: AbortSignal): Promise<string | undefined> => {
     const [subcommand, ...rest] = args
     const split = rest.indexOf("--")
@@ -237,13 +184,11 @@ export const git = (view: WorkspaceView): Tool => {
       const parsed = readOnlyGitArgs(line)
       if (typeof parsed === "string") throw new ToolInputError(`${parsed}.`)
       const at = await repoPrefix()
-      // What .gitignore keeps from read_file, git does not hand over either.
       const named = gitNamedPaths(parsed).find((p) => (p.inRepo ? hiddenIn(p.path, at) : hiddenHere(p.path)))
       if (named) throw new ToolInputError(`${named.path} is outside the workspace or ignored by .gitignore and cannot be read.`)
       const refusal = await refuseBareArguments(parsed, context?.signal)
       if (refusal) throw new ToolInputError(refusal)
       const { output: raw, exitCode } = await runGit(view.root, parsed, context?.signal)
-      // ls-files names what git tracks, ignored or not; the hidden ones are left out.
       const listed = parsed[0] === "ls-files" ? withoutHiddenLines(raw, hiddenHere) : { text: raw, dropped: 0 }
       const diffs = withoutHiddenDiffs(listed.text, (file) => hiddenIn(file, at))
       const text = diffs.text
@@ -265,7 +210,6 @@ export const git = (view: WorkspaceView): Tool => {
   }
 }
 
-/** The lines of each file a result points into, read once per call. */
 const lineReader = (view: WorkspaceView) => {
   const files = new Map<string, Promise<string[]>>()
   return async (file: string, line: number): Promise<string> => {
@@ -278,10 +222,6 @@ const lineReader = (view: WorkspaceView) => {
   }
 }
 
-/**
- * Places as `path:line: text`, the workspace's own first. A place outside
- * the workspace or in an ignored file is named, not read.
- */
 const locatedLines = async (view: WorkspaceView, locations: EditorLocation[]) => {
   const read = lineReader(view)
   const seen = new Set<string>()
@@ -298,14 +238,12 @@ const locatedLines = async (view: WorkspaceView, locations: EditorLocation[]) =>
   return { lines, inside, outside }
 }
 
-/** A place the tools may not read, named so the model knows why it stops there. */
 const outsidePlace = (view: WorkspaceView, location: EditorLocation) => {
   const relative = view.relative(location.file)
   const shown = relative.startsWith("..") || path.isAbsolute(relative) ? location.file : relative
   return `${shown}:${location.line}: (outside the workspace or ignored; it cannot be read)`
 }
 
-/** The position of `symbol` in `file`, for asking the language server. */
 const symbolAt = async (view: WorkspaceView, file: string | undefined, symbol: string | undefined, line?: string) => {
   if (!file) throw new ToolInputError("A path is needed.")
   const wanted = symbol?.trim()
@@ -373,7 +311,6 @@ export const goToDefinition = (view: WorkspaceView, editor: EditorSink): Tool =>
   async run({ path: file, symbol, line }) {
     const at = await symbolAt(view, file, symbol, line)
     const { lines, inside, outside } = await locatedLines(view, await editor.definition(at.absolute, at.line, at.character))
-    // A library's definition is worth knowing about even though it cannot be opened.
     if (!inside.length) lines.push(...outside.slice(0, 3).map((l) => outsidePlace(view, l)))
     return {
       output: lines.length ? lines.join("\n") : `The language server does not know where ${at.wanted} is defined.`,

@@ -35,7 +35,6 @@ suite("Attached context", () => {
       workspacePathCandidates("/src/a.ts", [{ name: "repo", fsPath: "/repo" }]),
       ["/repo/src/a.ts", "/src/a.ts"]
     )
-    // Single root: a directory that happens to share the folder's name
     assert.ok(
       workspacePathCandidates("repo/a.ts", [
         { name: "repo", fsPath: "/repo" }

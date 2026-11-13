@@ -18,7 +18,6 @@ suite("Embeddings: chunker", () => {
       const expected = lines.slice(chunk.startLine, chunk.endLine + 1).join("\n")
       assert.strictEqual(chunk.content, expected)
     }
-    // Every line of the file is covered by some chunk.
     const covered = new Set<number>()
     for (const chunk of chunks) {
       for (let i = chunk.startLine; i <= chunk.endLine; i++) covered.add(i)
@@ -28,14 +27,11 @@ suite("Embeddings: chunker", () => {
 
   test("small segments are packed together, big ones are cut on lines", () => {
     const lines = Array.from({ length: 12 }, (_, i) => `line ${i}`)
-    // One segment covering the whole file is larger than maxSize (60 chars)
-    // and must be split; each piece stays under the limit.
     const chunks = packSegments(lines, [[0, 11]], options)
     assert.ok(chunks.length > 1)
     for (const chunk of chunks) {
       assert.ok(chunk.content.length <= options.maxSize + options.overlap + 1)
     }
-    // Several tiny segments fit into one chunk.
     const packed = packSegments(lines.slice(0, 4), [[0, 0], [1, 1], [2, 2], [3, 3]], options)
     assert.strictEqual(packed.length, 1)
     assert.strictEqual(packed[0].startLine, 0)
@@ -91,12 +87,10 @@ suite("Embeddings: chunker", () => {
     assert.ok(windows.length > 1)
     for (const window of windows) assert.ok(window.length <= 100, window)
     for (const line of lines) assert.ok(windows.some((window) => window.includes(line)), line)
-    // Consecutive windows share their seam.
     for (let i = 1; i < windows.length; i++) {
       const firstLine = windows[i].split("\n")[0]
       assert.ok(windows[i - 1].includes(firstLine), `window ${i} starts with a line of ${i - 1}`)
     }
-    // A chunk that fits is left whole; a giant line is cut on characters.
     assert.deepStrictEqual(embeddingWindows(content, 10000, 30), [content])
     const giant = "x".repeat(250)
     assert.deepStrictEqual(embeddingWindows(giant, 100, 0).map((w) => w.length), [100, 100, 50])
