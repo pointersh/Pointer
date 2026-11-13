@@ -29,6 +29,7 @@ export class BaseProvider {
   private _disposables: vscode.Disposable[] = []
   public bridge: ExtensionBridge | undefined
   public agent: Agent | undefined
+  public createAgent?: (bridge: ExtensionBridge) => Agent
   public context: vscode.ExtensionContext
   public webView?: vscode.Webview
 
@@ -52,12 +53,15 @@ export class BaseProvider {
     this.webView = webView
     this.bridge = new ExtensionBridge(webView)
     new FileHandler(this.bridge)
+    this.agent = this.createAgent?.(this.bridge)
     this.registerHandlers(this.bridge)
     this.registerEditorListeners(this.bridge)
     logger.info("Webview registered successfully")
   }
 
   public dispose() {
+    this.agent?.abort()
+    this.agent = undefined
     this.bridge?.dispose()
     this.bridge = undefined
     this._disposables.forEach((disposable) => disposable.dispose())

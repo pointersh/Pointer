@@ -298,6 +298,19 @@
     "configuration": {
       "title": "pointer",
       "properties": {
+        "pointer.trueforgeUrl": {
+          "type": "string",
+          "default": "http://localhost:8790",
+          "description": "Where the local TrueForge server runs (`npx @truefoundry/trueforge@latest`)."
+        },
+        "pointer.models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Models to use, in order, as `provider/model` names configured in TrueForge. If a turn fails on one, Pointer retries on the next. Empty uses the model in `agent/pointer.agent.json`."
+        },
         "pointer.enabled": {
           "order": 0,
           "type": "boolean",
@@ -533,6 +546,7 @@
     "@tiptap/react": "^2.5.9",
     "@tiptap/starter-kit": "^2.5.9",
     "@tiptap/suggestion": "^2.5.9",
+    "@truefoundry/trueforge-sdk": "^0.185.0",
     "@types/react": "^18.2.46",
     "@vscode/codicons": "^0.0.35",
     "classnames": "^2.5.1",

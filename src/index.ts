@@ -9,9 +9,13 @@ import { InlineEditCodeActionProvider } from "./extension/edit/code-actions"
 import { InlineEditCodeLensProvider } from "./extension/edit/code-lens"
 import { ChatEditMode, FileEditProposal, InlineEditArgs, InlineEditService } from "./extension/edit/service"
 import { GenerationTracker } from "./extension/generations"
+import { setTextModel } from "./extension/model"
 import { SessionManager } from "./extension/session-manager"
 import { PointerStatusBar } from "./extension/status-bar"
 import { terminalHistory } from "./extension/terminal"
+import { TrueForgeAgent } from "./extension/trueforge/agent"
+import { trueforgeTextModel } from "./extension/trueforge/inline"
+import { describeError, registerAgent } from "./extension/trueforge/setup"
 import { SidebarProvider } from "./extension/webview/sidebar"
 
 export function activate(context: ExtensionContext) {
@@ -19,6 +23,12 @@ export function activate(context: ExtensionContext) {
   const statusBar = new PointerStatusBar(window.createStatusBarItem(StatusBarAlignment.Right), context, generations)
   const sidebarProvider = new SidebarProvider(context, new SessionManager())
   const inlineEdit = new InlineEditService(context, generations)
+  sidebarProvider.createAgent = (bridge) => new TrueForgeAgent(bridge, generations)
+  setTextModel(trueforgeTextModel())
+  void registerAgent(context).catch((error) => {
+    logger.error(`TrueForge setup failed: ${describeError(error)}`)
+    void window.showWarningMessage(describeError(error))
+  })
   const addContextItem = (item: ContextItem | SelectionContextItem) => sidebarProvider.addContextItem(item)
 
   context.subscriptions.push(

@@ -1,0 +1,58 @@
+import { ChatCompletionMessage } from "../../common/types"
+import { TextModel } from "../model"
+
+import { describeError, modelChain } from "./client"
+import { cancelSession, createSession, runTurn } from "./session"
+
+const NO_TOOLS = { dynamic_sub_agents: { enabled: false }, ask_user_questions: { enabled: false } }
+
+const streamOn = async function* (model: string, messages: ChatCompletionMessage[], signal: AbortSignal) {
+  const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n")
+  const input = messages.filter((m) => m.role !== "system").map((m) => m.content).join("\n\n")
+  const sessionId = await createSession({ spec: { model: { name: model }, instructions: system, mcp_servers: [], config: NO_TOOLS } })
+  const onAbort = () => void cancelSession(sessionId)
+  signal.addEventListener("abort", onAbort, { once: true })
+  const chunks: string[] = []
+  let wake: (() => void) | undefined
+  let sent = 0
+  const done = runTurn(sessionId, input, {
+    onText: (text) => {
+      chunks.push(text.slice(sent))
+      sent = text.length
+      wake?.()
+    }
+  }, signal).finally(() => wake?.())
+  try {
+    let finished = false
+    void done.then(() => (finished = true), () => (finished = true))
+    while (!finished || chunks.length) {
+      if (!chunks.length) await new Promise<void>((resolve) => (wake = resolve))
+      while (chunks.length) yield chunks.shift()!
+    }
+    const result = await done
+    if (result.status === "error") throw new Error(result.error ?? "The model failed.")
+  } finally {
+    signal.removeEventListener("abort", onAbort)
+  }
+}
+
+export const trueforgeTextModel = (): TextModel => ({
+  get name() {
+    return modelChain()[0]
+  },
+  async *stream(messages, signal) {
+    const chain = modelChain()
+    for (let i = 0; i < chain.length; i++) {
+      let produced = false
+      try {
+        for await (const chunk of streamOn(chain[i], messages, signal)) {
+          produced = true
+          yield chunk
+        }
+        return
+      } catch (error) {
+        if (signal.aborted || produced || i === chain.length - 1) throw new Error(describeError(error))
+      }
+    }
+  }
+})
