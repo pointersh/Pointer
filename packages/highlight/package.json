@@ -1,0 +1,16 @@
+{
+  "name": "@pointersh/highlight",
+  "version": "0.1.0",
+  "description": "Tiny zero-dependency syntax highlighter. Framework-agnostic core, optional React component, themed entirely through CSS variables.",
+  "license": "MIT",
+  "author": "Ayush Yadav <ayush421301@gmail.com> (https://thatayush.com)",
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "exports": {
+    ".": "./src/index.ts",
+    "./react": "./src/react.tsx",
+    "./theme.css": "./theme.css"
+  },
+  "peerDependencies": { "react": ">=17" },
+  "peerDependenciesMeta": { "react": { "optional": true } }
+}

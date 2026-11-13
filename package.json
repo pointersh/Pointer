@@ -503,8 +503,8 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
+    "lint": "eslint src packages",
+    "lint:fix": "eslint src packages --fix",
     "package": "node scripts/build.mjs",
     "vscode:package": "npm exec vsce package",
     "vscode:prepublish": "npm run package",
@@ -542,7 +542,8 @@
     "react-markdown": "^9.0.1",
     "react-virtuoso": "^4.12.3",
     "remark-gfm": "^4.0.0",
-    "tippy.js": "^6.3.7"
+    "tippy.js": "^6.3.7",
+    "@pointersh/highlight": "0.1.0"
   },
   "os": [
     "darwin",
@@ -552,5 +553,8 @@
   "cpu": [
     "x64",
     "arm64"
+  ],
+  "workspaces": [
+    "packages/*"
   ]
 }

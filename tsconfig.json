@@ -11,7 +11,10 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "resolveJsonModule": true,
-    "rootDir": "src",
+    "paths": {
+      "@pointersh/highlight": ["./packages/highlight/src/index.ts"],
+      "@pointersh/highlight/react": ["./packages/highlight/src/react.tsx"]
+    },
     "sourceMap": true,
     "strict": true,
     "target": "ES2020",

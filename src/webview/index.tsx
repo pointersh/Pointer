@@ -2,6 +2,7 @@ import { createRoot } from "react-dom/client"
 
 import { Main } from "./main"
 
+import "@pointersh/highlight/theme.css"
 import "./styles/theme.css"
 
 const container = document.querySelector("#root")

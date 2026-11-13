@@ -1,9 +1,9 @@
 import { Children, isValidElement, ReactNode, useMemo, useState } from "react"
+import { Code } from "@pointersh/highlight/react"
 
 import { ASSISTANT, EVENT_NAME } from "../common/constants"
 import { LanguageType } from "../common/types"
 
-import { Code } from "./highlight"
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
 import { getLanguageMatch } from "./utils"

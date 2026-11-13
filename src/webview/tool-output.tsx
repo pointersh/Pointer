@@ -1,5 +1,6 @@
 import React from "react"
 import cx from "classnames"
+import { Code } from "@pointersh/highlight/react"
 
 import { EVENT_NAME } from "../common/constants"
 import {
@@ -15,7 +16,6 @@ import {
 } from "../common/tool-output"
 import { ToolStepView } from "../common/types"
 
-import { Code } from "./highlight"
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
 
