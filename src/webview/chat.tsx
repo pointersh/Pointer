@@ -344,47 +344,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     emit(EVENT_NAME.pointerStopGeneration)
   }, [])
 
-  const handleRegenerateMessage = (
-    index: number,
-    mentions: MentionType[] | undefined
-  ): void => {
-    generatingRef.current = true
-    setIsLoading(true)
-    clearSearchReport()
-    clearToolSteps()
-    setMessages((prev) => {
-      if (!prev) return prev
-      const updatedMessages = prev.slice(0, index)
-
-      emit(EVENT_NAME.pointerChatMessage, {
-        messages: updatedMessages,
-        mentions: mentions || [],
-        conversationId: conversation?.id
-      })
-
-      return updatedMessages
-    })
-  }
-
-  const handleDeleteMessage = (index: number): void => {
-    setMessages((prev) => {
-      if (!prev || prev.length === 0) return prev
-      if (prev.length === 2) return prev
-
-      const updatedMessages = [
-        ...prev.slice(0, index),
-        ...prev.slice(index + 2)
-      ]
-
-      saveLastConversation({
-        ...conversation,
-        messages: updatedMessages
-      })
-
-      return updatedMessages
-    })
-  }
-
   const handleChangesUpdate = useCallback(
     (index: number, changes: ReplyChangesView) => {
       setMessages((prev) => {
@@ -396,42 +355,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     },
     [conversation, saveLastConversation]
   )
-
-  const handleEditMessage = (
-    message: string,
-    index: number,
-    mentions: MentionType[] | undefined,
-    images?: ImageAttachment[]
-  ): void => {
-    generatingRef.current = true
-    setIsLoading(true)
-    clearSearchReport()
-    clearToolSteps()
-    setMessages((prev) => {
-      if (!prev) return prev
-
-      const updatedMessages = [
-        ...prev.slice(0, index),
-        {
-          ...prev[index],
-          content: message
-            .replace(/<p>/g, "")
-            .replace(/<\/p>/g, "<br>")
-            .replace(/<br>$/, ""),
-          images: images && images.length > 0 ? images : undefined,
-          prompt: undefined
-        }
-      ]
-
-      emit(EVENT_NAME.pointerChatMessage, {
-        messages: updatedMessages,
-        mentions: mentions || [],
-        conversationId: conversation?.id
-      })
-
-      return updatedMessages
-    })
-  }
 
   const getMentions = useCallback(() => {
     const mentions: MentionType[] = []
@@ -892,10 +815,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     [handleImageUpload]
   )
 
-  const handleDeleteImage = (id: string) => {
-    imagesRef.current = imagesRef.current.filter((img) => img.id !== id)
-  }
-
   useAutosizeTextArea(chatRef, editorRef.current?.getText() || "")
 
   useEffect(() => {
@@ -1023,11 +942,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
         completion={completion}
         context={searchReport}
         steps={toolSteps}
-        generatingRef={generatingRef}
-        handleDeleteImage={handleDeleteImage}
-        handleDeleteMessage={handleDeleteMessage}
-        handleEditMessage={handleEditMessage}
-        handleRegenerateMessage={handleRegenerateMessage}
         handleContinue={handleContinue}
         handleChangesUpdate={handleChangesUpdate}
         index={Math.min(index, messages.length - 1)}
@@ -1037,17 +951,13 @@ export const Chat = (props: ChatProps): JSX.Element => {
       />
     ),
     [
-      handleDeleteMessage,
-      handleEditMessage,
-      handleRegenerateMessage,
       handleContinue,
       handleChangesUpdate,
       isLoading,
       messages,
       completion,
       searchReport,
-      toolSteps,
-      generatingRef
+      toolSteps
     ]
   )
 

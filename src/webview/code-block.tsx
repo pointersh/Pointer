@@ -1,11 +1,11 @@
 import { Children, isValidElement, ReactNode, useMemo, useState } from "react"
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter"
 import { vs, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 
 import { ASSISTANT, EVENT_NAME } from "../common/constants"
 import { LanguageType } from "../common/types"
 
 import { useCodeTheme } from "./hooks/useCodeTheme"
+import { SyntaxHighlighter } from "./highlighter"
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
 import { getLanguageMatch } from "./utils"

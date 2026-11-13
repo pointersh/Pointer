@@ -1,28 +1,18 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react"
-import Markdown, { Components } from "react-markdown"
-import Mention from "@tiptap/extension-mention"
-import { Editor, EditorContent, Extension, useEditor } from "@tiptap/react"
-import StarterKit from "@tiptap/starter-kit"
+import React,{ useCallback,useEffect,useMemo,useRef } from "react"
+import Markdown,{ Components } from "react-markdown"
 import DOMPurify from "dompurify"
 import remarkGfm from "remark-gfm"
-import { Markdown as TiptapMarkdown } from "tiptap-markdown"
 
 import { ASSISTANT, EVENT_NAME, POINTER, YOU } from "../common/constants"
 import { WorkspaceSearchReport } from "../common/messaging/protocol"
 import {
-  ChatCompletionMessage,
-  ImageAttachment,
-  MentionType,
-  ReplyChangesView,
-  ReplyMeta,
-  ToolStepView
+ChatCompletionMessage,ReplyChangesView,
+ReplyMeta,
+ToolStepView
 } from "../common/types"
 
-import { useSuggestion } from "./hooks/useSuggestion"
 import { Button } from "./button"
 import CodeBlock from "./code-block"
-import { createCustomImageExtension } from "./image-extension"
-import { MentionExtension } from "./mention-extention"
 import { emit } from "./messaging"
 import { ReplyChanges } from "./reply-changes"
 import { replyParts } from "./reply-parts"
@@ -36,41 +26,13 @@ import styles from "./styles/message.module.css"
 
 interface MessageProps {
   index?: number
-  isAssistant?: boolean
   context?: WorkspaceSearchReport
   steps?: ToolStepView[]
-  isLoading?: boolean
   message?: ChatCompletionMessage
-  messages?: ChatCompletionMessage[]
-  onDelete?: (index: number) => void
-  onRegenerate?: (index: number, mentions: MentionType[] | undefined) => void
-  onEdit?: (
-    message: string,
-    index: number,
-    mentions: MentionType[] | undefined,
-    images?: ImageAttachment[]
-  ) => void
   onHeightChange?: () => void
-  onDeleteImage?: (id: string) => void
   onContinue?: () => void
   onChangesUpdate?: (index: number, changes: ReplyChangesView) => void
 }
-
-const CustomKeyMap = Extension.create({
-  name: "messageKeyMap",
-  addKeyboardShortcuts() {
-    return {
-      "Mod-Enter": ({ editor }) => {
-        editor.commands.insertContent("\n")
-        return true
-      },
-      "Shift-Enter": ({ editor }) => {
-        editor.commands.insertContent("\n")
-        return true
-      }
-    }
-  }
-})
 
 interface ThinkingSectionProps {
   thinking: string
@@ -275,23 +237,15 @@ const Collapsible = ({ children }: { children: React.ReactNode }) => {
 
 export const Message: React.FC<MessageProps> = ({
   index = 0,
-  isAssistant,
   context,
   steps,
-  isLoading,
   message,
-  onDelete,
-  onRegenerate,
-  onEdit,
   onHeightChange,
-  messages,
-  onDeleteImage,
   onContinue,
   onChangesUpdate
 }) => {
   const { t } = useTranslation()
   const [isThinkingCollapsed, setIsThinkingCollapsed] = React.useState(false)
-  const [editing, setEditing] = React.useState<boolean>(false)
   const messageRef = useRef<HTMLDivElement>(null)
   const prevHeightRef = useRef<number>(0)
   const { Toast, showToast } = useToast()
@@ -304,175 +258,11 @@ export const Message: React.FC<MessageProps> = ({
       prevHeightRef.current = currentHeight
       onHeightChange?.()
     }
-  }, [editing, message?.content])
-
-  const handleToggleEditing = useCallback(() => setEditing((prev) => !prev), [])
-  const handleDelete = useCallback(() => onDelete?.(index), [onDelete, index])
-
-  const extractMentionsFromHtml = (content: string): MentionType[] => {
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(content, "text/html")
-    const mentions: MentionType[] = []
-
-    doc.querySelectorAll(".mention").forEach((mention) => {
-      const path = mention.getAttribute("data-id")
-      const label = mention.getAttribute("data-label")
-      if (path && label) {
-        mentions.push({
-          name: label,
-          path: path
-        })
-      }
-    })
-
-    return mentions
-  }
-
-  const handleRegenerate = useCallback(() => {
-    if (!messages?.length) return
-    const lastMessage = messages[index - 1]
-    const mentions = extractMentionsFromHtml(lastMessage?.content as string)
-    onRegenerate?.(index, mentions)
-  }, [onRegenerate, index])
-
-  const handleToggleCancel = useCallback(() => {
-    setEditing(false)
-    editorRef.current?.commands.setContent(message?.content as string)
   }, [message?.content])
-
-  const handleToggleSave = useCallback(() => {
-    const editorContent = editorRef.current?.getHTML()
-    if (!editorContent) {
-      return setEditing(false)
-    }
-    const parser = new DOMParser()
-    const doc = parser.parseFromString(editorContent, "text/html")
-    const mentions = Array.from(doc.querySelectorAll(".mention")).map(
-      (mention) => {
-        const filePath = mention.getAttribute("data-id")
-        const label = mention.getAttribute("data-label")
-        if (filePath && label) {
-          mention.outerHTML = `<span class="mention" data-type="mention" data-id="${filePath}" data-label="${label}">@${label}</span>`
-        }
-        return { name: label, path: filePath }
-      }
-    )
-
-    const imageNodes = Array.from(doc.querySelectorAll("img"))
-    const imageIds = imageNodes.map(img => img.getAttribute("id")).filter((id): id is string => Boolean(id))
-    const allImages = (message?.images || []) as ImageAttachment[]
-    const filteredImages = allImages.filter(img => img.id && imageIds.includes(img.id))
-
-    const finalContent = doc.body.innerHTML
-    if (message?.content === finalContent) {
-      return setEditing(false)
-    }
-
-    onEdit?.(
-      finalContent,
-      index,
-      mentions.filter((m): m is MentionType => Boolean(m.name && m.path)),
-      filteredImages
-    )
-    setEditing(false)
-  }, [message?.content, onEdit, index, message?.images])
 
   const handleOpenFile = useCallback((filePath: string) => {
     emit(EVENT_NAME.pointerOpenFile, filePath)
   }, [])
-
-  const { suggestion, filePaths } = useSuggestion()
-
-  const memoizedSuggestion = useMemo(
-    () => suggestion,
-    [JSON.stringify(filePaths)]
-  )
-
-  const editorRef = useRef<Editor | null>(null)
-
-  const CustomImageExtension = createCustomImageExtension(onDeleteImage)
-
-  const editor = useEditor(
-    {
-      extensions: [
-        StarterKit,
-        TiptapMarkdown,
-        MentionExtension,
-        CustomImageExtension.configure({
-          allowBase64: true,
-        }),
-        Mention.configure({
-          HTMLAttributes: {
-            class: "mention"
-          },
-          suggestion: memoizedSuggestion,
-          renderText({ node }) {
-            return `@${node.attrs.label}`
-          }
-        }),
-        CustomKeyMap.configure({
-          handleToggleSave
-        })
-      ],
-      content: message?.content,
-      editorProps: {
-        attributes: {
-          class: styles.editor
-        },
-        handleDOMEvents: {
-          paste: (view, event) => {
-            const items = Array.from(event.clipboardData?.items || [])
-            const imageItem = items.find(item => item.type.startsWith("image/"))
-
-            if (imageItem) {
-              const file = imageItem.getAsFile()
-              if (file) {
-                const reader = new FileReader()
-                reader.onload = (e) => {
-                  const base64 = e.target?.result as string
-                  const imageData = base64.includes("data:") ? base64 : `data:${file.type};base64,${base64.split(",")[1]}`
-                  view.dispatch(
-                    view.state.tr.replaceSelectionWith(
-                      view.state.schema.nodes.image.create({ src: imageData })
-                    )
-                  )
-                }
-                reader.readAsDataURL(file)
-                return true
-              }
-            }
-
-            const text =
-              event.clipboardData?.getData("text/html") ||
-              event.clipboardData?.getData("text/plain")
-            if (text) {
-              view.dispatch(view.state.tr.insertText(text))
-            }
-            return true
-          }
-        }
-      },
-      onFocus: () => {
-        if (editorRef.current) {
-          editorRef.current.commands.focus("end")
-        }
-      }
-    },
-    [memoizedSuggestion]
-  )
-
-  useEffect(() => {
-    if (editorRef.current) {
-      const mentionExtension =
-        editorRef.current.extensionManager.extensions.find(
-          (extension) => extension.name === "mention"
-        )
-      if (mentionExtension) {
-        mentionExtension.options.suggestion = memoizedSuggestion
-        editorRef.current.commands.focus()
-      }
-    }
-  }, [memoizedSuggestion])
 
   const renderContent = useCallback(
     (htmlContent: string) => {
@@ -502,35 +292,6 @@ export const Message: React.FC<MessageProps> = ({
     },
     [handleOpenFile]
   )
-
-  const renderImageGallery = useCallback(() => {
-    const images = message?.images || [] as ImageAttachment[]
-    if (!images.length) return null;
-
-    const maxImages = 10
-    const limitedImages = images.slice(0, maxImages)
-
-    return (
-      <div className={styles.imageGallery}>
-        {limitedImages.map((img, index) => (
-          <div key={index} className={styles.imageContainer}>
-            <img
-              src={(img as ImageAttachment).data}
-              className={styles.chatImageSquare}
-              alt=""
-              loading="lazy"
-              style={{ maxWidth: "200px", maxHeight: "200px" }}
-            />
-          </div>
-        ))}
-        {images.length > maxImages && (
-          <div style={{ color: "#888", marginTop: 8 }}>
-            {`+${images.length - maxImages} more image(s) not shown for performance`}
-          </div>
-        )}
-      </div>
-    )
-  }, [message?.images])
 
   const renderCodeBlock = useCallback(
     ({
@@ -564,7 +325,7 @@ export const Message: React.FC<MessageProps> = ({
         return <p {...props}>{children}</p>
       },
     } as Components),
-    [renderCodeBlock, renderContent, message?.images]
+    [renderCodeBlock, renderContent]
   )
 
   if (!message) return null
@@ -574,8 +335,7 @@ export const Message: React.FC<MessageProps> = ({
     message.content as string
   )
 
-  const conversationLength = messages?.length || 0
-  const footerActions = message.role === ASSISTANT && !!message.meta && !editing
+  const footerActions = message.role === ASSISTANT && !!message.meta
 
   const options = (
     <div className={styles.messageOptions}>
@@ -589,61 +349,8 @@ export const Message: React.FC<MessageProps> = ({
       >
         <span className="codicon codicon-copy"></span>
       </Button>
-      {editing && !isAssistant && (
-        <>
-          <Button
-            title={t("cancel-edit")}
-            appearance="icon"
-            onClick={handleToggleCancel}
-          >
-            <span className="codicon codicon-close" />
-          </Button>
-          <Button
-            title={t("save-edit")}
-            appearance="icon"
-            onClick={handleToggleSave}
-          >
-            <span className="codicon codicon-check" />
-          </Button>
-        </>
-      )}
-      {!editing && !isAssistant && (
-        <>
-          <Button
-            disabled={isLoading}
-            title={t("edit-message")}
-            appearance="icon"
-            onClick={handleToggleEditing}
-          >
-            <span className="codicon codicon-edit" />
-          </Button>
-          <Button
-            disabled={isLoading || conversationLength <= 2}
-            title={t("delete-message")}
-            appearance="icon"
-            onClick={handleDelete}
-          >
-            <span className="codicon codicon-trash" />
-          </Button>
-        </>
-      )}
-      {!editing && isAssistant && (
-        <Button
-          disabled={isLoading}
-          title={t("regenerate-message")}
-          appearance="icon"
-          onClick={handleRegenerate}
-        >
-          <span className="codicon codicon-sync" />
-        </Button>
-      )}
     </div>
   )
-
-  useEffect(() => {
-    if (editor) editorRef.current = editor
-    editorRef.current?.commands.focus()
-  }, [editor])
 
   return (
     <div
@@ -677,12 +384,9 @@ export const Message: React.FC<MessageProps> = ({
       {message.role === ASSISTANT && (
         <>
           <WorkspaceContext report={message.context ?? context} />
-          {editing && <ToolSteps steps={message.toolSteps ?? steps} />}
         </>
       )}
-      {editing ? (
-        <EditorContent className={styles.tiptap} editor={editor} />
-      ) : message.role === ASSISTANT ? (
+      {message.role === ASSISTANT ? (
         <>
           {replyParts(messageContent, message.toolSteps ?? steps).map((part, i) =>
             "steps" in part ? (
@@ -693,7 +397,6 @@ export const Message: React.FC<MessageProps> = ({
               </Markdown>
             ) : null
           )}
-          {renderImageGallery()}
           {message.changes && (
             <ReplyChanges
               changes={message.changes}
@@ -706,7 +409,6 @@ export const Message: React.FC<MessageProps> = ({
       ) : (
         <Collapsible>
           {renderContent(messageContent.trimStart())}
-          {renderImageGallery()}
         </Collapsible>
       )}
     </div>
