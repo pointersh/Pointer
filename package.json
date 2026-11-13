@@ -522,7 +522,9 @@
     "vscode:package": "npm exec vsce package",
     "vscode:prepublish": "npm run package",
     "watch": "node scripts/build.mjs --watch",
-    "typecheck": "tsc -p . --noEmit"
+    "typecheck": "tsc -p . --noEmit",
+    "check:mcp": "node scripts/check-mcp.mjs",
+    "check:trueforge": "node scripts/check-trueforge.mjs"
   },
   "devDependencies": {
     "@types/node": "^16.18.68",

@@ -20,7 +20,8 @@ export const createSession = async (agent: { name: string } | { spec: InlineSpec
   })
   const body = await response.text()
   if (!response.ok) throw new Error(`TrueForge could not create a session (${response.status}): ${body.slice(0, 300)}`)
-  return JSON.parse(body).id
+  const parsed = JSON.parse(body)
+  return parsed.data?.id ?? parsed.id
 }
 
 export interface TurnHandlers {
@@ -73,12 +74,12 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
       .map((m) => textOf((m as TrueForgeApi.ModelMessageEvent).content))
       .join("")
 
-  const handle = async (event: Event) => {
+  const handle = async (event: Event): Promise<"next" | "done" | "resubscribe"> => {
     lastEventId = event.id
     if (event.type === "turn.created") {
       turnId = event.turnId
       mainThread = event.threadId
-      return false
+      return "next"
     }
     if (isEventDelta(event)) {
       const base = messages.get(event.id)
@@ -103,11 +104,11 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
         result.promptTokens = message.usage.inputTokens ?? result.promptTokens
         result.completionTokens = message.usage.outputTokens ?? result.completionTokens
       }
-      return false
+      return "next"
     }
     if (event.type === "tool.response") {
       handlers.onToolResult?.(event.toolCallId, event.content)
-      return false
+      return "next"
     }
     if (event.type === "tool.approval_required") {
       for (const ref of event.toolCalls) {
@@ -129,15 +130,15 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
           ]
         })
       }
-      return false
+      return "resubscribe"
     }
     if (event.type === "turn.done") {
       const state = event.state
       result.status = state.status
       if (state.status === "error") result.error = state.message
-      return true
+      return "done"
     }
-    return false
+    return "next"
   }
 
   let stream = await client.sessions.createTurnStream(sessionId, { input: [{ type: "user.message", content: input }] }, { abortSignal: signal })
@@ -145,10 +146,10 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
     let finished = false
     try {
       for await (const event of stream) {
-        if (await handle(event)) {
-          finished = true
-          break
-        }
+        const next = await handle(event)
+        if (next === "next") continue
+        finished = next === "done"
+        break
       }
     } catch (error) {
       if (signal.aborted) return { ...result, status: "cancelled", text: mainText() }
