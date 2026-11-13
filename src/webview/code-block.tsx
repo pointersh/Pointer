@@ -1,11 +1,9 @@
 import { Children, isValidElement, ReactNode, useMemo, useState } from "react"
-import { vs, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 
 import { ASSISTANT, EVENT_NAME } from "../common/constants"
 import { LanguageType } from "../common/types"
 
-import { useCodeTheme } from "./hooks/useCodeTheme"
-import { SyntaxHighlighter } from "./highlighter"
+import { Code } from "./highlight"
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
 import { getLanguageMatch } from "./utils"
@@ -72,7 +70,6 @@ const Action = ({ icon, label, title, onClick, active }: ActionProps) => (
 export const CodeBlock = (props: CodeBlockProps) => {
   const { t } = useTranslation()
   const { children, language, className, role } = props
-  const theme = useCodeTheme()
   const lang = getLanguageMatch(language, className)
   const [copied, setCopied] = useState(false)
 
@@ -154,12 +151,7 @@ export const CodeBlock = (props: CodeBlockProps) => {
           </span>
         </div>
       </div>
-      <SyntaxHighlighter
-        children={code}
-        style={theme === "dark" ? vscDarkPlus : vs}
-        language={lang || "text"}
-        PreTag="pre"
-      />
+      <Code code={code} language={lang || "text"} />
     </div>
   )
 }

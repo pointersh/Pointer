@@ -5,9 +5,10 @@ import { EVENT_NAME } from "../common/constants"
 import { ToolStepView } from "../common/types"
 import { parseTasks, TASKS_TOOL_NAME, tasksProgress } from "../extension/tools/tasks"
 
+import { Code } from "./highlight"
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
-import { Code, ToolOutput } from "./tool-output"
+import { ToolOutput } from "./tool-output"
 
 import styles from "./styles/tool-steps.module.css"
 

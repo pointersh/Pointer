@@ -1,5 +1,4 @@
 import React from "react"
-import { vs, vscDarkPlus } from "react-syntax-highlighter/dist/esm/styles/prism"
 import cx from "classnames"
 
 import { EVENT_NAME } from "../common/constants"
@@ -16,50 +15,14 @@ import {
 } from "../common/tool-output"
 import { ToolStepView } from "../common/types"
 
-import { useCodeTheme } from "./hooks/useCodeTheme"
-import { SyntaxHighlighter } from "./highlighter"
+import { Code } from "./highlight"
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
 
 import styles from "./styles/tool-steps.module.css"
 
-interface CodeProps {
-  code: string
-  language: string
-  startLine?: number
-}
 
-const GUTTER = "3.6em"
 
-export const Code = ({ code, language, startLine }: CodeProps) => {
-  const theme = useCodeTheme()
-  const numbered = startLine !== undefined
-  return (
-    <SyntaxHighlighter
-      language={language}
-      style={theme === "dark" ? vscDarkPlus : vs}
-      showLineNumbers={numbered}
-      startingLineNumber={startLine}
-      wrapLongLines
-      className={styles.code}
-      customStyle={{ margin: 0, padding: "6px 8px", background: "var(--tw-surface)", fontSize: "inherit" }}
-      codeTagProps={{ style: { fontFamily: "var(--tw-mono)", fontSize: "inherit" } }}
-      lineProps={numbered ? { style: { display: "block", paddingLeft: GUTTER } } : undefined}
-      lineNumberStyle={{
-        display: "inline-block",
-        boxSizing: "border-box",
-        width: GUTTER,
-        marginLeft: `-${GUTTER}`,
-        paddingRight: "1em",
-        textAlign: "right",
-        opacity: 0.45,
-        userSelect: "none"
-      }}
-    >
-      {code}
-    </SyntaxHighlighter>
-  )
-}
 
 const Diff = ({ lines }: { lines: DiffLine[] }) => (
   <pre className={styles.diff}>
