@@ -1,0 +1,373 @@
+import { models } from "fluency.js"
+import * as vscode from "vscode"
+
+import {
+  ACTIVE_FIM_PROVIDER_STORAGE_KEY,
+  EVENT_NAME,
+  POINTER_COMMAND_NAME,
+  WORKSPACE_STORAGE_KEY
+} from "../../common/constants"
+import { logger } from "../../common/logger"
+import {
+  ContextValue,
+  NewDocumentRequest
+} from "../../common/messaging/protocol"
+import {
+  AnyContextItem,
+  ModelCatalogue,
+  PointerProvider
+} from "../../common/types"
+import { Chat } from "../chat"
+import { ConversationHistory } from "../chat/conversation-history"
+import { runStarter } from "../chat/starters"
+import { searchSymbols } from "../chat/symbols"
+import { WorkspaceIndex } from "../embeddings"
+import { EmbeddingService } from "../embeddings/service"
+import { GenerationTracker } from "../generations"
+import { ExtensionBridge } from "../messaging/bridge"
+import { ProviderManager } from "../providers/manager"
+import { SessionManager } from "../session-manager"
+import { TemplateProvider } from "../templates/provider"
+import { getLanguage, getTerminal, getTextSelection, getTheme } from "../utils"
+
+import { resolveLanguageId, stripShellPrompts } from "./code-actions"
+import { FileHandler } from "./file-handler"
+import { FileTreeProvider } from "./file-tree"
+
+/** Prefix under which a scoped context value lives in extension storage. */
+const storageKeyFor = (scope: string, key: string) => `${scope}-${key}`
+
+export class BaseProvider {
+  private _workspaceIndex: WorkspaceIndex | undefined
+  private _embeddingService: EmbeddingService | undefined
+  private _fileTreeProvider: FileTreeProvider
+  private _sessionManager: SessionManager | undefined
+  private _generations: GenerationTracker
+  private _templateDir: string | undefined
+  private _templateProvider: TemplateProvider
+  private _disposables: vscode.Disposable[] = []
+  public bridge: ExtensionBridge | undefined
+  public chat: Chat | undefined
+  public providers: ProviderManager | undefined
+  public context: vscode.ExtensionContext
+  public conversationHistory: ConversationHistory | undefined
+  public webView?: vscode.Webview
+
+  private _sidebarReadyHandler?: () => void
+
+  public registerSidebarReadyHandler(handler: () => void) {
+    this._sidebarReadyHandler = handler
+  }
+
+  constructor(
+    context: vscode.ExtensionContext,
+    templateDir: string,
+    generations: GenerationTracker,
+    index?: WorkspaceIndex,
+    sessionManager?: SessionManager
+  ) {
+    this.context = context
+    this._fileTreeProvider = new FileTreeProvider()
+    this._workspaceIndex = index
+    this._sessionManager = sessionManager
+    this._generations = generations
+    this._templateDir = templateDir
+    this._templateProvider = new TemplateProvider(templateDir)
+  }
+
+  public registerWebView(webView: vscode.Webview) {
+    this.dispose()
+    this.webView = webView
+    this.bridge = new ExtensionBridge(webView)
+    this.initializeServices(this.bridge)
+    this.registerHandlers(this.bridge)
+    this.registerEditorListeners(this.bridge)
+    logger.info("Webview registered successfully")
+  }
+
+  public dispose() {
+    this.bridge?.dispose()
+    this.bridge = undefined
+    this.chat?.dispose()
+    this._embeddingService?.dispose()
+    this._embeddingService = undefined
+    this.conversationHistory?.dispose()
+    this._disposables.forEach((disposable) => disposable.dispose())
+    this._disposables = []
+  }
+
+  private initializeServices(bridge: ExtensionBridge) {
+    this.chat = new Chat(
+      this._generations,
+      this._templateDir,
+      this.context,
+      bridge,
+      this._workspaceIndex?.search
+    )
+
+    this.conversationHistory = new ConversationHistory(
+      this.context,
+      bridge,
+      this.chat
+    )
+
+    this.providers = new ProviderManager(this.context, bridge)
+    this._embeddingService = new EmbeddingService(
+      this.context,
+      bridge,
+      this._workspaceIndex
+    )
+    new FileHandler(bridge)
+
+    logger.info("Provider services initialized successfully")
+  }
+
+  /**
+   * Every channel this provider owns, in one table.
+   *
+   * Handlers are plain functions of their payload: return a value and the
+   * bridge routes it back to whoever asked (or broadcasts it if nobody is
+   * waiting on a specific reply). Nothing here mentions `postMessage`.
+   */
+  private registerHandlers(bridge: ExtensionBridge) {
+    bridge.handleAll({
+      [EVENT_NAME.pointerAcceptSolution]: (code) =>
+        void vscode.commands.executeCommand(POINTER_COMMAND_NAME.applyCode, code),
+      [EVENT_NAME.pointerChatMessage]: ({ messages, mentions }) =>
+        void this.chat?.completion(messages, mentions),
+      [EVENT_NAME.pointerClickSuggestion]: (template) =>
+        void vscode.commands.executeCommand(
+          POINTER_COMMAND_NAME.templateCompletion,
+          template
+        ),
+      [EVENT_NAME.pointerEditDefaultTemplates]: () => this.editDefaultTemplates(),
+      [EVENT_NAME.pointerFileListRequest]: () =>
+        this._fileTreeProvider.getAllFiles(),
+      [EVENT_NAME.pointerGetConfigValue]: ({ key }) => ({
+        key,
+        value: vscode.workspace.getConfiguration("pointer").get(key)
+      }),
+      [EVENT_NAME.pointerGetContextItems]: () =>
+        this.broadcastContextItems(this.readContextItems()),
+      [EVENT_NAME.pointerGetModels]: () => models as unknown as ModelCatalogue,
+      [EVENT_NAME.pointerModelStatus]: async () => (await this.chat?.modelStatus()) ?? null,
+      [EVENT_NAME.pointerWarmModel]: async () => (await this.chat?.warmModel()) ?? null,
+      [EVENT_NAME.pointerStarter]: (kind) => {
+        if (this.chat) void runStarter(this.chat, kind)
+      },
+      [EVENT_NAME.pointerGlobalContext]: ({ key }) =>
+        this.readGlobalContext(key),
+      [EVENT_NAME.pointerGetWorkspaceContext]: ({ key }) =>
+        this.readWorkspaceContext(key),
+      [EVENT_NAME.pointerSessionContext]: ({ key }) =>
+        this.readSessionContext(key),
+      [EVENT_NAME.pointerSetGlobalContext]: (value) =>
+        this.writeGlobalContext(value),
+      [EVENT_NAME.pointerSetWorkspaceContext]: (value) =>
+        this.writeWorkspaceContext(value),
+      [EVENT_NAME.pointerSetSessionContext]: (value) =>
+        this.writeSessionContext(value),
+      [EVENT_NAME.pointerHideBackButton]: () =>
+        void vscode.commands.executeCommand(POINTER_COMMAND_NAME.hideBackButton),
+      [EVENT_NAME.pointerOpenProviders]: () =>
+        void vscode.commands.executeCommand(POINTER_COMMAND_NAME.manageProviders),
+      [EVENT_NAME.pointerListTemplates]: () =>
+        this._templateProvider.listTemplates(),
+      [EVENT_NAME.pointerNewConversation]: () => this.newConversation(),
+      [EVENT_NAME.pointerNewDocument]: (request) =>
+        this.createNewUntitledDocument(request),
+      [EVENT_NAME.pointerNotification]: (message) =>
+        void vscode.window.showInformationMessage(message),
+      [EVENT_NAME.pointerRemoveContextItem]: (id) => this.removeContextItem(id),
+      [EVENT_NAME.pointerRunInTerminal]: (command) =>
+        this.sendToTerminal(command),
+      [EVENT_NAME.pointerInsertAtCursor]: (code) => this.insertAtCursor(code),
+      [EVENT_NAME.pointerSendLanguage]: () => getLanguage(),
+      [EVENT_NAME.pointerSendTheme]: () => getTheme(),
+      [EVENT_NAME.pointerSetConfigValue]: ({ key, value }) =>
+        void vscode.workspace
+          .getConfiguration("pointer")
+          .update(key, value, vscode.ConfigurationTarget.Global),
+      [EVENT_NAME.pointerSidebarReady]: () => this._sidebarReadyHandler?.(),
+      [EVENT_NAME.pointerStopGeneration]: () => this.destroyStream(),
+      [EVENT_NAME.pointerToolApproval]: ({ id, run, always }) => this.chat?.answerToolApproval(id, run, always),
+      [EVENT_NAME.pointerToolStop]: ({ id }) => this.chat?.stopToolStep(id),
+      [EVENT_NAME.pointerSteer]: ({ id, text }) => this.chat?.steer(id, text),
+      [EVENT_NAME.pointerOpenChange]: ({ id, path }) => void this.chat?.openChange(id, path),
+      [EVENT_NAME.pointerOpenAgentSettings]: () =>
+        void vscode.commands.executeCommand("workbench.action.openSettings", "pointer.chatTools"),
+      [EVENT_NAME.pointerUndoChanges]: async ({ id, paths }) =>
+        (await this.chat?.undoChanges(id, paths)) ?? { error: "The chat is not ready." },
+      [EVENT_NAME.pointerSymbolSearch]: ({ query }) => searchSymbols(query),
+      [EVENT_NAME.pointerTextSelection]: () => getTextSelection()
+    })
+  }
+
+  private registerEditorListeners(bridge: ExtensionBridge) {
+    this._disposables.push(
+      vscode.window.onDidChangeActiveColorTheme(() => {
+        bridge.emit(EVENT_NAME.pointerSendTheme, getTheme())
+      }),
+      vscode.window.onDidChangeTextEditorSelection((event) => {
+        bridge.emit(
+          EVENT_NAME.pointerTextSelection,
+          event.textEditor.document.getText(event.selections[0])
+        )
+      })
+    )
+  }
+
+  public getFimProvider = () => {
+    return this.context.globalState.get<PointerProvider>(ACTIVE_FIM_PROVIDER_STORAGE_KEY)
+  }
+
+  public editDefaultTemplates = async () => {
+    if (!this._templateDir) return
+    await vscode.commands.executeCommand(
+      "vscode.openFolder",
+      vscode.Uri.file(this._templateDir),
+      true
+    )
+  }
+
+  public destroyStream = () => {
+    this.chat?.abort()
+    this.bridge?.emit(EVENT_NAME.pointerStopGeneration)
+  }
+
+  public async streamTemplateCompletion(template: string) {
+    this.chat?.templateCompletion(template)
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Context items                                                          */
+  /* ---------------------------------------------------------------------- */
+
+  private readContextItems = () =>
+    this.context?.workspaceState.get<AnyContextItem[]>(
+      WORKSPACE_STORAGE_KEY.contextItems
+    ) || []
+
+  addContextItem = (item: AnyContextItem) => {
+    const items = this.readContextItems()
+    const index = items.findIndex((existing) => existing.id === item.id)
+    const updated = [...items]
+    if (index > -1) updated[index] = item
+    else updated.push(item)
+    this.saveContextItems(updated)
+  }
+
+  removeContextItem = (id: string) => {
+    this.saveContextItems(this.readContextItems().filter((i) => i.id !== id))
+  }
+
+  private saveContextItems = (items: AnyContextItem[]) => {
+    this.context?.workspaceState.update(
+      WORKSPACE_STORAGE_KEY.contextItems,
+      items
+    )
+    this.broadcastContextItems(items)
+  }
+
+  private broadcastContextItems = (items: AnyContextItem[]) => {
+    this.bridge?.emit(EVENT_NAME.pointerUpdateContextItems, items)
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /*  Scoped context storage                                                 */
+  /* ---------------------------------------------------------------------- */
+
+  private readGlobalContext = (key: string): ContextValue => ({
+    key,
+    value: this.context?.globalState.get(
+      storageKeyFor(EVENT_NAME.pointerGlobalContext, key)
+    )
+  })
+
+  private writeGlobalContext = ({ key, value }: ContextValue) => {
+    this.context?.globalState.update(
+      storageKeyFor(EVENT_NAME.pointerGlobalContext, key),
+      value
+    )
+    this.bridge?.emit(EVENT_NAME.pointerGlobalContext, { key, value })
+  }
+
+  private readWorkspaceContext = (key: string): ContextValue => ({
+    key,
+    value: this.context?.workspaceState.get(
+      storageKeyFor(EVENT_NAME.pointerGetWorkspaceContext, key)
+    )
+  })
+
+  private writeWorkspaceContext = ({ key, value }: ContextValue) => {
+    this.context?.workspaceState.update(
+      storageKeyFor(EVENT_NAME.pointerGetWorkspaceContext, key),
+      value
+    )
+    this.bridge?.emit(EVENT_NAME.pointerGetWorkspaceContext, { key, value })
+  }
+
+  private readSessionContext = (key: string): ContextValue => ({
+    key,
+    value: this._sessionManager?.get(key)
+  })
+
+  private writeSessionContext = ({ key, value }: ContextValue) => {
+    this._sessionManager?.set(key, value)
+    this.bridge?.emit(EVENT_NAME.pointerSessionContext, { key, value })
+  }
+
+  /* ---------------------------------------------------------------------- */
+
+  /** From the chat's button or the command: both sides start over. */
+  public newConversation = () => {
+    this.conversationHistory?.resetConversation()
+    this.chat?.resetConversation()
+    this.bridge?.emit(EVENT_NAME.pointerNewConversation)
+    // A reply still being written belongs to the conversation left; the
+    // chat has cleared what it queued there before the reply stops.
+    this.chat?.discardReply()
+  }
+
+  private createNewUntitledDocument = async ({
+    content,
+    language
+  }: NewDocumentRequest) => {
+    const document = await vscode.workspace.openTextDocument({
+      content,
+      language: await resolveLanguageId(language, getLanguage().languageId)
+    })
+    await vscode.window.showTextDocument(document)
+  }
+
+  /*
+   * Pasted, not executed: the user reads the command in the terminal and
+   * presses Enter themselves. Models get commands wrong often enough that an
+   * auto-run button would be a foot-gun.
+   */
+  /*
+   * Straight into the last editor, as if typed: a selection is replaced,
+   * otherwise the code goes in at the cursor. Apply is for changes to
+   * review; this is for a snippet that only adds.
+   */
+  private insertAtCursor = async (code: string) => {
+    const editor = vscode.window.activeTextEditor
+    if (!editor) {
+      void vscode.window.showWarningMessage(
+        "Open a file to insert the code into."
+      )
+      return
+    }
+    await vscode.window.showTextDocument(editor.document, editor.viewColumn)
+    await editor.edit((builder) => {
+      for (const selection of editor.selections) builder.replace(selection, code)
+    })
+  }
+
+  private sendToTerminal = async (command: string) => {
+    const terminal = await getTerminal()
+    if (!terminal) return
+    terminal.show()
+    terminal.sendText(stripShellPrompts(command), false)
+  }
+}

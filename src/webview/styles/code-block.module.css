@@ -1,0 +1,152 @@
+/*
+ * A code block is a card: a ground a shade off the page, rounded, with no
+ * line round it. The header strip (language + actions) is part of the card,
+ * not a float above it, so the buttons always have a home and never drift.
+ */
+pre {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--tw-radius);
+  background: var(--tw-fill) !important;
+  overflow-x: auto;
+  font-family: var(--tw-mono) !important;
+  font-size: var(--tw-fs-mono) !important;
+  line-height: 1.5 !important;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+pre code,
+pre code span,
+pre code * {
+  font-family: var(--tw-mono) !important;
+  font-size: var(--tw-fs-mono) !important;
+  background: transparent !important;
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+}
+
+.codeBlock {
+  position: relative;
+  margin: 12px 0;
+  border-radius: var(--tw-radius);
+  background: var(--tw-fill);
+  container-type: inline-size;
+}
+
+.codeBlock pre {
+  border-radius: 0 0 var(--tw-radius) var(--tw-radius);
+  background: transparent !important;
+}
+
+/* The light highlighter style draws its own frame inline; the block's frame is the only one. */
+.codeBlock pre {
+  margin: 0 !important;
+  border: none !important;
+}
+
+/*
+ * The header sticks to the top of the scrolling transcript while a long block
+ * scrolls past, so copy/apply stay within reach without scrolling back up.
+ */
+.codeBar {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 6px 0 12px;
+  border-radius: var(--tw-radius) var(--tw-radius) 0 0;
+  /* Opaque, since it rides over the code while a long block scrolls past. */
+  background: color-mix(in srgb, var(--vscode-foreground) 9%, var(--tw-bg));
+  color: var(--tw-fg-faint);
+  font-family: var(--tw-font);
+  font-size: var(--tw-fs-xs);
+}
+
+.codeLang {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--tw-mono);
+  user-select: none;
+}
+
+.codeOptions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0;
+  opacity: 0.7;
+  transition: opacity 0.12s ease;
+}
+
+.codeBlock:hover .codeOptions,
+.codeBlock:focus-within .codeOptions {
+  opacity: 1;
+}
+
+/* Plain buttons: no web component, so they render the same in every host. */
+.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  margin: 0;
+  padding: 0 6px;
+  border: none;
+  background: transparent;
+  color: var(--tw-fg-dim);
+  font-family: var(--tw-font);
+  font-size: var(--tw-fs-xs);
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
+}
+
+.action .codicon {
+  font-size: 13px;
+}
+
+.actionActive {
+  color: var(--tw-fg);
+}
+
+/* Words go first when the block is too narrow to carry them all. */
+@container (max-width: 340px) {
+  .actionLabel {
+    display: none;
+  }
+
+  .action {
+    padding: 0 4px;
+  }
+}
+
+.action {
+  border-radius: var(--tw-radius-sm);
+}
+
+.action:hover {
+  color: var(--tw-fg);
+  background: var(--tw-fill-strong);
+}
+
+.action:focus-visible {
+  outline: 1px solid var(--tw-accent);
+  outline-offset: -1px;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

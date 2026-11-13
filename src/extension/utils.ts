@@ -1,0 +1,393 @@
+import fs from "fs"
+import ignore from "ignore"
+import path from "path"
+import * as vscode from "vscode"
+import {
+  ColorThemeKind,
+  Position,
+  Range,
+  Terminal,
+  TextDocument,
+  window,
+  workspace
+} from "vscode"
+import { SyntaxNode } from "web-tree-sitter"
+
+import {
+  EVENT_NAME,
+  FIM_MAX_PREFIX_CHARS,
+  FIM_MAX_SUFFIX_CHARS,
+  knownErrorMessages,
+  NORMALIZE_REGEX,
+  POINTER
+} from "../common/constants"
+import { supportedLanguages } from "../common/languages"
+import { LanguageType, PrefixSuffix, Theme } from "../common/types"
+
+import { isIndexablePath } from "./embeddings/indexable"
+import { ExtensionBridge } from "./messaging/bridge"
+
+export const delayExecution = <T extends () => void>(
+  fn: T,
+  delay = 2000
+): NodeJS.Timeout => {
+  return setTimeout(() => {
+    fn()
+  }, delay)
+}
+
+export const getTextSelection = () => {
+  const editor = window.activeTextEditor
+  const selection = editor?.selection
+  const text = editor?.document.getText(selection)
+  return text || ""
+}
+
+export const getLanguage = (): LanguageType => {
+  const editor = window.activeTextEditor
+  const languageId = editor?.document.languageId
+  const language =
+    supportedLanguages[languageId as keyof typeof supportedLanguages]
+  return {
+    language,
+    languageId
+  }
+}
+
+/** True when the cursor sits between two word characters, e.g. `fo|o`. */
+export const getIsMiddleOfWord = (
+  document: TextDocument,
+  position: Position
+): boolean => {
+  const lineText = document.lineAt(position.line).text
+  const charBefore = lineText.charAt(position.character - 1)
+  const charAfter = lineText.charAt(position.character)
+  return /\w/.test(charBefore) && /\w/.test(charAfter)
+}
+
+/**
+ * How many lines the prefix window's first line moves at a time. The model
+ * server reuses its work on a prompt for as long as the prompt begins the
+ * same way; a window that slid down one line with every new line typed
+ * began differently each time, and the whole prompt was read again.
+ */
+export const prefixWindowStep = (numLinesPrefix: number) =>
+  Math.max(1, Math.floor(numLinesPrefix / 4))
+
+export const getPrefixSuffix = (
+  numLines: number,
+  document: TextDocument,
+  position: Position,
+  contextRatio = [0.85, 0.15]
+): PrefixSuffix => {
+  const currentLine = position.line
+  const numLinesToEnd = document.lineCount - currentLine
+  let numLinesPrefix = Math.floor(Math.abs(numLines * contextRatio[0]))
+  let numLinesSuffix = Math.ceil(Math.abs(numLines * contextRatio[1]))
+
+  if (numLinesPrefix > currentLine) {
+    numLinesSuffix += numLinesPrefix - currentLine
+    numLinesPrefix = currentLine
+  }
+
+  if (numLinesSuffix > numLinesToEnd) {
+    numLinesPrefix += numLinesSuffix - numLinesToEnd
+    numLinesSuffix = numLinesToEnd
+  }
+
+  // The window starts on a step boundary at or above the line asked for,
+  // so it holds still while the cursor moves down through a step's worth
+  // of lines. The prefix is never shorter than asked, and up to one step
+  // longer.
+  const step = prefixWindowStep(numLinesPrefix)
+  let firstLine = Math.floor(Math.max(0, currentLine - numLinesPrefix) / step) * step
+  const prefixFrom = (line: number) =>
+    document.getText(new Range(line, 0, currentLine, position.character))
+  let prefix = prefixFrom(firstLine)
+  // Over the character limit, whole steps go, for the same reason.
+  while (prefix.length > FIM_MAX_PREFIX_CHARS && firstLine + step <= currentLine) {
+    firstLine += step
+    prefix = prefixFrom(firstLine)
+  }
+  const suffixRange = new Range(
+    currentLine,
+    position.character,
+    currentLine + numLinesSuffix,
+    0
+  )
+
+  return {
+    prefix: trimToLineBoundary(prefix, FIM_MAX_PREFIX_CHARS, "start"),
+    suffix: trimToLineBoundary(document.getText(suffixRange), FIM_MAX_SUFFIX_CHARS, "end")
+  }
+}
+
+/**
+ * Line counts alone don't bound the prompt: a hundred lines of minified or
+ * generated code can exceed a small model's context. Cut at a line boundary
+ * so the model never sees half a line.
+ */
+export const trimToLineBoundary = (
+  text: string,
+  maxChars: number,
+  side: "start" | "end"
+): string => {
+  if (text.length <= maxChars) return text
+  if (side === "start") {
+    const cut = text.length - maxChars
+    const newline = text.indexOf("\n", cut)
+    return newline === -1 ? text.slice(cut) : text.slice(newline + 1)
+  }
+  const newline = text.lastIndexOf("\n", maxChars - 1)
+  return newline === -1 ? text.slice(0, maxChars) : text.slice(0, newline + 1)
+}
+
+const BLOCK_OPENERS = ["{", "(", "[", ":", "=>", "=", ","]
+
+/**
+ * Decides whether to let a completion run over several lines. Multiline is
+ * used on a blank line (the model is filling in a block), or after a token
+ * that opens one; otherwise, and inside strings or comments, the completion
+ * is kept to the rest of the current line.
+ */
+export const getShouldUseMultiline = ({
+  document,
+  position,
+  node,
+  multilineEnabled
+}: {
+  document: TextDocument
+  position: Position
+  node: SyntaxNode | null
+  multilineEnabled: boolean
+}): boolean => {
+  if (!multilineEnabled) return false
+
+  const lineText = document.lineAt(position.line).text
+  const before = lineText.slice(0, position.character).trimEnd()
+  const after = lineText.slice(position.character).trim()
+
+  if (after.length > 0) return false
+
+  const nodeType = node?.type || ""
+  if (
+    nodeType.includes("string") ||
+    nodeType.includes("comment") ||
+    nodeType.includes("template")
+  ) {
+    return false
+  }
+
+  if (before.trim().length === 0) return true
+
+  return BLOCK_OPENERS.some((opener) => before.endsWith(opener))
+}
+
+export const getTheme = () => {
+  const currentTheme = window.activeColorTheme
+  if (currentTheme.kind === ColorThemeKind.Light) {
+    return Theme.Light
+  } else if (currentTheme.kind === ColorThemeKind.Dark) {
+    return Theme.Dark
+  } else {
+    return Theme.Contrast
+  }
+}
+
+export function safeParseJsonStringBuffer(
+  stringBuffer: string
+): unknown | undefined {
+  try {
+    return JSON.parse(stringBuffer.replace(NORMALIZE_REGEX, ""))
+  } catch {
+    return undefined
+  }
+}
+
+export function safeParseJson<T>(data: string): T | undefined {
+  try {
+    return JSON.parse(data)
+  } catch {
+    return undefined
+  }
+}
+
+export const getCurrentWorkspacePath = (): string | undefined => {
+  if (workspace.workspaceFolders && workspace.workspaceFolders.length > 0) {
+    const workspaceFolder = workspace.workspaceFolders[0]
+    return workspaceFolder.uri.fsPath
+  } else {
+    window.showInformationMessage("No workspace is open.")
+    return undefined
+  }
+}
+
+export const getTerminal = async (): Promise<Terminal | undefined> => {
+  const pointerTerminal = window.terminals.find((t) => t.name === POINTER)
+  if (pointerTerminal) return pointerTerminal
+  const terminal = window.createTerminal({ name: POINTER })
+  terminal.show()
+  return terminal
+}
+
+export const getTerminalExists = (): boolean => {
+  if (window.terminals.length === 0) {
+    window.showErrorMessage("No active terminals")
+    return false
+  }
+  return true
+}
+
+export const getNormalisedText = (text: string) =>
+  text.replace(NORMALIZE_REGEX, " ")
+
+export const updateLoadingMessage = (
+  bridge: ExtensionBridge | undefined,
+  message: string
+) => {
+  bridge?.emit(EVENT_NAME.pointerSendLoader, message)
+}
+
+export function getNonce() {
+  let text = ""
+  const possible =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  for (let i = 0; i < 32; i++) {
+    text += possible.charAt(Math.floor(Math.random() * possible.length))
+  }
+  return text
+}
+
+export function readGitSubmodulesFile(): string[] | undefined {
+  try {
+    const folders = workspace.workspaceFolders
+    if (!folders || folders.length === 0) return undefined
+    const rootPath = folders[0].uri.fsPath
+    if (!rootPath) return undefined
+    const gitSubmodulesFilePath = path.join(rootPath, ".gitmodules")
+    if (!fs.existsSync(gitSubmodulesFilePath)) return undefined
+    const submodulesFileContent = fs
+      .readFileSync(gitSubmodulesFilePath)
+      .toString()
+    const submodulePaths: string[] = []
+    submodulesFileContent.split("\n").forEach((line: string) => {
+      if (line.startsWith("\tpath = ")) {
+        submodulePaths.push(line.slice(8))
+      }
+    })
+    return submodulePaths
+  } catch {
+    return undefined
+  }
+}
+
+export async function getAllFilePaths(dirPath: string): Promise<string[]> {
+  if (!dirPath) return []
+
+  const rootPath = workspace.workspaceFolders?.[0]?.uri.fsPath || ""
+  const config = workspace.getConfiguration("pointer")
+  const submodules = readGitSubmodulesFile()
+
+  const ig = ignore()
+  const embeddingIgnoredGlobs = config.get<string[]>(
+    "embeddingIgnoredGlobs",
+    []
+  )
+  ig.add([...embeddingIgnoredGlobs, ".git", ".gitignore"])
+
+  const gitIgnoreFilePath = path.join(rootPath, ".gitignore")
+  if (fs.existsSync(gitIgnoreFilePath)) {
+    ig.add(fs.readFileSync(gitIgnoreFilePath).toString())
+  }
+
+  const filePaths: string[] = []
+  const dirents = await fs.promises.readdir(dirPath, { withFileTypes: true })
+
+  for (const dirent of dirents) {
+    const fullPath = path.join(dirPath, dirent.name)
+    const relativePath = "/" + path.relative(rootPath, fullPath)
+
+    if (submodules?.some((submodule) => relativePath.includes(submodule))) {
+      continue
+    }
+
+    if (ig.ignores(relativePath.slice(1))) {
+      continue
+    }
+
+    if (dirent.isDirectory()) {
+      filePaths.push(...(await getAllFilePaths(fullPath)))
+    } else if (dirent.isFile() && isIndexablePath(fullPath)) {
+      filePaths.push(relativePath)
+    }
+  }
+
+  return filePaths
+}
+
+export function readGitIgnoreFile(): string[] | undefined {
+  try {
+    const folders = workspace.workspaceFolders
+    if (!folders || folders.length === 0) {
+      console.log("No workspace folders found")
+      return undefined
+    }
+
+    const rootPath = folders[0].uri.fsPath
+    if (!rootPath) {
+      console.log("Root path is undefined")
+      return undefined
+    }
+
+    const gitIgnoreFilePath = path.join(rootPath, ".gitignore")
+    if (!fs.existsSync(gitIgnoreFilePath)) {
+      console.log(".gitignore file not found at", gitIgnoreFilePath)
+      return undefined
+    }
+
+    const ignoreFileContent = fs.readFileSync(gitIgnoreFilePath, "utf8")
+    return ignoreFileContent
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line !== "" && !line.startsWith("#"))
+      .map((pattern) => {
+        if (pattern.endsWith("/")) {
+          return pattern + "**"
+        }
+        return pattern
+      })
+  } catch (e) {
+    console.error("Error reading .gitignore file:", e)
+    return undefined
+  }
+}
+
+export function notifyKnownErrors(error: Error) {
+  if (knownErrorMessages.some((msg) => error.message.includes(msg))) {
+    vscode.window
+      .showInformationMessage(
+        "Besides Pointer, there may be other AI extensions being enabled (such as Fitten Code) that are affecting the behavior of the fetch API or ReadableStream used in the Pointer plugin. We recommend that you disable that AI plugin for the smooth use of Pointer",
+        "View extensions",
+        "Restart Visual Studio Code (after disabling related extensions)"
+      )
+      .then((selected) => {
+        if (selected === "View extensions") {
+          vscode.commands.executeCommand("workbench.view.extensions")
+        } else if (
+          selected ===
+          "Restart Visual Studio Code (after disabling related extensions)"
+        ) {
+          vscode.commands.executeCommand("workbench.action.reloadWindow")
+        }
+      })
+  }
+}
+
+export function sanitizeWorkspaceName(
+  workspaceName: string | undefined
+): string {
+  const invalidChars = /[^a-zA-Z0-9_.-]+/g
+  const sanitizedName = (workspaceName || "").replace(invalidChars, "_")
+
+  return sanitizedName
+}

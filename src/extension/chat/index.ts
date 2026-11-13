@@ -1,0 +1,723 @@
+import os from "os"
+import path from "path"
+import { ExtensionContext, workspace } from "vscode"
+
+import {
+  API_PROVIDERS,
+  ASSISTANT,
+  EVENT_NAME,
+  EXTENSION_CONTEXT_NAME,
+  GLOBAL_STORAGE_KEY,
+  SYSTEM,
+  USER,
+  WEBUI_TABS
+} from "../../common/constants"
+import { formatCount, logger } from "../../common/logger"
+import type { ModelStatus } from "../../common/model-status"
+import { kebabToSentence } from "../../common/text"
+import {
+  ChatCompletionMessage,
+  MentionType,
+  ReplyChangesView,
+  PointerProvider
+} from "../../common/types"
+import type { ChatEditMode } from "../edit/service"
+import { WorkspaceSearch } from "../embeddings/search"
+import { GenerationRun, GenerationTracker } from "../generations"
+import { isCancelled, readText, resolveInferenceProvider } from "../inference"
+import {
+  assumedContextWindow,
+  contextWindowOf,
+  knownContextWindow
+} from "../inference/context-window"
+import { modelStatusOf, placeOf, rememberLoad } from "../inference/model-status"
+import { ExtensionBridge } from "../messaging/bridge"
+import { Base } from "../providers/base"
+import { describeProviderError, describeProviderErrorPlain, stripThinking } from "../providers/errors"
+import { ProviderStore } from "../providers/store"
+import { TemplateProvider } from "../templates/provider"
+import { compactHistory, planContext, SMALL_CONTEXT_TOKENS } from "../tools/budget"
+import { DEFAULT_MAX_STEPS, ToolLoopUsage, toolModeFor, withTools } from "../tools/loop"
+import type { McpToolSpec } from "../tools/mcp"
+import { WorkspaceView } from "../tools/view"
+import { WorkspaceTools, workspaceTools } from "../tools/workspace"
+import { getLanguage } from "../utils"
+
+import { ChatContextBuilder } from "./context"
+import { ContextEntry, formatContextEntries } from "./context-files"
+import { ChatGeneration } from "./generation"
+import { McpHost } from "./mcp-host"
+import { ChangeStore, ReplyChanges, viewOf } from "./reply-changes"
+import { ReplyChangesEditor } from "./reply-changes-editor"
+import {
+  ChatCommandMode,
+  ChatCommandPlace,
+  editorEdits,
+  editorHint,
+  editorKnowledge,
+  indexSearch,
+  normalCommand,
+  openDocumentText,
+  terminalCommands
+} from "./tool-sinks"
+import { ToolSteps } from "./tool-steps"
+import { buildChatTurn } from "./turn"
+
+/** Templates whose answer benefits from `@workspace`-style lookups. */
+const TEMPLATES_WITH_RAG = ["explain"]
+/** A model that has not loaded by now is not going to: the server is stuck or out of memory. */
+const LOAD_TIMEOUT_MS = 5 * 60_000
+
+const loadKey = (provider: PointerProvider) =>
+  [provider.provider, provider.apiHostname ?? "", provider.apiPort ?? "", provider.modelName].join("|")
+/** A server on this machine or the network can be asked to load the model; a hosted API cannot. */
+const shouldWarm = (provider: PointerProvider) => {
+  const place = placeOf(provider)
+  return place === "machine" || place === "network"
+}
+
+/** The steps an agent reply may take, as `pointer.chatToolsMaxSteps` may set them. */
+const MIN_STEPS_SETTING = 4
+const MAX_STEPS_SETTING = 40
+
+/**
+ * The chat feature's front door.
+ *
+ * Takes what the webview or a command hands over, turns it into the
+ * messages the model is sent (`buildChatTurn`, with `ChatContextBuilder`
+ * for the context) and runs them (`ChatGeneration`) against whichever
+ * provider the inference layer resolves. Holds the running conversation,
+ * replies included, between turns.
+ */
+export class Chat extends Base {
+  private _conversation: ChatCompletionMessage[] = []
+  private readonly _backgroundRuns = new Set<GenerationRun>()
+  private _suggestion?: GenerationRun
+  /** Models pointer is loading at the user's request, and why the last load of one failed. */
+  private readonly _loading = new Set<string>()
+  private readonly _loadErrors = new Map<string, string>()
+  private readonly _bridge: ExtensionBridge
+  private readonly _context: ChatContextBuilder
+  private readonly _generation: ChatGeneration
+  private readonly _search: WorkspaceSearch | undefined
+  private readonly _steps: ToolSteps
+  private readonly _stopSubscription: { dispose(): void }
+  /** What agent replies changed, kept so each can be compared or undone from the chat. */
+  private _changes?: { store: ChangeStore; editor: ReplyChangesEditor }
+  /** The MCP servers in the user's settings, running for this chat. */
+  private readonly _mcp = new McpHost(
+    () => this.config.get<Record<string, unknown>>("chatToolsMcpServers", {}),
+    () => this.workspaceRoot()
+  )
+  /** A typed message's context is being gathered; its reply has not started. */
+  private _preparing = false
+  /**
+   * Messages the user queued while an agent reply works, offered for the
+   * model to read at its next step. Only taken while that reply runs: one
+   * offered too late stays the webview's, to send as a turn of its own.
+   */
+  private _steering: { id: string; text: string }[] = []
+  private _steerable = false
+  /** Aborted when this chat goes: the commands it started end with it. */
+  private readonly _lifetime = new AbortController()
+  private readonly _generations: GenerationTracker
+
+  constructor(
+    generations: GenerationTracker,
+    templateDir: string | undefined,
+    extensionContext: ExtensionContext,
+    bridge: ExtensionBridge,
+    search: WorkspaceSearch | undefined
+  ) {
+    super(extensionContext)
+    this._generations = generations
+    this._bridge = bridge
+    this._search = search
+    this._steps = new ToolSteps((steps) => bridge.emit(EVENT_NAME.pointerToolSteps, steps))
+    // Stopping the reply skips a command still waiting for Run or Skip.
+    this._stopSubscription = generations.onDidStop(() => this._steps.cancelWaiting())
+    this._generation = new ChatGeneration(bridge, generations)
+    this._context = new ChatContextBuilder(
+      extensionContext,
+      bridge,
+      new TemplateProvider(templateDir),
+      search
+    )
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  Public API                                                               */
+  /* ------------------------------------------------------------------------ */
+
+  public get cancelled(): boolean {
+    return this._generation.cancelled
+  }
+
+  public abort = () => {
+    this._steps.cancelWaiting()
+    this._generation.abort()
+  }
+
+  /** Stop every chat request, including background titles and draft hints. */
+  public abortAll = () => {
+    this.abort()
+    this._suggestion?.abort()
+    for (const run of [...this._backgroundRuns]) run.abort()
+  }
+
+  /**
+   * Run, Always run or Skip, on a command waiting in the tool steps.
+   * Always run keeps that exact command, to run unasked from then on.
+   */
+  public answerToolApproval(id: string, run: boolean, always = false) {
+    const step = this._steps.steps.find((s) => s.id === id)
+    if (run && always && step?.approval === "command" && step.command) {
+      // An MCP tool is kept by name: its arguments differ from call to call.
+      const list = step.mcpTool ? GLOBAL_STORAGE_KEY.alwaysRunMcpTools : GLOBAL_STORAGE_KEY.alwaysRunCommands
+      const key = `${EVENT_NAME.pointerGlobalContext}-${list}`
+      const kept = this.context?.globalState.get<string[]>(key) ?? []
+      const entry = step.mcpTool ?? normalCommand(step.command)
+      if (!kept.includes(entry)) void this.context?.globalState.update(key, [...kept, entry])
+    }
+    this._steps.answer(id, run)
+  }
+
+  /**
+   * Whether a call to an MCP tool may go ahead: asked in the steps, unless
+   * the user chose Always run for that tool.
+   */
+  private approveMcp(detail: string, tool: McpToolSpec): Promise<boolean> {
+    const name = `${tool.server}/${tool.tool}`
+    const kept = this.context?.globalState.get<string[]>(
+      `${EVENT_NAME.pointerGlobalContext}-${GLOBAL_STORAGE_KEY.alwaysRunMcpTools}`
+    )
+    if (kept?.includes(name)) return Promise.resolve(true)
+    return this._steps.approve(detail, "command", { always: true, mcpTool: name })
+  }
+
+  /** Whether a reply is being written now. */
+  public get replying(): boolean {
+    return this._generation.running || this._preparing
+  }
+
+  /**
+   * Stop the reply and keep none of it, nor its steps: the user started a
+   * new conversation or opened another one while it was being written, or
+   * while its context was still being gathered (then it never starts).
+   */
+  public discardReply() {
+    if (!this.replying) return
+    this._steps.discard()
+    this._generation.discard()
+  }
+
+  /**
+   * Where what agent replies changed is kept: the workspace's storage,
+   * made on first use.
+   */
+  private changes() {
+    if (!this._changes) {
+      const storage = (this.context?.storageUri ?? this.context?.globalStorageUri)?.fsPath ?? os.tmpdir()
+      const store = new ChangeStore(path.join(storage, "agent-changes"))
+      this._changes = { store, editor: new ReplyChangesEditor(store, openDocumentText) }
+    }
+    return this._changes
+  }
+
+  /** A file a reply changed, beside what it was before. */
+  public openChange(id: string, file: string) {
+    return this.changes().editor.openDiff(id, file)
+  }
+
+  /** Put a reply's changed files (all, or `paths`) back as they were. */
+  public undoChanges(id: string, paths?: string[]) {
+    return this.changes().editor.undo(id, paths)
+  }
+
+  /** The stop button on a running command: ends it, and the reply carries on. */
+  public stopToolStep(id: string) {
+    this._steps.stop(id)
+  }
+
+  /** A queued message offered to the agent reply that is working (`text`), or taken back. */
+  public steer(id: string, text?: string) {
+    this._steering = this._steering.filter((entry) => entry.id !== id)
+    if (text?.trim() && this._steerable) this._steering.push({ id, text: text.trim() })
+  }
+
+  /** The messages on offer, handed to the model now and shown in the steps where it read them. */
+  private takeSteering(): string[] {
+    const taken = this._steering
+    this._steering = []
+    for (const { id, text } of taken) {
+      this._steps.said(id, text)
+      logger.info(`Chat tools · the user's message reached the model mid-reply (${formatCount(text.length)} chars)`)
+    }
+    return taken.map(({ text }) => text)
+  }
+
+  public dispose() {
+    this.abortAll()
+    super.dispose()
+    this._stopSubscription.dispose()
+    this._steps.cancelWaiting()
+    this._lifetime.abort()
+    this._mcp.dispose()
+    this._generation.dispose()
+  }
+
+  public resetConversation() {
+    this._conversation = []
+  }
+
+  /** A message typed in the chat, with whatever the user attached. */
+  public async completion(
+    messages: ChatCompletionMessage[],
+    mentions?: MentionType[]
+  ): Promise<string | undefined> {
+    const provider = this.start()
+    if (!provider) return undefined
+    // Gathering context can take a while (a workspace search); a conversation
+    // left meanwhile stops this reply too.
+    this._preparing = true
+    let view: WorkspaceView | undefined
+    try {
+      view = this.toolsView()
+      // The user's MCP servers, started (or restarted) for an agent reply.
+      if (view && this._mcp.configured) await this._mcp.ready()
+      this._conversation = await buildChatTurn(messages, {
+        systemPrompt: () => this._context.systemPrompt(),
+        additionalContext: async (question, sources, history) => {
+          const context = await this._context.additionalContext(question, sources, mentions, history)
+          // With tools, where the user is in the editor comes with the
+          // question, so "this function" needs no tool call to place.
+          const hint = view ? editorHint(view) : ""
+          return hint ? `${hint}\n\n${context}` : context
+        }
+      })
+    } finally {
+      this._preparing = false
+    }
+    return this.run(provider, "", view)
+  }
+
+  /** A code action (explain, refactor…) run over the editor selection. */
+  public async templateCompletion(template: string, context?: string) {
+    const provider = this.start()
+    if (!provider) return ""
+    this._conversation = await this.buildTemplateConversation(template, context)
+    return this.run(provider)
+  }
+
+  /**
+   * A question raised by a command rather than typed: shown in the chat as
+   * if the user had sent `display`, answered from `prompt` with `attached`
+   * code, and kept in the conversation so follow-ups work.
+   */
+  public async ask(
+    display: string,
+    prompt: string,
+    attached: ContextEntry[] = []
+  ): Promise<string> {
+    const provider = this.start()
+    if (!provider) return ""
+    const code = formatContextEntries(attached)
+    const content = (code ? `${prompt}\n\nAttached code:\n\n${code}` : prompt).trim()
+    this._bridge.emit(EVENT_NAME.pointerSetTab, WEBUI_TABS.chat)
+    this._bridge.emit(EVENT_NAME.pointerAddMessage, {
+      role: USER,
+      content: display,
+      prompt: content
+    })
+    if (!this._conversation.length) {
+      this._conversation = [
+        { role: SYSTEM, content: await this._context.systemPrompt() }
+      ]
+    }
+    this._conversation = [
+      ...this._conversation,
+      { role: USER, content }
+    ]
+    return this.run(provider)
+  }
+
+  /**
+   * Stream a reply to exactly these messages, skipping the chat's own prompt
+   * building (system prompt, editor selection, workspace context). The reply
+   * is shown in the chat as it arrives and returned when complete.
+   */
+  public async streamMessages(
+    messages: ChatCompletionMessage[],
+    prefix = ""
+  ): Promise<string> {
+    const provider = this.start()
+    if (!provider) return ""
+    this._conversation = messages
+    return this.run(provider, prefix)
+  }
+
+  /** One-shot, no UI: used for conversation titles and commit messages. */
+  public async generateSimpleCompletion(
+    prompt: string
+  ): Promise<string | undefined> {
+    const provider = this.getProvider()
+    if (!provider) {
+      logger.error("No chat provider configured.")
+      return undefined
+    }
+    const run = this._generations.start("completion")
+    this._backgroundRuns.add(run)
+    try {
+      const content = await readText(
+        resolveInferenceProvider(provider).chat(
+          {
+            model: provider.modelName,
+            messages: [{ role: USER, content: prompt }]
+          },
+          { signal: run.signal }
+        )
+      )
+      return stripThinking(content) || undefined
+    } catch (error) {
+      if (!isCancelled(error)) {
+        logger.error(
+          `Simple completion failed: ${describeProviderError(error, provider)}`
+        )
+      }
+      return undefined
+    } finally {
+      run.finish()
+      this._backgroundRuns.delete(run)
+    }
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /*  Internals                                                                */
+  /* ------------------------------------------------------------------------ */
+
+  /** Where the chat model runs, whether its server has it loaded, how much it holds. */
+  public async modelStatus(): Promise<ModelStatus | null> {
+    const provider = this.getProvider()
+    if (!provider?.modelName) return null
+    const key = loadKey(provider)
+    const status = await modelStatusOf(provider, shouldWarm(provider))
+    if (this._loading.has(key) && !status.loaded) return { ...status, loading: true }
+    const failed = this._loadErrors.get(key)
+    return failed && !status.loaded ? { ...status, loadError: failed } : status
+  }
+
+  /**
+   * Starts loading the chat model on its local server, so the first reply
+   * does not wait for it, and answers at once: a large model takes longer
+   * to load than a request from the chat may wait. The chat asks for the
+   * status again until it is loaded. The load is a one-token chat request,
+   * sent the way a real message is, so the server loads the model exactly
+   * as the first message would.
+   */
+  public async warmModel(): Promise<ModelStatus | null> {
+    const provider = this.getProvider()
+    if (!provider?.modelName) return null
+    const key = loadKey(provider)
+    if (shouldWarm(provider) && !this._loading.has(key)) {
+      this._loadErrors.delete(key)
+      this._loading.add(key)
+      const started = Date.now()
+      const abort = new AbortController()
+      const timer = setTimeout(() => abort.abort(), LOAD_TIMEOUT_MS)
+      void readText(
+        resolveInferenceProvider(provider).chat(
+          { model: provider.modelName, messages: [{ role: USER, content: "Hi" }], maxTokens: 1, temperature: 0, think: false },
+          { signal: abort.signal }
+        )
+      )
+        .then(() => {
+          rememberLoad(provider, Date.now() - started)
+          logger.debug(`Loaded ${provider.modelName} in ${Date.now() - started}ms`)
+        })
+        .catch((error) => {
+          const message = abort.signal.aborted
+            ? `${provider.modelName} did not load within ${LOAD_TIMEOUT_MS / 60_000} minutes.`
+            : describeProviderErrorPlain(error, provider)
+          this._loadErrors.set(key, message)
+          logger.error(`Loading ${provider.modelName} failed: ${message}`)
+        })
+        .finally(() => {
+          clearTimeout(timer)
+          this._loading.delete(key)
+        })
+    }
+    return this.modelStatus()
+  }
+
+  /** Common preamble: clear the stop flag, tell the webview the language. */
+  private start(): PointerProvider | undefined {
+    this._generation.reset()
+    this._bridge.emit(EVENT_NAME.pointerSendLanguage, getLanguage())
+    return this.getProvider()
+  }
+
+  /**
+   * Agent mode, as the composer's switch left it (stored the way the webview
+   * stores global values). Until it is first switched, `pointer.chatTools`.
+   */
+  private agentMode(): boolean {
+    const stored = this.context?.globalState.get<boolean>(
+      `${EVENT_NAME.pointerGlobalContext}-${GLOBAL_STORAGE_KEY.agentMode}`
+    )
+    return stored ?? this.config.get<boolean>("chatTools", false)
+  }
+
+  /**
+   * Whether a command asks first: not when the composer's auto-run switch
+   * is on (until it is first switched, `pointer.chatToolsCommands`), nor
+   * when the user chose Always run for that exact command. Read for each
+   * command, so either holds for the rest of the reply.
+   */
+  private commandMode(setting: ChatCommandMode, command: string): "ask" | "allow" {
+    const state = this.context?.globalState
+    const stored = state?.get<boolean>(`${EVENT_NAME.pointerGlobalContext}-${GLOBAL_STORAGE_KEY.autoRunCommands}`)
+    if (stored ?? setting === "allow") return "allow"
+    const kept = state?.get<string[]>(`${EVENT_NAME.pointerGlobalContext}-${GLOBAL_STORAGE_KEY.alwaysRunCommands}`)
+    return kept?.includes(normalCommand(command)) ? "allow" : "ask"
+  }
+
+  /** The folder agent mode works in: the first workspace folder. */
+  protected workspaceRoot(): string | undefined {
+    return workspace.workspaceFolders?.[0]?.uri.fsPath
+  }
+
+  /**
+   * The workspace as the tools will see it, when the user has tools on
+   * and a folder open. Made once per reply: its ignore rules are read at
+   * the start and hold until the end.
+   */
+  private toolsView(): WorkspaceView | undefined {
+    if (!this.agentMode()) return undefined
+    const root = this.workspaceRoot()
+    if (!root) return undefined
+    return new WorkspaceView(
+      root,
+      this.config.get<string[]>("embeddingIgnoredGlobs", []),
+      openDocumentText
+    )
+  }
+
+  /**
+   * Send the conversation; the reply joins it, so the next turn follows on.
+   * With a `view`, the model may work in the workspace first.
+   */
+  private async run(provider: PointerProvider, prefix = "", view?: WorkspaceView) {
+    let toolNotes: string | undefined
+    let instructionFiles = (): string[] => []
+    let tracked: ReplyChanges | undefined
+    let changed: ReplyChangesView | undefined
+    const usage: ToolLoopUsage = {}
+    let outOfSteps = false
+    // Asked now, so the reply can say how much of the context it used.
+    void contextWindowOf(provider)
+    this._steering = []
+    this._steerable = !!view
+    const reply = await this._generation.generate(
+      view
+        ? this.toolsClient(provider, view, {
+            onNotes: (notes) => (toolNotes = notes),
+            onUsage: (counted) => Object.assign(usage, counted),
+            onTools: (tools) => (instructionFiles = () => tools.instructionFiles?.() ?? []),
+            onChanges: (changes) => (tracked = changes),
+            onOutOfSteps: () => (outOfSteps = true)
+          })
+        : resolveInferenceProvider(provider),
+      // The agent's loop fits a long conversation to the context itself; a plain reply is fitted here.
+      { model: provider.modelName, messages: view ? this._conversation : this.fitted(provider) },
+      provider,
+      prefix,
+      {
+        toolNotes: () => toolNotes,
+        keepEmpty: () => !!view && this._steps.steps.length > 0,
+        // What the reply changed, read once it is over and kept for undo.
+        settle: async () => {
+          if (!tracked?.touched) return
+          const record = await tracked.record()
+          if (!record) return
+          try {
+            this.changes().store.save(record)
+            changed = viewOf(record)
+          } catch (error) {
+            logger.warn(`Chat · could not keep what the reply changed: ${error}`)
+          }
+        },
+        changes: () => changed,
+        meta: () => {
+          const contextWindow = knownContextWindow(provider)
+          const instructions = instructionFiles()
+          return {
+            ...(instructions.length ? { instructions } : {}),
+            ...(usage.promptTokens ? { promptTokens: usage.promptTokens } : {}),
+            ...(usage.completionTokens ? { completionTokens: usage.completionTokens } : {}),
+            ...(contextWindow ? { contextWindow } : {}),
+            ...(outOfSteps ? { outOfSteps: true } : {})
+          }
+        }
+      }
+    ).finally(() => {
+      this._steerable = false
+      this._steering = []
+    })
+    if (reply) {
+      this._conversation = [
+        ...this._conversation,
+        { role: ASSISTANT, content: reply }
+      ]
+    }
+    return reply
+  }
+
+  /** The conversation, with its oldest turns folded into a few lines when it has outgrown the model's context. */
+  private fitted(provider: PointerProvider): ChatCompletionMessage[] {
+    const window = knownContextWindow(provider) ?? assumedContextWindow(provider)
+    if (!window) return this._conversation
+    const { messages, folded } = compactHistory(this._conversation, planContext(window))
+    if (folded) {
+      logger.info(`Chat · folded ${folded} older messages into a summary to fit the model's ${formatCount(window)}-token context`)
+    }
+    return messages
+  }
+
+  /**
+   * The provider's client with the workspace's tools: reading and
+   * searching (by meaning too, when there is an index), what the language
+   * servers know, editing files and running commands, each as the
+   * settings say.
+   */
+  private toolsClient(
+    provider: PointerProvider,
+    view: WorkspaceView,
+    hooks: {
+      onNotes(notes: string | undefined): void
+      onUsage(usage: ToolLoopUsage): void
+      onTools(tools: WorkspaceTools): void
+      onChanges(changes: ReplyChanges): void
+      onOutOfSteps(): void
+    }
+  ) {
+    this._steps.reset()
+    const commandMode = this.config.get<ChatCommandMode>("chatToolsCommands", "ask")
+    const editMode = this.config.get<ChatEditMode>("chatToolsEdits", "apply")
+    const changes = new ReplyChanges(view.root, openDocumentText)
+    hooks.onChanges(changes)
+    const approveChange = (detail: string, approval: "command" | "change") =>
+      this._steps.approve(detail, approval)
+    const search = this._search
+    const available = workspaceTools(view, [], {
+      edits: editorEdits(view, editMode, approveChange, changes),
+      editor: editorKnowledge(view, editMode, approveChange, changes),
+      commands:
+        commandMode === "off"
+          ? undefined
+          : terminalCommands(
+              (command) => this.commandMode(commandMode, command),
+              view.root,
+              (command) => this._steps.approve(command, "command", { always: true }),
+              {
+                place: this.config.get<ChatCommandPlace>("chatToolsCommandsRunIn", "background"),
+                onOutput: (output) => this._steps.progress(output),
+                onStart: (stop) => this._steps.stoppable(stop),
+                lifetime: this._lifetime.signal,
+                changes,
+                visible: (file) => view.visible(file)
+              }
+            ),
+      codeSearch: search?.available
+        ? indexSearch(search, () =>
+            Number(
+              this.context?.globalState.get(
+                `${EVENT_NAME.pointerGlobalContext}-${EXTENSION_CONTEXT_NAME.pointerRerankThreshold}`
+              )
+            )
+          )
+        : undefined,
+      mcp: this._mcp.tools.length ? this._mcp.sink((detail, tool) => this.approveMcp(detail, tool)) : undefined
+    })
+    hooks.onTools(available)
+    let warned = false
+    return withTools(resolveInferenceProvider(provider), available, {
+      mode: toolModeFor(provider.provider),
+      maxSteps: Math.min(MAX_STEPS_SETTING, Math.max(MIN_STEPS_SETTING, this.config.get<number>("chatToolsMaxSteps", DEFAULT_MAX_STEPS) || DEFAULT_MAX_STEPS)),
+      // OpenAI's reasoning models think silently on the chat route; at their
+      // default effort one tool step can take minutes.
+      reasoningEffort: provider.provider === API_PROVIDERS.OpenAI ? "low" : undefined,
+      contextWindow: async () => {
+        const told = await contextWindowOf(provider)
+        if (told && told < SMALL_CONTEXT_TOKENS && !warned) {
+          warned = true
+          logger.warn(
+            `Chat tools · ${provider.modelName} is loaded with a ${formatCount(told)}-token context. ` +
+              "Tools need about 8k to work well; older results will be trimmed often. Raise the server's context length if you can."
+          )
+        }
+        return told ?? assumedContextWindow(provider)
+      },
+      stepLines: false,
+      tasks: this.config.get<boolean>("chatToolsTasks", true),
+      onCompact: (messages) =>
+        logger.info(`Chat tools · folded ${messages} older messages into a summary to fit the model's context`),
+      steering: () => this.takeSteering(),
+      onOutOfSteps: hooks.onOutOfSteps,
+      onNotes: hooks.onNotes,
+      onUsage: hooks.onUsage,
+      onRequest: (chars, step, mode, tokens) =>
+        logger.info(
+          `Chat tools · request ${step + 1} (${mode}) · ${formatCount(chars)} chars, about ${formatCount(tokens)} tokens`
+        ),
+      onToolStart: (start) => this._steps.start(start),
+      onStep: (step) => {
+        this._steps.finish(step)
+        logger.info(`Chat tools · ${step.summary}`)
+      },
+      onTrim: (results, tokens) =>
+        logger.info(
+          `Chat tools · trimmed ${results} older tool result${results === 1 ? "" : "s"} to fit the context (now about ${formatCount(tokens)} tokens)`
+        ),
+      onFallback: (reason, what) =>
+        logger.warn(
+          what === "tools"
+            ? `Chat tools · ${provider.modelName} refused native tool calls, using the text protocol: ${reason}`
+            : `Chat tools · ${provider.modelName} does not take a reasoning effort, carrying on without: ${reason}`
+        ),
+      // A step cut off by a stop or a failure is marked so before the
+      // reply (and its steps) are saved.
+      onEnd: () => this._steps.settle()
+    })
+  }
+
+  private async buildTemplateConversation(
+    template: string,
+    context?: string
+  ): Promise<ChatCompletionMessage[]> {
+    const { language } = getLanguage()
+    const { prompt, selection } = await this._context.templatePrompt(
+      template,
+      language,
+      context
+    )
+
+    this._bridge.emit(EVENT_NAME.pointerSetTab, WEBUI_TABS.chat)
+    this._bridge.emit(EVENT_NAME.pointerAddMessage, {
+      role: USER,
+      content:
+        `${kebabToSentence(template)}\n\n\n<pre><code>${selection}</code></pre>`.trim() ||
+        " ",
+      // Like a typed turn, the conversation keeps the question; what the
+      // workspace search adds is for this reply only.
+      prompt: prompt.trim()
+    })
+
+    const rag = TEMPLATES_WITH_RAG.includes(template)
+      ? await this._context.ragContext(selection, new Set())
+      : undefined
+    const content =
+      (rag ? `${prompt}\n\nAdditional Context:\n${rag}` : prompt).trim() || " "
+
+    return [...this._conversation, { role: USER, content }]
+  }
+}

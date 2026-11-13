@@ -1,0 +1,207 @@
+/* Conversation history: a searchable, date-grouped list. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 720px;
+}
+
+.count {
+  padding: 0 5px;
+  color: var(--tw-fg-dim);
+  font-weight: 400;
+  line-height: 16px;
+  letter-spacing: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--tw-fill-strong);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.search {
+  width: 100%;
+}
+
+.confirmBanner,
+.confirmRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  font-size: var(--tw-fs-sm);
+}
+
+.confirmBanner {
+  border: 1px solid var(--vscode-editorWarning-foreground, var(--tw-rule));
+  border-radius: var(--tw-radius);
+}
+
+.confirmRow {
+  border-top: 1px solid var(--tw-rule-soft);
+}
+
+.confirmBanner > span,
+.confirmRow > span {
+  flex: 1;
+  min-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.groupTitle {
+  margin: 4px 0 0;
+  color: var(--tw-fg-faint);
+  font-size: var(--tw-fs-xs);
+  font-weight: 600;
+  letter-spacing: var(--tw-track-caps);
+  text-transform: uppercase;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  margin: 0 -8px 2px;
+  padding: 4px 8px;
+  border-radius: var(--tw-radius);
+}
+
+.row:hover {
+  background: var(--tw-fill);
+}
+
+.rowActive {
+  background: var(--tw-fill-strong);
+}
+
+.rowMain {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.rowBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 7px 0;
+  border: 0;
+  background: transparent;
+  color: var(--tw-fg);
+  font-family: var(--tw-font);
+  font-size: var(--tw-fs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rowBody:focus-visible {
+  outline: 1px solid var(--tw-accent);
+  outline-offset: -1px;
+}
+
+.rowTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The words themselves, so a long title ends in an ellipsis rather than mid-letter. */
+.rowTitleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowTitle .codicon {
+  flex-shrink: 0;
+  font-size: 8px !important;
+  color: var(--tw-mark);
+}
+
+.rowMeta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--tw-fg-faint);
+  font-size: var(--tw-fs-sm);
+}
+
+/*
+ * Folded to nothing until the row is pointed at or tabbed into, so a title
+ * has the whole width the rest of the time. Zero width, not display: none,
+ * which would take the buttons out of the tab order.
+ */
+.rowActions {
+  display: flex;
+  flex-shrink: 0;
+  width: 0;
+  overflow: hidden;
+  opacity: 0;
+}
+
+.row:hover .rowActions,
+.row:focus-within .rowActions {
+  width: auto;
+  opacity: 1;
+}
+
+.renameRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.renameRow vscode-text-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 12px;
+  border: 1px dashed var(--tw-rule);
+  background: transparent;
+  color: var(--tw-fg-dim);
+  font-family: var(--tw-font);
+  font-size: var(--tw-fs);
+  cursor: pointer;
+  border-radius: var(--tw-radius);
+}
+
+.empty:hover {
+  color: var(--tw-fg);
+  border-color: var(--tw-fg-faint);
+}
+
+.noMatch {
+  margin: 0;
+  color: var(--tw-fg-dim);
+}

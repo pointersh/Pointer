@@ -1,0 +1,742 @@
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
+import { useTranslation } from "./strings"
+import Markdown, { Components } from "react-markdown"
+import Mention from "@tiptap/extension-mention"
+import { Editor, EditorContent, Extension, useEditor } from "@tiptap/react"
+import StarterKit from "@tiptap/starter-kit"
+import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
+import DOMPurify from "dompurify"
+import remarkGfm from "remark-gfm"
+import { Markdown as TiptapMarkdown } from "tiptap-markdown"
+
+import { ASSISTANT, EVENT_NAME, POINTER, YOU } from "../common/constants"
+import { WorkspaceSearchReport } from "../common/messaging/protocol"
+import {
+  ChatCompletionMessage,
+  ImageAttachment,
+  MentionType,
+  ReplyChangesView,
+  ReplyMeta,
+  ToolStepView
+} from "../common/types"
+
+import { useSuggestion } from "./hooks/useSuggestion"
+import CodeBlock from "./code-block"
+import { createCustomImageExtension } from "./image-extension"
+import { MentionExtension } from "./mention-extention"
+import { emit } from "./messaging"
+import { ReplyChanges } from "./reply-changes"
+import { replyParts } from "./reply-parts"
+import { useToast } from "./toast"
+import ToolSteps from "./tool-steps"
+import { getThinkingMessage } from "./utils"
+import WorkspaceContext from "./workspace-context"
+
+import styles from "./styles/message.module.css"
+
+interface MessageProps {
+  index?: number
+  isAssistant?: boolean
+  /**
+   * The workspace search behind a reply still streaming. A finished reply
+   * carries its own in `message.context`.
+   */
+  context?: WorkspaceSearchReport
+  /** Tool steps behind a reply still streaming; a finished reply carries its own. */
+  steps?: ToolStepView[]
+  isLoading?: boolean
+  message?: ChatCompletionMessage
+  messages?: ChatCompletionMessage[]
+  onDelete?: (index: number) => void
+  onRegenerate?: (index: number, mentions: MentionType[] | undefined) => void
+  onEdit?: (
+    message: string,
+    index: number,
+    mentions: MentionType[] | undefined,
+    images?: ImageAttachment[]
+  ) => void
+  onHeightChange?: () => void
+  onDeleteImage?: (id: string) => void
+  /** Ask for the rest of a reply the user stopped. Only the last reply offers it. */
+  onContinue?: () => void
+  /** Keep a reply's changed files as they stand after an undo. */
+  onChangesUpdate?: (index: number, changes: ReplyChangesView) => void
+}
+
+const CustomKeyMap = Extension.create({
+  name: "messageKeyMap",
+  addKeyboardShortcuts() {
+    return {
+      "Mod-Enter": ({ editor }) => {
+        editor.commands.insertContent("\n")
+        return true
+      },
+      "Shift-Enter": ({ editor }) => {
+        editor.commands.insertContent("\n")
+        return true
+      }
+    }
+  }
+})
+
+interface ThinkingSectionProps {
+  thinking: string
+  isCollapsed: boolean
+  onToggle: () => void
+  markdownComponents: Components
+}
+
+const ThinkingSection = React.memo(
+  ({
+    thinking,
+    isCollapsed: initialCollapsed,
+    onToggle,
+    markdownComponents
+  }: ThinkingSectionProps) => {
+    const { t } = useTranslation()
+    const [isCollapsed, setIsCollapsed] = React.useState(initialCollapsed)
+    const prevThinkingRef = useRef(thinking)
+    const isStreamingRef = useRef(false)
+
+    useEffect(() => {
+      // If thinking content changed and is longer, we're streaming
+      if (thinking.length > prevThinkingRef.current.length) {
+        isStreamingRef.current = true
+        setIsCollapsed(false) // Auto-expand during streaming
+      } else {
+        isStreamingRef.current = false
+      }
+      prevThinkingRef.current = thinking
+    }, [thinking])
+
+    const handleToggle = useCallback(() => {
+      if (!isStreamingRef.current) {
+        setIsCollapsed((prev) => !prev)
+        onToggle()
+      }
+    }, [onToggle])
+
+    return (
+      <div className={styles.thinkingSection}>
+        <div className={styles.thinkingHeader} onClick={handleToggle}>
+          <span>{t("thinking")}</span>
+          <span
+            className={`codicon ${isCollapsed ? "codicon-chevron-right" : "codicon-chevron-down"
+              }`}
+          />
+        </div>
+        <div
+          className={`${styles.thinkingContent} ${isCollapsed ? styles.collapsed : ""
+            }`}
+        >
+          <Markdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {thinking}
+          </Markdown>
+        </div>
+      </div>
+    )
+  }
+)
+
+const formatDuration = (ms: number) =>
+  ms < 1000 ? `${ms}ms` : ms < 60_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.floor(ms / 60_000)}m ${Math.round((ms % 60_000) / 1000)}s`
+
+/** 12412 as "12.4k": enough to see how full a context is. */
+const compactCount = (count: number) =>
+  count < 1000 ? String(count) : count < 10_000 ? `${(count / 1000).toFixed(1)}k` : `${Math.round(count / 1000)}k`
+
+/** From here a context is close enough to full to say so. */
+const CONTEXT_NEARLY_FULL = 0.8
+
+/**
+ * One quiet line under a reply: which model wrote it, how long it took,
+ * and, when the backend counted, how fast and how much of the model's
+ * context the conversation now takes. Old conversations have no meta and
+ * show nothing.
+ */
+const ReplyFooter = ({
+  meta,
+  onContinue,
+  actions
+}: {
+  meta: ReplyMeta
+  onContinue?: () => void
+  /** The reply's copy and regenerate, at the line's end. */
+  actions?: React.ReactNode
+}) => {
+  const { t } = useTranslation()
+  const parts: { text: string; title?: string }[] = []
+  if (meta.durationMs !== undefined) parts.push({ text: formatDuration(meta.durationMs) })
+  if (meta.completionTokens && meta.durationMs) {
+    const perSecond = meta.completionTokens / (meta.durationMs / 1000)
+    parts.push({
+      text: t("reply-tokens-per-second", { count: meta.completionTokens, rate: perSecond.toFixed(1) }),
+      title: t("reply-tokens-title", { count: meta.completionTokens })
+    })
+  }
+  const title = [meta.provider, meta.model].filter(Boolean).join(" · ")
+  const used = meta.promptTokens
+  const holds = meta.contextWindow
+
+  return (
+    <div className={styles.replyFooter}>
+      {meta.model && (
+        <span className={styles.replyModel} title={title}>
+          {meta.model}
+        </span>
+      )}
+      {parts.map((part) => (
+        <span key={part.text} title={part.title}>
+          {part.text}
+        </span>
+      ))}
+      {!!used && (
+        <span
+          className={holds && used / holds >= CONTEXT_NEARLY_FULL ? styles.replyContextFull : undefined}
+          title={
+            holds
+              ? t("reply-context-of-title", { used: used.toLocaleString(), window: holds.toLocaleString() })
+              : t("reply-context-title", { used: used.toLocaleString() })
+          }
+        >
+          {holds
+            ? t("reply-context-of", { used: compactCount(used), window: compactCount(holds) })
+            : t("reply-context", { used: compactCount(used) })}
+        </span>
+      )}
+      {meta.stopped && <span className={styles.replyStopped}>{t("reply-stopped")}</span>}
+      {meta.outOfSteps && !meta.stopped && <span className={styles.replyStopped}>{t("reply-out-of-steps")}</span>}
+      {!!meta.withheld?.length && <WithheldBadge withheld={meta.withheld} />}
+      {!!meta.instructions?.length && <InstructionsBadge files={meta.instructions} />}
+      {onContinue && (
+        <button
+          type="button"
+          className={styles.replyContinue}
+          onClick={onContinue}
+          title={t(meta.outOfSteps && !meta.stopped ? "reply-continue-steps-title" : "reply-continue-title")}
+        >
+          <span className="codicon codicon-debug-continue" aria-hidden="true" />
+          {t("reply-continue")}
+        </button>
+      )}
+      {actions && <span className={styles.replyActions}>{actions}</span>}
+    </div>
+  )
+}
+
+/** How many credentials the secret shield kept out of the request, and which kinds. */
+const WithheldBadge = ({ withheld }: { withheld: NonNullable<ReplyMeta["withheld"]> }) => {
+  const { t } = useTranslation()
+  const count = withheld.reduce((sum, { count }) => sum + count, 0)
+  const kinds = withheld.map(({ label, count }) => (count > 1 ? `${label} ×${count}` : label)).join(", ")
+  return (
+    <span className={styles.replyWithheld} title={t("reply-withheld-title", { kinds })}>
+      <span className="codicon codicon-shield" aria-hidden="true" />
+      {t("reply-withheld", { count })}
+    </span>
+  )
+}
+
+/** The project's instruction files agent mode followed; opens the first. */
+const InstructionsBadge = ({ files }: { files: string[] }) => {
+  const { t } = useTranslation()
+  return (
+    <button
+      type="button"
+      className={styles.replyInstructions}
+      title={t("reply-instructions-title", { files: files.join(", ") })}
+      onClick={() => emit(EVENT_NAME.pointerOpenFile, { path: files[0] })}
+    >
+      <span className="codicon codicon-book" aria-hidden="true" />
+      {files.length > 1 ? t("reply-instructions-more", { file: files[0], count: files.length - 1 }) : files[0]}
+    </button>
+  )
+}
+
+/** Taller than this, a user turn (usually pasted code) folds away. */
+const COLLAPSE_HEIGHT = 240
+
+/*
+ * A long question pushes its answer off screen. It shows its first lines and
+ * a toggle; the whole of it is still what was sent.
+ */
+const Collapsible = ({ children }: { children: React.ReactNode }) => {
+  const { t } = useTranslation()
+  const ref = useRef<HTMLDivElement>(null)
+  const [tall, setTall] = React.useState(false)
+  const [open, setOpen] = React.useState(false)
+
+  useEffect(() => {
+    const el = ref.current
+    if (el) setTall(el.scrollHeight > COLLAPSE_HEIGHT + 60)
+  }, [children])
+
+  return (
+    <>
+      <div
+        ref={ref}
+        className={tall && !open ? styles.folded : undefined}
+        style={tall && !open ? { maxHeight: COLLAPSE_HEIGHT } : undefined}
+      >
+        {children}
+      </div>
+      {tall && (
+        <button
+          type="button"
+          className={styles.expandToggle}
+          onClick={() => setOpen((prev) => !prev)}
+        >
+          <span
+            className={`codicon codicon-chevron-${open ? "up" : "down"}`}
+            aria-hidden="true"
+          />
+          {open ? t("show-less") : t("show-more")}
+        </button>
+      )}
+    </>
+  )
+}
+
+export const Message: React.FC<MessageProps> = ({
+  index = 0,
+  isAssistant,
+  context,
+  steps,
+  isLoading,
+  message,
+  onDelete,
+  onRegenerate,
+  onEdit,
+  onHeightChange,
+  messages,
+  onDeleteImage,
+  onContinue,
+  onChangesUpdate
+}) => {
+  const { t } = useTranslation()
+  const [isThinkingCollapsed, setIsThinkingCollapsed] = React.useState(false)
+  const [editing, setEditing] = React.useState<boolean>(false)
+  const messageRef = useRef<HTMLDivElement>(null)
+  const prevHeightRef = useRef<number>(0)
+  const { Toast, showToast } = useToast()
+  const handleThinkingToggle = useCallback(() => {
+    setIsThinkingCollapsed((prev) => !prev)
+  }, [])
+  useEffect(() => {
+    const currentHeight = messageRef.current?.offsetHeight
+    if (currentHeight && currentHeight !== prevHeightRef.current) {
+      prevHeightRef.current = currentHeight
+      onHeightChange?.()
+    }
+  }, [editing, message?.content])
+
+  const handleToggleEditing = useCallback(() => setEditing((prev) => !prev), [])
+  const handleDelete = useCallback(() => onDelete?.(index), [onDelete, index])
+
+  const extractMentionsFromHtml = (content: string): MentionType[] => {
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(content, "text/html")
+    const mentions: MentionType[] = []
+
+    doc.querySelectorAll(".mention").forEach((mention) => {
+      const path = mention.getAttribute("data-id")
+      const label = mention.getAttribute("data-label")
+      if (path && label) {
+        mentions.push({
+          name: label,
+          path: path
+        })
+      }
+    })
+
+    return mentions
+  }
+
+  const handleRegenerate = useCallback(() => {
+    if (!messages?.length) return
+    const lastMessage = messages[index - 1]
+    const mentions = extractMentionsFromHtml(lastMessage?.content as string)
+    onRegenerate?.(index, mentions)
+  }, [onRegenerate, index])
+
+  const handleToggleCancel = useCallback(() => {
+    setEditing(false)
+    editorRef.current?.commands.setContent(message?.content as string)
+  }, [message?.content])
+
+  const handleToggleSave = useCallback(() => {
+    const editorContent = editorRef.current?.getHTML()
+    if (!editorContent) {
+      return setEditing(false)
+    }
+    const parser = new DOMParser()
+    const doc = parser.parseFromString(editorContent, "text/html")
+    const mentions = Array.from(doc.querySelectorAll(".mention")).map(
+      (mention) => {
+        const filePath = mention.getAttribute("data-id")
+        const label = mention.getAttribute("data-label")
+        if (filePath && label) {
+          mention.outerHTML = `<span class="mention" data-type="mention" data-id="${filePath}" data-label="${label}">@${label}</span>`
+        }
+        return { name: label, path: filePath }
+      }
+    )
+
+    const imageNodes = Array.from(doc.querySelectorAll("img"))
+    const imageIds = imageNodes.map(img => img.getAttribute("id")).filter((id): id is string => Boolean(id))
+    const allImages = (message?.images || []) as ImageAttachment[]
+    const filteredImages = allImages.filter(img => img.id && imageIds.includes(img.id))
+
+    const finalContent = doc.body.innerHTML
+    if (message?.content === finalContent) {
+      return setEditing(false)
+    }
+
+    onEdit?.(
+      finalContent,
+      index,
+      mentions.filter((m): m is MentionType => Boolean(m.name && m.path)),
+      filteredImages
+    )
+    setEditing(false)
+  }, [message?.content, onEdit, index, message?.images])
+
+  const handleOpenFile = useCallback((filePath: string) => {
+    emit(EVENT_NAME.pointerOpenFile, filePath)
+  }, [])
+
+  const { suggestion, filePaths } = useSuggestion()
+
+  const memoizedSuggestion = useMemo(
+    () => suggestion,
+    [JSON.stringify(filePaths)]
+  )
+
+  const editorRef = useRef<Editor | null>(null)
+
+  const CustomImageExtension = createCustomImageExtension(onDeleteImage)
+
+  const editor = useEditor(
+    {
+      extensions: [
+        StarterKit,
+        TiptapMarkdown,
+        MentionExtension,
+        CustomImageExtension.configure({
+          allowBase64: true,
+        }),
+        Mention.configure({
+          HTMLAttributes: {
+            class: "mention"
+          },
+          suggestion: memoizedSuggestion,
+          renderText({ node }) {
+            return `@${node.attrs.label}`
+          }
+        }),
+        CustomKeyMap.configure({
+          handleToggleSave
+        })
+      ],
+      content: message?.content,
+      editorProps: {
+        attributes: {
+          class: styles.editor
+        },
+        handleDOMEvents: {
+          paste: (view, event) => {
+            const items = Array.from(event.clipboardData?.items || [])
+            const imageItem = items.find(item => item.type.startsWith("image/"))
+
+            if (imageItem) {
+              const file = imageItem.getAsFile()
+              if (file) {
+                const reader = new FileReader()
+                reader.onload = (e) => {
+                  const base64 = e.target?.result as string
+                  const imageData = base64.includes("data:") ? base64 : `data:${file.type};base64,${base64.split(",")[1]}`
+                  view.dispatch(
+                    view.state.tr.replaceSelectionWith(
+                      view.state.schema.nodes.image.create({ src: imageData })
+                    )
+                  )
+                }
+                reader.readAsDataURL(file)
+                return true
+              }
+            }
+
+            const text =
+              event.clipboardData?.getData("text/html") ||
+              event.clipboardData?.getData("text/plain")
+            if (text) {
+              view.dispatch(view.state.tr.insertText(text))
+            }
+            return true
+          }
+        }
+      },
+      onFocus: () => {
+        if (editorRef.current) {
+          editorRef.current.commands.focus("end")
+        }
+      }
+    },
+    [memoizedSuggestion]
+  )
+
+  useEffect(() => {
+    if (editorRef.current) {
+      const mentionExtension =
+        editorRef.current.extensionManager.extensions.find(
+          (extension) => extension.name === "mention"
+        )
+      if (mentionExtension) {
+        mentionExtension.options.suggestion = memoizedSuggestion
+        editorRef.current.commands.focus()
+      }
+    }
+  }, [memoizedSuggestion])
+
+  const renderContent = useCallback(
+    (htmlContent: string) => {
+      const sanitizedHtml = DOMPurify.sanitize(htmlContent, {
+        ALLOWED_TAGS: ["span", "p", "br", "code", "pre"],
+        ALLOWED_ATTR: ["class", "data-id", "data-label", "data-type"],
+        ALLOW_DATA_ATTR: true,
+        ALLOW_UNKNOWN_PROTOCOLS: true
+      });
+
+      return (
+        <div
+          className={styles.messageContent}
+          dangerouslySetInnerHTML={{ __html: sanitizedHtml }}
+          onClick={(e) => {
+            const target = e.target as HTMLElement
+            const mention = target.closest(".mention")
+            if (mention) {
+              const filePath = mention.getAttribute("data-id")
+              if (filePath) {
+                handleOpenFile(filePath)
+              }
+            }
+          }}
+        />
+      )
+    },
+    [handleOpenFile]
+  )
+
+  const renderImageGallery = useCallback(() => {
+    const images = message?.images || [] as ImageAttachment[]
+    if (!images.length) return null;
+
+    const maxImages = 10
+    const limitedImages = images.slice(0, maxImages)
+
+    return (
+      <div className={styles.imageGallery}>
+        {limitedImages.map((img, index) => (
+          <div key={index} className={styles.imageContainer}>
+            <img
+              src={(img as ImageAttachment).data}
+              className={styles.chatImageSquare}
+              alt=""
+              loading="lazy"
+              style={{ maxWidth: "200px", maxHeight: "200px" }}
+            />
+          </div>
+        ))}
+        {images.length > maxImages && (
+          <div style={{ color: "#888", marginTop: 8 }}>
+            {`+${images.length - maxImages} more image(s) not shown for performance`}
+          </div>
+        )}
+      </div>
+    )
+  }, [message?.images])
+
+  const renderCodeBlock = useCallback(
+    ({
+      children,
+      ...props
+    }: { children: React.ReactNode } & React.HTMLProps<HTMLPreElement>) => {
+      if (React.isValidElement(children)) {
+        return (
+          <CodeBlock role={message?.role} {...children.props} />
+        )
+      }
+      return <pre {...props}>{children}</pre>
+    },
+    [message?.role]
+  )
+
+  const markdownComponents = useMemo(
+    () =>
+    ({
+      pre: renderCodeBlock,
+      p: ({
+        children,
+        ...props
+      }: React.HTMLAttributes<HTMLParagraphElement>) => {
+        if (
+          typeof children === "string" &&
+          (children.includes("class=\"mention\"") || children.includes("<img"))
+        ) {
+          return renderContent(children)
+        }
+        return <p {...props}>{children}</p>
+      },
+    } as Components),
+    [renderCodeBlock, renderContent, message?.images]
+  )
+
+  // A reply can be all steps and no text: its tools ran, then it was stopped.
+  if (!message) return null
+  if (!message.content && !message.toolSteps?.length && !steps?.length) return null
+
+  const { thinking, message: messageContent } = getThinkingMessage(
+    message.content as string
+  )
+
+  const conversationLength = messages?.length || 0
+  // A reply with a footer keeps its actions at the end of it; anything else floats them over its corner.
+  const footerActions = message.role === ASSISTANT && !!message.meta && !editing
+
+  const options = (
+    <div className={styles.messageOptions}>
+      <VSCodeButton
+        title={t("copy-code")}
+        onClick={() => {
+          navigator.clipboard.writeText(messageContent)
+          showToast(t("copied-to-clipboard"))
+        }}
+        appearance="icon"
+      >
+        <span className="codicon codicon-copy"></span>
+      </VSCodeButton>
+      {editing && !isAssistant && (
+        <>
+          <VSCodeButton
+            title={t("cancel-edit")}
+            appearance="icon"
+            onClick={handleToggleCancel}
+          >
+            <span className="codicon codicon-close" />
+          </VSCodeButton>
+          <VSCodeButton
+            title={t("save-edit")}
+            appearance="icon"
+            onClick={handleToggleSave}
+          >
+            <span className="codicon codicon-check" />
+          </VSCodeButton>
+        </>
+      )}
+      {!editing && !isAssistant && (
+        <>
+          <VSCodeButton
+            disabled={isLoading}
+            title={t("edit-message")}
+            appearance="icon"
+            onClick={handleToggleEditing}
+          >
+            <span className="codicon codicon-edit" />
+          </VSCodeButton>
+          <VSCodeButton
+            disabled={isLoading || conversationLength <= 2}
+            title={t("delete-message")}
+            appearance="icon"
+            onClick={handleDelete}
+          >
+            <span className="codicon codicon-trash" />
+          </VSCodeButton>
+        </>
+      )}
+      {!editing && isAssistant && (
+        <VSCodeButton
+          disabled={isLoading}
+          title={t("regenerate-message")}
+          appearance="icon"
+          onClick={handleRegenerate}
+        >
+          <span className="codicon codicon-sync" />
+        </VSCodeButton>
+      )}
+    </div>
+  )
+
+  useEffect(() => {
+    if (editor) editorRef.current = editor
+    editorRef.current?.commands.focus()
+  }, [editor])
+
+  return (
+    <div
+      ref={messageRef}
+      className={
+        message.role === ASSISTANT
+          ? styles.message
+          : `${styles.message} ${styles.userMessage}${index === 0 ? ` ${styles.firstMessage}` : ""}`
+      }
+    >
+      {Toast}
+      {thinking && (
+        <ThinkingSection
+          thinking={thinking}
+          isCollapsed={isThinkingCollapsed}
+          onToggle={handleThinkingToggle}
+          markdownComponents={markdownComponents}
+        />
+      )}
+      <div className={styles.messageRole}>
+        <span className={styles.roleLabel}>
+          {message.role !== ASSISTANT && (
+            <span className={styles.rolePrompt} aria-hidden="true">
+              &#10095;
+            </span>
+          )}
+          {message.role === ASSISTANT ? POINTER : YOU}
+        </span>
+        {!footerActions && options}
+      </div>
+      {message.role === ASSISTANT && (
+        <>
+          <WorkspaceContext report={message.context ?? context} />
+          {editing && <ToolSteps steps={message.toolSteps ?? steps} />}
+        </>
+      )}
+      {editing ? (
+        <EditorContent className={styles.tiptap} editor={editor} />
+      ) : message.role === ASSISTANT ? (
+        <>
+          {replyParts(messageContent, message.toolSteps ?? steps).map((part, i) =>
+            "steps" in part ? (
+              <ToolSteps key={i} steps={part.steps} />
+            ) : part.text.trim() ? (
+              <Markdown key={i} remarkPlugins={[remarkGfm]} components={markdownComponents}>
+                {part.text.trim()}
+              </Markdown>
+            ) : null
+          )}
+          {renderImageGallery()}
+          {message.changes && (
+            <ReplyChanges
+              changes={message.changes}
+              onUpdate={(changes) => index !== undefined && onChangesUpdate?.(index, changes)}
+              onError={showToast}
+            />
+          )}
+          {message.meta && <ReplyFooter meta={message.meta} onContinue={onContinue} actions={footerActions ? options : undefined} />}
+        </>
+      ) : (
+        <Collapsible>
+          {renderContent(messageContent.trimStart())}
+          {renderImageGallery()}
+        </Collapsible>
+      )}
+    </div>
+  )
+}
+
+export default Message

@@ -1,0 +1,32 @@
+.suggestions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px var(--tw-pad);
+}
+
+.suggestion {
+  padding: 3px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--tw-fill);
+  color: var(--tw-fg-dim);
+  font-size: var(--tw-fs-sm);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease;
+}
+
+.suggestion:hover {
+  color: var(--tw-fg);
+  background: var(--tw-fill-strong);
+}
+
+.suggestion--disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.suggestion--disabled:hover {
+  color: var(--tw-fg-dim);
+  background: var(--tw-fill);
+}

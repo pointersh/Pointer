@@ -1,0 +1,235 @@
+import React, { useState } from "react"
+import { useTranslation } from "./strings"
+import cx from "classnames"
+
+import { EVENT_NAME } from "../common/constants"
+import { ToolStepView } from "../common/types"
+import { parseTasks, TASKS_TOOL_NAME, tasksProgress } from "../extension/tools/tasks"
+
+import { emit } from "./messaging"
+import { Code, ToolOutput } from "./tool-output"
+
+import styles from "./styles/tool-steps.module.css"
+
+const STATUS_ICON: Record<ToolStepView["status"], string> = {
+  running: "codicon-loading codicon-modifier-spin",
+  waiting: "codicon-terminal",
+  done: "codicon-check",
+  failed: "codicon-error",
+  skipped: "codicon-circle-slash",
+  stopped: "codicon-debug-stop"
+}
+
+const LIVE_LINES = 8
+
+const lastLines = (text: string, count: number) => text.trimEnd().split("\n").slice(-count).join("\n")
+
+/** `a \`b\` c` with the backticked parts set as code. */
+const Summary = ({ text }: { text: string }) => (
+  <>
+    {text.split(/(`[^`]+`)/).map((part, i) =>
+      part.startsWith("`") && part.endsWith("`") && part.length > 1 ? (
+        <code key={i}>{part.slice(1, -1)}</code>
+      ) : (
+        <React.Fragment key={i}>{part}</React.Fragment>
+      )
+    )}
+  </>
+)
+
+/**
+ * The user's answer to a step waiting on them: run it, run it and keep
+ * that exact command to run unasked from then on, or skip it. The
+ * composer's keys answer through this too.
+ */
+export const answerToolStep = (step: ToolStepView, how: "run" | "always" | "skip") =>
+  emit(EVENT_NAME.pointerToolApproval, {
+    id: step.id,
+    run: how !== "skip",
+    ...(how === "always" && step.approval !== "change" && !step.noAlways ? { always: true } : {})
+  })
+
+const Step = ({ step }: { step: ToolStepView }) => {
+  const { t } = useTranslation()
+  const waiting = step.status === "waiting"
+  const [open, setOpen] = useState(false)
+  const inspectable = !!step.output || !!Object.keys(step.args ?? {}).length
+  // A command's output shows as it prints, without a click, until it ends.
+  const live = step.status === "running" && step.name === "run_command" && !!step.output?.trim()
+  // A command that has had its turn can be copied, or put in the user's terminal to run again.
+  const finishedCommand =
+    step.name === "run_command" && step.status !== "running" && step.status !== "waiting" ? step.args?.command?.trim() : undefined
+  const [copied, setCopied] = useState(false)
+
+  return (
+    <li className={cx(styles.step, styles[step.status])}>
+      <div className={styles.head}>
+        <button
+          type="button"
+          className={styles.row}
+          onClick={() => setOpen((prev) => !prev)}
+          disabled={!inspectable || waiting}
+          aria-expanded={open}
+        >
+          <span className={styles.glyph} aria-hidden="true">
+            <span
+              className={cx("codicon", waiting && step.approval === "change" ? "codicon-question" : STATUS_ICON[step.status])}
+            />
+          </span>
+          <span className={styles.summary}>
+            <Summary text={step.summary} />
+          </span>
+          {inspectable && !waiting && (
+            <span
+              className={cx("codicon", open ? "codicon-chevron-up" : "codicon-chevron-down", styles.chevron)}
+              aria-hidden="true"
+            />
+          )}
+        </button>
+        {finishedCommand && (
+          <>
+            <button
+              type="button"
+              className={styles.stop}
+              onClick={() => {
+                void navigator.clipboard.writeText(finishedCommand).then(() => setCopied(true))
+              }}
+              title={t(copied ? "copied-to-clipboard" : "tool-copy-command")}
+              aria-label={t("tool-copy-command")}
+            >
+              <span className={cx("codicon", copied ? "codicon-check" : "codicon-copy")} aria-hidden="true" />
+            </button>
+            <button
+              type="button"
+              className={styles.stop}
+              onClick={() => emit(EVENT_NAME.pointerRunInTerminal, finishedCommand)}
+              title={t("tool-command-to-terminal-title")}
+              aria-label={t("tool-command-to-terminal")}
+            >
+              <span className="codicon codicon-terminal" aria-hidden="true" />
+            </button>
+          </>
+        )}
+        {step.stoppable && step.status === "running" && (
+          <button
+            type="button"
+            className={styles.stop}
+            onClick={() => emit(EVENT_NAME.pointerToolStop, { id: step.id })}
+            title={t("tool-stop-title")}
+            aria-label={t("tool-stop")}
+          >
+            <span className="codicon codicon-debug-stop" aria-hidden="true" />
+          </button>
+        )}
+      </div>
+      {waiting && (
+        <div className={styles.approval}>
+          <div className={styles.approvalLabel}>
+            {t(step.approval === "change" ? "tool-change-waiting" : step.mcpTool ? "tool-mcp-waiting" : "tool-command-waiting")}
+          </div>
+          <div className={styles.command}>
+            {step.approval === "change" || step.mcpTool ? (
+              <pre className={styles.output}>{step.command}</pre>
+            ) : (
+              <Code code={step.command ?? ""} language="bash" />
+            )}
+          </div>
+          <div className={styles.actions}>
+            <button type="button" className={styles.run} onClick={() => answerToolStep(step, "run")}>
+              <span className={cx("codicon", step.approval === "change" ? "codicon-check" : "codicon-play")} aria-hidden="true" />
+              {t(step.approval === "change" ? "tool-apply" : "tool-run")}
+            </button>
+            {step.approval !== "change" && !step.noAlways && (
+              <button
+                type="button"
+                className={styles.skip}
+                title={t(step.mcpTool ? "tool-always-run-mcp-title" : "tool-always-run-title", { tool: step.mcpTool })}
+                onClick={() => answerToolStep(step, "always")}
+              >
+                {t("tool-always-run")}
+              </button>
+            )}
+            <button type="button" className={styles.skip} onClick={() => answerToolStep(step, "skip")}>
+              {t("tool-skip")}
+            </button>
+          </div>
+          <div className={styles.keys}>
+            {t(step.approval === "change" ? "tool-change-keys" : step.noAlways ? "tool-command-keys-ask" : "tool-command-keys")}
+          </div>
+        </div>
+      )}
+      {live && !open && <pre className={styles.live}>{lastLines(step.output!, LIVE_LINES)}</pre>}
+      {open && !waiting && (
+        <div className={styles.detail}>
+          <ToolOutput step={step} />
+        </div>
+      )}
+    </li>
+  )
+}
+
+/** A message the user sent while the reply worked, where the model read it. */
+const Said = ({ step }: { step: ToolStepView }) => {
+  const { t } = useTranslation()
+  return (
+    <li className={styles.said}>
+      <span className={styles.saidWho}>{t("tool-said")}</span>
+      <span className={styles.saidText}>{step.summary}</span>
+    </li>
+  )
+}
+
+/**
+ * The model's list of steps as it stood at this point: what is done
+ * ticked, what is next marked, the rest waiting. Only the latest one in a
+ * stretch is laid out; an earlier one is a line like any other step.
+ */
+const Tasks = ({ step, live }: { step: ToolStepView; live: boolean }) => {
+  const tasks = parseTasks(step.args?.tasks)
+  if (!tasks) return <Step step={step} />
+  const next = tasks.findIndex((task) => !task.done)
+  return (
+    <li className={styles.tasks}>
+      <div className={styles.tasksHead}>{tasksProgress(tasks)}</div>
+      <ul className={styles.taskList}>
+        {tasks.map((task, i) => (
+          <li key={i} className={cx(styles.task, task.done && styles.taskDone, live && i === next && styles.taskNext)}>
+            <span className={styles.glyph} aria-hidden="true">
+              <span className={cx("codicon", task.done ? "codicon-check" : i === next && live ? "codicon-arrow-small-right" : "codicon-circle-small")} />
+            </span>
+            <span className={styles.taskText}>{task.text}</span>
+          </li>
+        ))}
+      </ul>
+    </li>
+  )
+}
+
+/**
+ * The tools the model used for a stretch of a reply, a line each. A
+ * line opens to what the tool was given and what came back; a command
+ * waiting for the user shows Run and Skip in place. What the user said
+ * along the way sits among them, where the model read it.
+ */
+export const ToolSteps = ({ steps }: { steps?: ToolStepView[] }) => {
+  if (!steps?.length) return null
+  const isList = (step: ToolStepView) => step.name === TASKS_TOOL_NAME && step.status === "done"
+  const latest = [...steps].reverse().find(isList)
+  // While the reply still works, the step after the last tick is the one in hand.
+  const live = steps.some((step) => step.status === "running" || step.status === "waiting")
+  return (
+    <ol className={styles.panel}>
+      {steps.map((step) =>
+        step.said ? (
+          <Said key={step.id} step={step} />
+        ) : step === latest ? (
+          <Tasks key={step.id} step={step} live={live} />
+        ) : (
+          <Step key={step.id} step={step} />
+        )
+      )}
+    </ol>
+  )
+}
+
+export default ToolSteps

@@ -1,0 +1,395 @@
+import { ReactNode } from "react"
+import { ChatCompletionMessageParam } from "fluency.js"
+import { InlineCompletionItem, InlineCompletionList } from "vscode"
+
+import type { WorkspaceSearchReport } from "./messaging/protocol"
+import { ALL_BRACKETS } from "./constants"
+import { CodeLanguageDetails } from "./languages"
+
+export interface PrefixSuffix {
+  prefix: string
+  suffix: string
+}
+
+export interface LanguageType {
+  language: CodeLanguageDetails
+  languageId: string | undefined
+}
+
+export interface ClientMessage<
+  T = string | boolean | ChatCompletionMessage[],
+  Y = unknown
+> {
+  data?: T
+  meta?: Y
+  type?: string
+  key?: string
+}
+
+export type ClientMessageWithData = ClientMessage<string | boolean> &
+  ClientMessage<ChatCompletionMessage[]> &
+  ClientMessage<GithubPullRequestMessage>
+
+export interface ServerMessage<T = unknown> {
+  type: string
+  data: T
+}
+
+export interface GithubPullRequestMessage {
+  owner: string
+  repo: string
+  number: number
+}
+
+export interface ImageAttachment {
+  data: string
+  type: string
+  id?: string
+}
+
+export type ChatCompletionMessage = ChatCompletionMessageParam & {
+  id?: string
+  images?: ImageAttachment[] | string[]
+  /**
+   * The workspace chunks that were searched out for this reply, kept with
+   * the message so a saved conversation still shows its sources. Never
+   * sent to the model: `buildChatTurn` builds the API shape from scratch.
+   */
+  context?: WorkspaceSearchReport
+  /**
+   * What the model was sent for this turn, when a feature shows the user
+   * something shorter (a template's name and the selection, a command's
+   * question without the code it attached). Kept with the message so a
+   * follow-up sends the same conversation the model already answered.
+   */
+  prompt?: string
+  /** How a reply came about; shown under it, never sent to the model. */
+  meta?: ReplyMeta
+  /** The tools the model used for this reply, shown above it; never sent to the model. */
+  toolSteps?: ToolStepView[]
+  /**
+   * What those tools were asked and returned, cut to size. Not shown; the
+   * next turn sends it along with the user's question, so a follow-up
+   * ("now the same in the other file") has what this reply worked from.
+   */
+  toolNotes?: string
+  /**
+   * The files agent mode changed while writing this reply, with what it
+   * takes to undo them; shown under it, never sent to the model.
+   */
+  changes?: ReplyChangesView
+}
+
+/** A file agent mode changed during a reply, as the chat lists it. */
+export interface FileChangeView {
+  /** Relative to the workspace root, with `/`. */
+  path: string
+  status: "modified" | "created" | "deleted"
+  added: number
+  removed: number
+  /** Put back as it was before the reply. */
+  undone?: boolean
+  /** No copy was kept (binary, or too large), so it cannot be undone from the chat. */
+  noUndo?: boolean
+}
+
+/** What one reply changed, by the id its copies are kept under. */
+export interface ReplyChangesView {
+  id: string
+  files: FileChangeView[]
+}
+
+/** One tool call as the chat shows it: collapsed to a line, open to what went in and came out. */
+export interface ToolStepView {
+  id: string
+  name: string
+  /** What it did, in a line: "searched for `foo` · 3 matches". */
+  summary: string
+  args?: Record<string, string>
+  /** What the model was given back, cut to a size worth showing. */
+  output?: string
+  /** `stopped`: the reply was stopped while the tool was running or waiting. */
+  status: "running" | "waiting" | "done" | "failed" | "skipped" | "stopped"
+  /** For a step waiting on the user: the command that would run, or the change that would be made. */
+  command?: string
+  /** What the user is asked to approve: a shell command, or a change with no diff to review (a rename, a delete). */
+  approval?: "command" | "change"
+  /**
+   * How much of the reply's text (thinking left out) was written when the
+   * step started, so the chat shows it at that point in the reply rather
+   * than above it. Missing on steps saved before this was kept.
+   */
+  at?: number
+  /** A running command the user can stop on its own, leaving the reply to carry on. */
+  stoppable?: boolean
+  /** A waiting command that cannot be set to always run: the team asks for every command. */
+  noAlways?: boolean
+  /** A waiting call to an MCP server's tool (`server/tool`): Always run keeps the tool, not the call. */
+  mcpTool?: string
+  /**
+   * Not a tool: a message the user sent while the reply worked, which the
+   * model read at this point; `summary` is what they wrote.
+   */
+  said?: boolean
+}
+
+/** What pointer knows about how one reply was produced. */
+export interface ReplyMeta {
+  model?: string
+  /** The provider's label, or the teammate's machine for a team pool. */
+  provider?: string
+  durationMs?: number
+  /** Only when the backend reported it; never estimated. */
+  completionTokens?: number
+  /**
+   * Tokens the reply's largest request came to, as the backend counted
+   * it: how much of the model's context the conversation now takes.
+   */
+  promptTokens?: number
+  /** Tokens the model's context holds, when its server says. */
+  contextWindow?: number
+  /** The user stopped it before the model finished. */
+  stopped?: boolean
+  /** Agent mode used every tool step the reply had, so the work may be unfinished. */
+  outOfSteps?: boolean
+  /**
+   * Credentials the secret shield replaced with placeholders before the
+   * request left the machine: kinds and counts, never the values.
+   */
+  withheld?: { kind: string; label: string; count: number }[]
+  /**
+   * The project's instructions for agents that agent mode followed:
+   * `AGENTS.md` at the root (or the file read in its place), then each
+   * folder's as the tools reached it. Relative paths.
+   */
+  instructions?: string[]
+}
+
+export interface Conversation {
+  id?: string
+  title?: string
+  messages: ChatCompletionMessage[]
+  /** Set by features that name the conversation themselves (reviews). */
+  pinnedTitle?: boolean
+  /** Unix ms of the last save; absent on conversations from older builds. */
+  updatedAt?: number
+}
+
+export const Theme = {
+  Light: "Light",
+  Dark: "Dark",
+  Contrast: "Contrast"
+} as const
+
+export interface DefaultTemplate {
+  systemMessage?: string
+}
+
+export interface TemplateData
+  extends Record<string, string | undefined | null> {
+  code?: string
+  systemMessage?: string
+  language?: string
+  osName?: string
+  defaultShell?: string | null
+  homedir?: string
+  cwd?: string
+}
+
+export interface FimTemplateData extends Record<string, string | undefined> {
+  context: string
+  fileName: string
+  prefix: string
+  suffix: string
+  /** Defaults to fim-system.hbs (or system.hbs) when left out. */
+  systemMessage?: string
+}
+
+export interface ChatTemplateData {
+  systemMessage?: string
+  role: string
+  messages: ChatCompletionMessage[]
+  code: string
+  language?: string
+}
+
+export type ThemeType = (typeof Theme)[keyof typeof Theme]
+
+/** A neighbouring file (or a window of one) included in a FIM prompt. */
+export interface FimContextFile {
+  /** Workspace-relative path, used as the label in the prompt. */
+  name: string
+  text: string
+}
+
+export interface FimPromptTemplate {
+  /** Other files to show the model before the current one. */
+  contextFiles: FimContextFile[]
+  /** Comment line(s) naming the language and file, placed just before the prefix. */
+  header: string
+  prefixSuffix: PrefixSuffix
+  language?: string
+  /** Workspace-relative path of the file being completed. */
+  fileName: string
+  /** Workspace name, used by repository-level templates. */
+  repoName: string
+}
+
+export interface ApiProviders {
+  [key: string]: { fimApiPath: string; chatApiPath: string; port: number }
+}
+
+export type Bracket = (typeof ALL_BRACKETS)[number]
+
+export interface UiTabs {
+  [key: string]: JSX.Element
+}
+
+export interface ApiModel {
+  parent_model: string
+  format: string
+  family: string
+  parameter_size: string
+  digest: string
+  model: string
+  modified_at: string
+  name: string
+  size: number
+}
+
+export interface ApiModels {
+  models: ApiModel[]
+}
+
+/** What one provider in the bundled model catalogue advertises. */
+export interface ModelCatalogueEntry {
+  models: string[]
+  supportsStreaming?: boolean | string[]
+}
+
+/** The bundled catalogue, keyed by provider id. */
+export type ModelCatalogue = Record<string, ModelCatalogueEntry>
+
+export type ResolvedInlineCompletion =
+  | InlineCompletionItem[]
+  | InlineCompletionList
+  | PromiseLike<
+      InlineCompletionItem[] | InlineCompletionList | null | undefined
+    >
+  | null
+  | undefined
+
+export interface InteractionItem {
+  keyStrokes: number | null | undefined
+  lastVisited: number
+  name: string | null | undefined
+  sessionLength: number
+  visits: number | null | undefined
+  isOpen: boolean
+  relevanceScore?: number | null | undefined
+  activeLines: {
+    line: number
+    character: number
+  }[]
+}
+
+export interface PointerProvider {
+  apiHostname?: string
+  apiKey?: string
+  apiPath?: string
+  apiPort?: number
+  apiProtocol?: string
+  features?: string[]
+  id: string
+  label: string
+  logo?: ReactNode
+  modelName: string
+  provider: string
+  type: string
+}
+
+export interface ChunkOptions {
+  minSize: number
+  maxSize: number
+  overlap: number
+}
+
+export type Embedding = {
+  embeddings: [number[]]
+}
+
+export type EmbeddedDocument = {
+  content: string
+  vector: number[] | undefined
+  file: string
+}
+
+export type CategoryType =
+  | "files"
+  | "workspace"
+  | "problems"
+  | "git"
+  | "terminal"
+  | "symbols"
+  | "selection"
+
+export interface ContextItem {
+  id: string;
+  category: CategoryType;
+  name: string;
+  path: string;
+}
+
+export interface SelectionContextItem extends ContextItem {
+  content: string;
+  selectionRange: {
+    startLine: number;
+    startCharacter: number;
+    endLine: number;
+    endCharacter: number;
+  };
+}
+
+/**
+ * Anything that can sit in the workspace context list: a whole file, or a
+ * selected range within one.
+ */
+export type AnyContextItem = ContextItem | SelectionContextItem;
+
+export interface MentionType {
+  name: string
+  path: string
+}
+
+export interface GitHubPr {
+  number: number
+  title: string
+  html_url: string
+  draft?: boolean
+  updated_at?: string
+  user?: { login: string }
+  head?: { ref: string }
+}
+
+export interface LMSEmbeddingItem {
+  object: string
+  embedding: number[]
+  index: number
+}
+
+export interface LMSEmbeddingUsage {
+  prompt_tokens: number
+  total_tokens: number
+}
+
+export interface LMStudioEmbedding {
+  object: string
+  data: LMSEmbeddingItem[]
+  model: string
+  usage: LMSEmbeddingUsage
+}
+
+export interface ContextFile {
+  name: string;
+  path: string;
+}

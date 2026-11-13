@@ -1,0 +1,650 @@
+{
+  "name": "pointer",
+  "displayName": "pointer - AI Code Completion and Chat",
+  "description": "AI code completion, chat, inline edit and code review on models you run. Private, open source, one gateway for the whole team.",
+  "version": "4.3.21",
+  "icon": "assets/icon.png",
+  "keywords": [
+    "code-inference",
+    "code-suggestion",
+    "copilot",
+    "localhost",
+    "no-leaks",
+    "private",
+    "pointer",
+    "ai",
+    "ollama",
+    "llama",
+    "development",
+    "extension",
+    "llama-code",
+    "snippets",
+    "chat",
+    "code-snippets",
+    "autocomplete",
+    "intellisense",
+    "llama-ai",
+    "vscode-extension"
+  ],
+  "repository": {
+    "url": "https://github.com/pointersh/Pointer"
+  },
+  "license": "MIT",
+  "publisher": "pointer",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "bugs": {
+    "url": "https://github.com/pointersh/Pointer/issues"
+  },
+  "categories": [
+    "Programming Languages",
+    "Snippets",
+    "Debuggers",
+    "Formatters",
+    "Machine Learning",
+    "Education",
+    "Testing",
+    "Data Science",
+    "Extension Packs",
+    "Linters"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onUri"
+  ],
+  "author": {
+    "name": "Ayush Yadav"
+  },
+  "main": "./out/index.js",
+  "browser": "./out/index.js",
+  "bin": {
+    "pointer-node": "./out/node/cli.js"
+  },
+  "contributes": {
+    "menus": {
+      "editor/context": [
+        {
+          "when": "editorTextFocus",
+          "command": "pointer.explain"
+        },
+        {
+          "when": "editorTextFocus",
+          "command": "pointer.refactor"
+        },
+        {
+          "when": "editorTextFocus && !editorReadonly",
+          "command": "pointer.edit"
+        },
+        {
+          "when": "editorTextFocus",
+          "command": "pointer.addTypes"
+        },
+        {
+          "when": "editorTextFocus",
+          "command": "pointer.addTests"
+        },
+        {
+          "when": "editorTextFocus",
+          "command": "pointer.generateDocs"
+        },
+        {
+          "when": "editorTextFocus",
+          "command": "pointer.addFileToContext"
+        },
+        {
+          "when": "editorHasSelection",
+          "command": "pointer.addSelectionToContext"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "pointer.openChat",
+          "group": "navigation@0",
+          "when": "view == pointer.sidebar && pointerManageTemplates || view == pointer.sidebar && pointerManageProviders || view == pointer.sidebar && pointerConversationHistory || view == pointer.sidebar && pointerReviewTab || view == pointer.sidebar && pointerEmbeddingsTab"
+        },
+        {
+          "command": "pointer.manageProviders",
+          "group": "navigation@3",
+          "when": "view == pointer.sidebar"
+        },
+        {
+          "command": "pointer.manageTemplates",
+          "group": "navigation@4",
+          "when": "view == pointer.sidebar"
+        },
+        {
+          "command": "pointer.embeddings",
+          "when": "view == pointer.sidebar",
+          "group": "navigation@5",
+          "icon": "$(database)"
+        },
+        {
+          "command": "pointer.conversationHistory",
+          "when": "view == pointer.sidebar",
+          "group": "navigation@6"
+        },
+        {
+          "command": "pointer.openPanelChat",
+          "when": "view == pointer.sidebar",
+          "group": "navigation@7"
+        },
+        {
+          "command": "pointer.newConversation",
+          "when": "view == pointer.sidebar",
+          "group": "navigation@8"
+        },
+        {
+          "command": "pointer.settings",
+          "when": "view == pointer.sidebar",
+          "group": "navigation@9"
+        },
+        {
+          "command": "pointer.exportConversation",
+          "when": "view == pointer.sidebar",
+          "group": "conversation@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "pointer.statusBarMenu",
+          "when": "false"
+        },
+        {
+          "command": "pointer.acceptEdit",
+          "when": "pointerInlineEditPending"
+        },
+        {
+          "command": "pointer.rejectEdit",
+          "when": "pointerInlineEditPending"
+        }
+      ],
+      "terminal/context": [
+        {
+          "command": "pointer.fixTerminalError",
+          "group": "pointer@1"
+        },
+        {
+          "command": "pointer.terminalCommand",
+          "group": "pointer@2"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "pointer.addFileToContext",
+          "group": "pointer@1",
+          "when": "!explorerResourceIsFolder"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "pointer.explain",
+        "title": "Pointer - Explain"
+      },
+      {
+        "command": "pointer.refactor",
+        "title": "Pointer - Refactor"
+      },
+      {
+        "command": "pointer.edit",
+        "title": "Pointer - Edit with instruction..."
+      },
+      {
+        "command": "pointer.acceptEdit",
+        "title": "Pointer - Accept edit"
+      },
+      {
+        "command": "pointer.rejectEdit",
+        "title": "Pointer - Reject edit"
+      },
+      {
+        "command": "pointer.addTypes",
+        "title": "Pointer - Add types"
+      },
+      {
+        "command": "pointer.addTests",
+        "title": "Pointer - Write tests"
+      },
+      {
+        "command": "pointer.generateDocs",
+        "title": "Pointer - Generate docs"
+      },
+      {
+        "command": "pointer.enable",
+        "shortTitle": "Enable pointer",
+        "title": "Enable pointer"
+      },
+      {
+        "command": "pointer.stopGeneration",
+        "title": "Stop generation"
+      },
+      {
+        "command": "pointer.disable",
+        "title": "Disable pointer",
+        "shortTitle": "Disable pointer"
+      },
+      {
+        "command": "pointer.sidebar.focus",
+        "shortTitle": "Enable pointer sidebar",
+        "title": "Enable pointer sidebar"
+      },
+      {
+        "command": "pointer.settings",
+        "shortTitle": "pointer settings",
+        "title": "Open pointer settings",
+        "icon": "$(gear)"
+      },
+      {
+        "command": "pointer.conversationHistory",
+        "shortTitle": "pointer conversation history",
+        "title": "Open pointer conversation history",
+        "icon": "$(history)"
+      },
+      {
+        "command": "pointer.openPanelChat",
+        "shortTitle": "Open pointer panel chat",
+        "title": "Open pointer panel chat",
+        "icon": "$(screen-full)"
+      },
+      {
+        "command": "pointer.exportConversation",
+        "title": "Pointer - Open conversation as Markdown",
+        "icon": "$(markdown)"
+      },
+      {
+        "command": "pointer.forgetAlwaysRunCommands",
+        "title": "Pointer - Forget commands set to always run"
+      },
+      {
+        "command": "pointer.newConversation",
+        "shortTitle": "New chat",
+        "title": "Start a new chat",
+        "icon": "$(plus)"
+      },
+      {
+        "command": "pointer.templates",
+        "shortTitle": "Edit pointer templates",
+        "title": "Edit pointer templates",
+        "icon": "$(pencil)"
+      },
+      {
+        "command": "pointer.manageTemplates",
+        "shortTitle": "Manage pointer templates",
+        "title": "Manage pointer templates",
+        "icon": "$(book)"
+      },
+      {
+        "command": "pointer.manageProviders",
+        "shortTitle": "Manage pointer providers",
+        "title": "Manage pointer providers",
+        "icon": "$(robot)"
+      },
+      {
+        "command": "pointer.showLogs",
+        "title": "Pointer - Show logs"
+      },
+      {
+        "command": "pointer.openChat",
+        "shortTitle": "Back to chat view",
+        "title": "Back to chat view",
+        "icon": "$(arrow-left)"
+      },
+      {
+        "command": "pointer.embeddings",
+        "shortTitle": "pointer embeddings",
+        "title": "Embedding options",
+        "icon": "$(database)"
+      },
+      {
+        "command": "pointer.addFileToContext",
+        "title": "Pointer - Add file to context"
+      },
+      {
+        "command": "pointer.addSelectionToContext",
+        "title": "Pointer: Add Selection to Context"
+      },
+      {
+        "command": "pointer.statusBarMenu",
+        "title": "Pointer - Status bar options"
+      },
+      {
+        "command": "pointer.terminalCommand",
+        "title": "Pointer - Write a terminal command from a description"
+      },
+      {
+        "command": "pointer.fixTerminalError",
+        "title": "Pointer - Fix the last terminal error"
+      }
+    ],
+    "keybindings": [
+      {
+        "key": "ctrl+i",
+        "mac": "cmd+i",
+        "command": "pointer.edit",
+        "when": "editorTextFocus && !editorReadonly"
+      },
+      {
+        "key": "CTRL+SHIFT+/",
+        "command": "pointer.stopGeneration",
+        "when": "pointerGeneratingText"
+      },
+      {
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "command": "pointer.acceptEdit",
+        "when": "pointerInlineEditPending && editorTextFocus"
+      },
+      {
+        "key": "ctrl+shift+backspace",
+        "mac": "cmd+shift+backspace",
+        "command": "pointer.rejectEdit",
+        "when": "pointerInlineEditPending && editorTextFocus"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "pointer-sidebar-view",
+          "title": "pointer",
+          "icon": "assets/pointer.svg"
+        }
+      ]
+    },
+    "views": {
+      "pointer-sidebar-view": [
+        {
+          "type": "webview",
+          "id": "pointer.sidebar",
+          "name": "pointer",
+          "icon": "assets/pointer.svg",
+          "contextualTitle": "pointer"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "pointer",
+      "properties": {
+        "pointer.enabled": {
+          "order": 0,
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Toggles the Pointer extension on or off. When `true`, Pointer is active and ready to provide completions."
+        },
+        "pointer.temperature": {
+          "order": 6,
+          "type": "number",
+          "default": 0.2,
+          "markdownDescription": "Controls the randomness of code completions. Lower values (e.g., 0.2) produce more focused and deterministic completions, while higher values (e.g., 0.8) lead to more diverse ones. Chat, inline edit and code review send no temperature; the server's default applies.",
+          "required": true
+        },
+        "pointer.numPredictFim": {
+          "order": 12,
+          "type": "number",
+          "default": 512,
+          "markdownDescription": "Defines the maximum number of tokens for Fill-in-Middle (FIM) completions. Use `-1` for no limit. Pointer will attempt to stop at logical line breaks regardless of this setting.",
+          "required": true
+        },
+        "pointer.embeddingIgnoredGlobs": {
+          "order": 14,
+          "type": "array",
+          "default": [],
+          "markdownDescription": "Extra file patterns to skip when building embeddings, such as `**/*.md` or `**/fixtures/**`. Only source, config and documentation files are indexed to begin with; binaries such as fonts and images are always skipped."
+        },
+        "pointer.embeddingUpdateOnSave": {
+          "order": 14,
+          "type": "boolean",
+          "default": true,
+          "description": "Keep the workspace index current: re-embed a file when it is saved and forget it when it is deleted. Only applies once the workspace has been indexed."
+        },
+        "pointer.ollamaHostname": {
+          "order": 15,
+          "type": "string",
+          "default": "0.0.0.0",
+          "markdownDescription": "Specifies the hostname for the Ollama API. Use `0.0.0.0` for localhost or provide a specific IP address or domain name.",
+          "required": true
+        },
+        "pointer.ollamaApiPort": {
+          "order": 16,
+          "type": [
+            "number",
+            "null"
+          ],
+          "default": 11434,
+          "markdownDescription": "Sets the port number for the Ollama API. The default is `11434`, but you can change it if your Ollama instance uses a different port.",
+          "required": false
+        },
+        "pointer.keepAlive": {
+          "order": 17,
+          "type": "string",
+          "default": "5m",
+          "markdownDescription": "Sets the duration to keep models in memory for Ollama API. Use formats like `5m` for 5 minutes or `1h` for 1 hour. Set to `-1` to keep models in memory indefinitely."
+        },
+        "pointer.ollamaUseTls": {
+          "order": 18,
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "When `true`, Pointer will use TLS encryption for connections to the Ollama API. Ensure your Ollama instance is configured for TLS before enabling this option."
+        },
+        "pointer.secretShield": {
+          "order": 18,
+          "type": "string",
+          "enum": [
+            "offMachine",
+            "always",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Redact credentials in prompts sent to anything that is not on this machine: hosted APIs, a Pointer gateway, a paired device, a server elsewhere on the network.",
+            "Redact credentials in every prompt, local servers included.",
+            "Send prompts as they are."
+          ],
+          "default": "offMachine",
+          "markdownDescription": "**Secret shield.** API keys, tokens, private keys and passwords in a prompt (your question, attached files, the code around the cursor) are replaced with placeholders like `REDACTED_GITHUB_TOKEN_1` before the request is sent, and put back wherever the reply repeats a placeholder. The model never sees the value; the chat shows how many were withheld. Detection covers well-known token formats, private key blocks, passwords in URLs, and secret-named values in code and `.env` files."
+        },
+        "pointer.enableLogging": {
+          "order": 19,
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Writes what Pointer is doing to the **Pointer** output channel: one line per completion or chat request with model, timing, size and why it stopped. Set the channel's log level to *Debug* (the dropdown in the Output panel) to also see the prompts and replies. Warnings and errors are written even when this is off."
+        },
+        "pointer.chatTools": {
+          "order": 20,
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "**Experimental.** Lets the chat model work in the workspace: find, read and search files (by regular expression, and by meaning through the embeddings index), read git history, ask the language servers for errors, references and definitions, edit, create, rename, move and delete files, and run commands. Edits are applied straight away unless `#pointer.chatToolsEdits#` asks for review; each applied edit comes back with any errors the editor then reports in the file, and the reply ends with the files it changed, each of which can be compared with what it was or undone. Commands ask first unless `#pointer.chatToolsCommands#` says otherwise. The project's `AGENTS.md` (or `CLAUDE.md`) is followed, and a folder's own `AGENTS.md` once the model works there. Files ignored by a `.gitignore` are off limits, and changes to `.vscode/`, a `.gitignore` or an `AGENTS.md` are always shown for review. Each step shows in the reply at the point it ran. Needs a capable coder model such as `qwen3-coder:30b` with a context of 8k tokens or more; small models tend to call tools badly. Set in your user settings; a workspace cannot turn it on.",
+          "scope": "machine"
+        },
+        "pointer.chatToolsEdits": {
+          "order": 20,
+          "type": "string",
+          "enum": [
+            "apply",
+            "review"
+          ],
+          "enumDescriptions": [
+            "Edits go straight into the file and are saved; the model carries on until the task is done. Ctrl+Z in the file undoes an edit. Deleting a file git has no copy of still asks first.",
+            "Each edit opens as a diff to accept or reject, and the model stops until you have decided. Renames, moves and deletes ask in the chat."
+          ],
+          "default": "apply",
+          "markdownDescription": "What happens when the chat model changes a file (with `#pointer.chatTools#` on).",
+          "scope": "machine"
+        },
+        "pointer.chatToolsCommands": {
+          "order": 20,
+          "type": "string",
+          "enum": [
+            "ask",
+            "allow",
+            "off"
+          ],
+          "enumDescriptions": [
+            "Each command the model wants to run is shown in the chat with Run, Always run and Skip first.",
+            "Commands run straight away. A command cannot be undone like an edit can.",
+            "The model cannot run commands."
+          ],
+          "default": "ask",
+          "markdownDescription": "Whether the chat model may run shell commands (tests, builds), with `#pointer.chatTools#` on. It sees the exit code and the end of the output. This sets where the **auto-run** switch in the chat's composer starts; once you switch it, the switch decides (`off` still turns commands off). Reading git (status, diff, log) never asks: it cannot change anything.",
+          "scope": "machine"
+        },
+        "pointer.chatToolsMcpServers": {
+          "order": 20,
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "command"
+            ],
+            "properties": {
+              "command": {
+                "type": "string",
+                "description": "The program that runs the server, e.g. npx or uvx."
+              },
+              "args": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Its arguments."
+              },
+              "env": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Environment variables for it, on top of VS Code's."
+              },
+              "cwd": {
+                "type": "string",
+                "description": "The folder it runs in; the workspace root by default."
+              }
+            }
+          },
+          "markdownDescription": "Model Context Protocol servers whose tools agent mode can use (with `#pointer.chatTools#` on), by name: `{ \"github\": { \"command\": \"npx\", \"args\": [\"-y\", \"@modelcontextprotocol/server-github\"], \"env\": { \"GITHUB_TOKEN\": \"…\" } } }`. Servers run on this machine over standard input and output, start with the first agent reply and stop with the chat. Each call is shown with Run and Skip first, unless you chose Always run for that tool. Every tool goes into every agent request, so a server with many tools makes small models pick worse. Set in your user settings; a workspace cannot add one.",
+          "scope": "machine"
+        },
+        "pointer.chatToolsMaxSteps": {
+          "order": 20,
+          "type": "number",
+          "default": 30,
+          "minimum": 4,
+          "maximum": 40,
+          "markdownDescription": "How many tool steps one agent reply may take before the model is asked to answer with what it has (with `#pointer.chatTools#` on). More lets a capable model finish longer tasks in one reply; each step is another request to the model.",
+          "scope": "machine"
+        },
+        "pointer.chatToolsTasks": {
+          "order": 20,
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Let the model keep a task list for work with several parts (with `#pointer.chatTools#` on). The list shows in the reply as it is ticked off, and is put back in front of the model when a reply runs out of steps or the next turn begins.",
+          "scope": "machine"
+        },
+        "pointer.chatToolsCommandsRunIn": {
+          "order": 20,
+          "type": "string",
+          "enum": [
+            "background",
+            "terminal"
+          ],
+          "enumDescriptions": [
+            "Each command runs in a process of its own through your shell, from the workspace root. Its output shows in the chat as it prints. Nothing can answer a prompt, and it is stopped after two minutes.",
+            "Commands run in the **pointer tools** terminal, which opens beside the editor, so you can watch and type into them. Needs VS Code's shell integration; without it they run in the background."
+          ],
+          "default": "background",
+          "markdownDescription": "Where the chat model's commands run (with `#pointer.chatToolsCommands#` not `off`).",
+          "scope": "machine"
+        },
+        "pointer.providerStorageLocation": {
+          "order": 22,
+          "type": "string",
+          "enum": [
+            "globalState",
+            "file"
+          ],
+          "default": "globalState",
+          "markdownDescription": "Specifies where to store Pointer provider configurations. 'globalState' uses VS Code's global state (persists per domain, may be lost if domain changes frequently). 'file' stores configurations in a file within the extension's global storage directory (more resilient to domain changes)."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "build-tests": "tsc -p . --outDir out",
+    "clean": "node -e \"require('fs').rmSync('out',{recursive:true,force:true})\"",
+    "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
+    "package": "node scripts/build.mjs",
+    "pretest": "npm run clean && npm run build-tests && npm run build && npm run lint",
+    "test": "node ./out/test/runTest.js",
+    "test:sqlite": "node --test out/test/standalone/*.standalone.js",
+    "vscode:package": "npm exec vsce package",
+    "vscode:prepublish": "npm run package",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "watch": "node scripts/build.mjs --watch"
+  },
+  "devDependencies": {
+    "@types/cheerio": "^0.22.35",
+    "@types/mocha": "^10.0.6",
+    "@types/node": "^16.18.68",
+    "@types/react-dom": "^18.2.18",
+    "@types/react-syntax-highlighter": "^15.5.11",
+    "@types/uuid": "^9.0.8",
+    "@types/vscode": "^1.93.0",
+    "@typescript-eslint/eslint-plugin": "^8.21.0",
+    "@typescript-eslint/parser": "^8.21.0",
+    "@vscode/test-cli": "^0.0.6",
+    "@vscode/test-electron": "^2.3.10",
+    "@vscode/vsce": "^3.1.1",
+    "esbuild": "^0.21.5",
+    "esbuild-plugin-copy": "^2.1.1",
+    "eslint-plugin-import": "^2.31.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "jest": "^29.7.0",
+    "mocha": "^10.3.0",
+    "tree-sitter-wasms": "^0.1.7",
+    "typescript": "^4.7.4",
+    "web-tree-sitter": "^0.22.1"
+  },
+  "dependencies": {
+    "@lancedb/lancedb": "^0.19.1",
+    "@tiptap/extension-image": "^2.11.7",
+    "@tiptap/extension-mention": "^2.5.9",
+    "@tiptap/extension-placeholder": "^2.5.9",
+    "@tiptap/pm": "^2.5.9",
+    "@tiptap/react": "^2.5.9",
+    "@tiptap/starter-kit": "^2.5.9",
+    "@tiptap/suggestion": "^2.5.9",
+    "@types/react": "^18.2.46",
+    "@vscode/codicons": "^0.0.35",
+    "@vscode/webview-ui-toolkit": "^1.4.0",
+    "cheerio": "^1.0.0",
+    "classnames": "^2.5.1",
+    "dompurify": "^3.2.3",
+    "fluency.js": "^1.0.33",
+    "fuse.js": "^7.0.0",
+    "handlebars": "^4.7.8",
+    "ignore": "^6.0.2",
+    "onnxruntime-web": "^1.18.0",
+    "p-queue": "^8.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-markdown": "^9.0.1",
+    "react-syntax-highlighter": "^15.5.0",
+    "react-virtuoso": "^4.12.3",
+    "remark-gfm": "^4.0.0",
+    "tippy.js": "^6.3.7",
+    "tiptap-markdown": "^0.8.10",
+    "toxe": "^1.1.0",
+    "uuid": "^9.0.1"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}
