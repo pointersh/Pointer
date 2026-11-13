@@ -1,14 +1,11 @@
 import * as fs from "fs"
-import * as path from "path"
 import * as vscode from "vscode"
 
 import { EXTENSION_CONTEXT_NAME } from "../../common/constants"
 import { logger } from "../../common/logger"
-import { ChatCompletionMessage, PointerProvider } from "../../common/types"
+import { ChatCompletionMessage } from "../../common/types"
 import { GenerationRun, GenerationTracker } from "../generations"
-import { isCancelled, resolveInferenceProvider } from "../inference"
-import { Base } from "../providers/base"
-import { describeProviderErrorPlain, isAbortError } from "../providers/errors"
+import { TextModel, textModel } from "../model"
 
 import { DiffLayout, layoutDiff, locateSnippet } from "./diff"
 import {
@@ -26,14 +23,6 @@ import {
   lineRange,
   spanRange
 } from "./region"
-import {
-  appendTests,
-  buildTestMessages,
-  declaredDependencies,
-  isTestFile,
-  testFilePath,
-  testFrameworkFor
-} from "./tests"
 
 export interface InlineEditArgs {
   uri?: vscode.Uri | string
@@ -91,7 +80,7 @@ const REVIEW_HINT = mac
   ? "Pointer: review the edit — ⌘⇧↩ accepts, ⌘⇧⌫ rejects"
   : "Pointer: review the edit — Ctrl+Shift+Enter accepts, Ctrl+Shift+Backspace rejects"
 
-export class InlineEditService extends Base {
+export class InlineEditService {
   private _run?: GenerationRun
   private _pending?: DiffRegion
   private readonly _emitter = new vscode.EventEmitter<void>()
@@ -106,7 +95,6 @@ export class InlineEditService extends Base {
     context: vscode.ExtensionContext,
     private readonly _generations: GenerationTracker
   ) {
-    super(context)
     context.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument((event) => this.onChange(event)),
       vscode.workspace.onDidCloseTextDocument((document) => {
@@ -121,7 +109,6 @@ export class InlineEditService extends Base {
   }
 
   public dispose() {
-    super.dispose()
     this._emitter.dispose()
     this._removedDecoration.dispose()
     this._addedDecoration.dispose()
@@ -146,8 +133,8 @@ export class InlineEditService extends Base {
       )
       return
     }
-    const provider = await this.requireProvider()
-    if (!provider) return
+    const model = this.requireModel()
+    if (!model) return
 
     const pending = this._pending
     if (pending) {
@@ -156,7 +143,7 @@ export class InlineEditService extends Base {
         args?.instruction?.trim() ||
         (await this.askInstruction(editor, pending.range, true))
       if (!instruction) return
-      await this.edit(editor, pending, instruction, provider)
+      await this.edit(editor, pending, instruction, model)
       return
     }
 
@@ -176,7 +163,7 @@ export class InlineEditService extends Base {
       args?.instruction?.trim() || (await this.askInstruction(editor, range))
     if (!instruction) return
 
-    await this.edit(editor, new DiffRegion(editor, range), instruction, provider)
+    await this.edit(editor, new DiffRegion(editor, range), instruction, model)
   }
 
   public async propose(code: string) {
@@ -355,84 +342,6 @@ export class InlineEditService extends Base {
     }
   }
 
-  public async writeTests() {
-    if (this.running || this._pending) {
-      vscode.window.showInformationMessage(
-        "Pointer has an edit in progress. Accept or reject it first."
-      )
-      return
-    }
-    const provider = await this.requireProvider()
-    if (!provider) return
-
-    const source = vscode.window.activeTextEditor
-    if (!source || source.document.uri.scheme !== "file") {
-      vscode.window.showInformationMessage("Open a file to write tests for.")
-      return
-    }
-    const document = source.document
-    if (isTestFile(document.uri.fsPath)) {
-      vscode.window.showInformationMessage(
-        "This is a test file already. Open the code to test and try again."
-      )
-      return
-    }
-
-    const range = source.selection.isEmpty
-      ? new vscode.Range(
-          0,
-          0,
-          document.lineCount - 1,
-          document.lineAt(document.lineCount - 1).range.end.character
-        )
-      : this.wholeLines(document, source.selection)
-    const code = document.getText(range)
-    if (!code.trim()) {
-      vscode.window.showInformationMessage("There is no code to write tests for.")
-      return
-    }
-
-    const target = vscode.Uri.file(testFilePath(document.uri.fsPath, document.languageId))
-    const editor = await this.openTestFile(target, document.languageId, source)
-    const testDocument = editor.document
-    const last = testDocument.lineCount - 1
-    const region = new DiffRegion(
-      editor,
-      new vscode.Range(last, 0, last, testDocument.lineAt(last).range.end.character)
-    )
-    const lastLine = testDocument.getText(region.range)
-    const empty = !testDocument.getText().trim()
-    const shape = (body: string) => appendTests(lastLine, empty, body)
-
-    const messages = buildTestMessages({
-      code,
-      language: document.languageId,
-      fileName: vscode.workspace.asRelativePath(document.uri),
-      testFileName: vscode.workspace.asRelativePath(target),
-      framework: testFrameworkFor(
-        document.languageId,
-        this.dependenciesNear(document.uri.fsPath)
-      ),
-      existing: empty ? undefined : testDocument.getText()
-    })
-
-    await this.generate(provider, {
-      region,
-      messages,
-      preview: (reply) => shape(previewEdit(reply, "")),
-      finalize: (reply) => {
-        const body = finalizeEdit(reply, "")
-        return body ? shape(body) + "\n" : lastLine
-      },
-      what: "tests",
-      describe: JSON.stringify({
-        file: vscode.workspace.asRelativePath(document.uri),
-        lines: `${range.start.line + 1}-${range.end.line + 1}`,
-        testFile: vscode.workspace.asRelativePath(target)
-      })
-    })
-  }
-
   public accept(hunk?: number) {
     return this.resolve("accept", hunk)
   }
@@ -468,18 +377,10 @@ export class InlineEditService extends Base {
     )
   }
 
-  private async requireProvider(): Promise<PointerProvider | undefined> {
-    const provider = this.getProvider()
-    if (provider) return provider
-    const choice = await vscode.window.showWarningMessage(
-      "Pointer has no chat provider configured.",
-      "Manage providers"
-    )
-    if (choice) {
-      await vscode.commands.executeCommand("pointer.sidebar.focus")
-      await vscode.commands.executeCommand("pointer.manageProviders")
-    }
-    return undefined
+  private requireModel(): TextModel | undefined {
+    const model = textModel()
+    if (!model) vscode.window.showWarningMessage("Pointer is not connected to TrueForge yet.")
+    return model
   }
 
   private async editorFor(document: vscode.TextDocument) {
@@ -487,48 +388,6 @@ export class InlineEditService extends Base {
       (editor) => editor.document === document
     )
     return visible ?? vscode.window.showTextDocument(document)
-  }
-
-  private async openTestFile(
-    target: vscode.Uri,
-    languageId: string,
-    source: vscode.TextEditor
-  ): Promise<vscode.TextEditor> {
-    const exists = fs.existsSync(target.fsPath)
-    const uri = exists ? target : target.with({ scheme: "untitled" })
-    const shown = vscode.window.visibleTextEditors.find(
-      (editor) => editor.document.uri.toString() === uri.toString()
-    )
-    if (shown) return shown
-    const document = await vscode.workspace.openTextDocument(uri)
-    if (!exists && document.languageId !== languageId) {
-      await vscode.languages.setTextDocumentLanguage(document, languageId)
-    }
-    if (vscode.window.activeTextEditor !== source) {
-      await vscode.window.showTextDocument(source.document, source.viewColumn)
-    }
-    return vscode.window.showTextDocument(document, {
-      viewColumn: vscode.ViewColumn.Beside,
-      preview: false
-    })
-  }
-
-  private dependenciesNear(filePath: string): string[] {
-    let dir = path.dirname(filePath)
-    for (let depth = 0; depth < 12; depth++) {
-      const candidate = path.join(dir, "package.json")
-      if (fs.existsSync(candidate)) {
-        try {
-          return declaredDependencies(fs.readFileSync(candidate, "utf8"))
-        } catch {
-          return []
-        }
-      }
-      const parent = path.dirname(dir)
-      if (parent === dir) break
-      dir = parent
-    }
-    return []
   }
 
   private async closeIfEmptyUntitled(document: vscode.TextDocument) {
@@ -605,7 +464,7 @@ export class InlineEditService extends Base {
     editor: vscode.TextEditor,
     region: DiffRegion,
     instruction: string,
-    provider: PointerProvider
+    model: TextModel
   ) {
     const document = editor.document
     const range = region.range
@@ -639,7 +498,7 @@ export class InlineEditService extends Base {
       )
     })
 
-    await this.generate(provider, {
+    await this.generate(model, {
       region,
       messages,
       preview: (reply) => previewEdit(reply, proposed),
@@ -653,12 +512,11 @@ export class InlineEditService extends Base {
     })
   }
 
-  private async generate(provider: PointerProvider, generation: Generation) {
+  private async generate(model: TextModel, generation: Generation) {
     const { region, messages, what } = generation
     const { baseline, proposed } = region.sides()
     const snapshot = region.snapshot()
 
-    const inference = resolveInferenceProvider(provider)
 
     this._pending = region
     const run = this.begin()
@@ -666,24 +524,20 @@ export class InlineEditService extends Base {
 
     try {
       logger.info(
-        `Inline ${what} request (${provider.modelName}): ${generation.describe}`
+        `Inline ${what} request (${model.name}): ${generation.describe}`
       )
 
-      const chunks = inference.chat(
-        { model: provider.modelName, messages },
-        { signal: run.signal }
-      )
       try {
-        for await (const chunk of chunks) {
+        for await (const chunk of model.stream(messages, run.signal)) {
           if (region.broken) break
-          reply += chunk.content
+          reply += chunk
           await region.render(
             layoutDiff(baseline, generation.preview(reply), true)
           )
           this.decorate()
         }
       } catch (error) {
-        if (!isCancelled(error)) throw error
+        if (!run.signal.aborted) throw error
       }
 
       if (region.broken) {
@@ -721,10 +575,10 @@ export class InlineEditService extends Base {
     } catch (error) {
       if (!region.broken) await this.rewind(region, snapshot)
       else this.clearPending()
-      if (!isAbortError(error)) {
+      if (!run.signal.aborted) {
         logger.error(error instanceof Error ? error : String(error))
         vscode.window.showErrorMessage(
-          `Pointer could not write the ${what}: ${describeProviderErrorPlain(error, provider)}`
+          `Pointer could not write the ${what}: ${error instanceof Error ? error.message : String(error)}`
         )
       }
     } finally {

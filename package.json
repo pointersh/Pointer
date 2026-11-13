@@ -99,30 +99,9 @@
       ],
       "view/title": [
         {
-          "command": "pointer.openChat",
-          "group": "navigation@0",
-          "when": "view == pointer.sidebar && pointerManageTemplates || view == pointer.sidebar && pointerManageProviders || view == pointer.sidebar && pointerConversationHistory || view == pointer.sidebar && pointerReviewTab || view == pointer.sidebar && pointerEmbeddingsTab"
-        },
-        {
-          "command": "pointer.manageProviders",
-          "group": "navigation@3",
-          "when": "view == pointer.sidebar"
-        },
-        {
           "command": "pointer.manageTemplates",
           "group": "navigation@4",
           "when": "view == pointer.sidebar"
-        },
-        {
-          "command": "pointer.embeddings",
-          "when": "view == pointer.sidebar",
-          "group": "navigation@5",
-          "icon": "$(database)"
-        },
-        {
-          "command": "pointer.conversationHistory",
-          "when": "view == pointer.sidebar",
-          "group": "navigation@6"
         },
         {
           "command": "pointer.openPanelChat",
@@ -236,12 +215,6 @@
         "icon": "$(gear)"
       },
       {
-        "command": "pointer.conversationHistory",
-        "shortTitle": "pointer conversation history",
-        "title": "Open pointer conversation history",
-        "icon": "$(history)"
-      },
-      {
         "command": "pointer.openPanelChat",
         "shortTitle": "Open pointer panel chat",
         "title": "Open pointer panel chat",
@@ -275,26 +248,8 @@
         "icon": "$(book)"
       },
       {
-        "command": "pointer.manageProviders",
-        "shortTitle": "Manage pointer providers",
-        "title": "Manage pointer providers",
-        "icon": "$(robot)"
-      },
-      {
         "command": "pointer.showLogs",
         "title": "Pointer - Show logs"
-      },
-      {
-        "command": "pointer.openChat",
-        "shortTitle": "Back to chat view",
-        "title": "Back to chat view",
-        "icon": "$(arrow-left)"
-      },
-      {
-        "command": "pointer.embeddings",
-        "shortTitle": "pointer embeddings",
-        "title": "Embedding options",
-        "icon": "$(database)"
       },
       {
         "command": "pointer.addFileToContext",
@@ -597,17 +552,12 @@
     "@vscode/test-electron": "^2.3.10",
     "@vscode/vsce": "^3.1.1",
     "esbuild": "^0.21.5",
-    "esbuild-plugin-copy": "^2.1.1",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-simple-import-sort": "^12.1.1",
-    "jest": "^29.7.0",
     "mocha": "^10.3.0",
-    "tree-sitter-wasms": "^0.1.7",
-    "typescript": "^4.7.4",
-    "web-tree-sitter": "^0.22.1"
+    "typescript": "^4.7.4"
   },
   "dependencies": {
-    "@lancedb/lancedb": "^0.19.1",
     "@tiptap/extension-image": "^2.11.7",
     "@tiptap/extension-mention": "^2.5.9",
     "@tiptap/extension-placeholder": "^2.5.9",
@@ -623,10 +573,7 @@
     "dompurify": "^3.2.3",
     "fluency.js": "^1.0.33",
     "fuse.js": "^7.0.0",
-    "handlebars": "^4.7.8",
     "ignore": "^6.0.2",
-    "onnxruntime-web": "^1.18.0",
-    "p-queue": "^8.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-markdown": "^9.0.1",
@@ -635,7 +582,6 @@
     "remark-gfm": "^4.0.0",
     "tippy.js": "^6.3.7",
     "tiptap-markdown": "^0.8.10",
-    "toxe": "^1.1.0",
     "uuid": "^9.0.1"
   },
   "os": [

@@ -1,7 +1,7 @@
 import fs from "fs"
 import path from "path"
 
-import { looksBinary } from "../embeddings/indexable"
+import { looksBinary } from "../indexable"
 
 import type { WorkspaceView } from "./view"
 

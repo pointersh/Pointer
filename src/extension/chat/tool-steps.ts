@@ -1,5 +1,20 @@
 import { ToolStepView } from "../../common/types"
-import { ToolStart, ToolStep } from "../tools/loop"
+
+export interface ToolStep {
+  id: string
+  index: number
+  name?: string
+  args?: Record<string, string>
+  summary: string
+  output: string
+  failed?: boolean
+}
+
+export interface ToolStart {
+  id: string
+  name: string
+  args: Record<string, string>
+}
 
 const MAX_SHOWN_OUTPUT = 4000
 const MAX_SHOWN_ARG = 2000

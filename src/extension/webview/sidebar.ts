@@ -1,8 +1,6 @@
 import * as vscode from "vscode"
 
 import { logger } from "../../common/logger"
-import { WorkspaceIndex } from "../embeddings"
-import { GenerationTracker } from "../generations"
 import { SessionManager } from "../session-manager"
 import { getNonce } from "../utils"
 
@@ -13,12 +11,10 @@ export class SidebarProvider extends BaseProvider {
   private _sidebarReadyPromise: Promise<void> = Promise.resolve()
 
   constructor(
-    generations: GenerationTracker,
     context: vscode.ExtensionContext,
-    index: WorkspaceIndex | undefined,
     sessionManager: SessionManager
   ) {
-    super(context, generations, index, sessionManager)
+    super(context, sessionManager)
     this.context = context
     this.registerSidebarReadyHandler(this.handleSidebarReady)
   }

@@ -4,7 +4,7 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 
-import { looksBinary } from "../embeddings/indexable"
+import { looksBinary } from "../indexable"
 
 import { MAX_KEPT_FILE_BYTES } from "./reply-changes"
 

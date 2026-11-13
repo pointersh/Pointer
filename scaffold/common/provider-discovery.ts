@@ -1,13 +1,11 @@
 import {
-  API_PROVIDERS,
-  FIM_TEMPLATE_FORMAT,
-  PROVIDER_DISPLAY_NAMES
+API_PROVIDERS,PROVIDER_DISPLAY_NAMES
 } from "./constants"
 import { pickModelStrict } from "./model-pick"
 import {
-  getEndpointDefaults,
-  PROVIDER_TYPES,
-  ProviderType
+getEndpointDefaults,
+PROVIDER_TYPES,
+ProviderType
 } from "./provider-validation"
 import { PointerProvider } from "./types"
 

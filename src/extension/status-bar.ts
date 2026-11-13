@@ -26,7 +26,7 @@ export class PointerStatusBar {
       const provider = this._context.globalState.get<PointerProvider>(ACTIVE_CHAT_PROVIDER_STORAGE_KEY)
       this._item.text = "$(code)"
       this._item.tooltip = provider ? `Pointer · ${provider.modelName} (${provider.label})` : "Pointer · no model selected"
-      this._item.command = POINTER_COMMAND_NAME.openChat
+      this._item.command = POINTER_COMMAND_NAME.focusSidebar
     }
     this._item.show()
   }

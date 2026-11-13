@@ -2,7 +2,7 @@ import fs from "fs"
 import ignore, { Ignore } from "ignore"
 import path from "path"
 
-import { isIndexablePath, looksBinary } from "../embeddings/indexable"
+import { isIndexablePath, looksBinary } from "../indexable"
 
 export const MAX_LINE_CHARS = 200
 const MAX_FILE_BYTES = 512 * 1024

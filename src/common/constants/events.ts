@@ -5,17 +5,14 @@ export const EVENT_NAME = {
   pointerFileListRequest: "pointer-file-list-request",
   pointerGetConfigValue: "pointer-get-config-value",
   pointerGetContextItems: "pointer-get-context-items",
-  pointerGetModels: "pointer-get-models",
   pointerGetWorkspaceContext: "pointer-workspace-context",
   pointerGlobalContext: "pointer-global-context",
-  pointerHideBackButton: "pointer-hide-back-button",
   pointerNewConversation: "pointer-new-conversation",
   pointerNewDocument: "pointer-new-document",
   pointerNotification: "pointer-notification",
   pointerOnCompletion: "pointer-on-completion",
   pointerOnLoading: "pointer-on-loading",
   pointerOpenFile: "pointer-open-file",
-  pointerOpenProviders: "pointer-open-providers",
   pointerRemoveContextItem: "pointer-remove-context-item",
   pointerRunInTerminal: "pointer-run-in-terminal",
   pointerInsertAtCursor: "pointer-insert-at-cursor",
@@ -40,48 +37,10 @@ export const EVENT_NAME = {
   pointerUndoChanges: "pointer-undo-changes",
   pointerOpenAgentSettings: "pointer-open-agent-settings",
   pointerToolSteps: "pointer-tool-steps",
-  pointerModelStatus: "pointer-model-status",
-  pointerWarmModel: "pointer-warm-model",
-  pointerStarter: "pointer-starter",
   pointerUpdateContextItems: "pointer-update-context-items",
   pointerWorkspaceSearch: "pointer-workspace-search"
 } as const
 
-export const CONVERSATION_EVENT_NAME = {
-  clearAllConversations: "pointer.clear-all-conversations",
-  getActiveConversation: "pointer.get-active-conversation",
-  getConversations: "pointer.get-conversations",
-  removeConversation: "pointer.remove-conversation",
-  renameConversation: "pointer.rename-conversation",
-  saveConversation: "pointer.save-conversation",
-  setActiveConversation: "pointer.set-active-conversation"
-} as const
 
-export const EMBEDDING_EVENT_NAME = {
-  cancel: "embeddings.cancel",
-  embed: "embeddings.embed",
-  getStatus: "embeddings.getStatus",
-  progress: "embeddings.progress",
-  rebuild: "embeddings.rebuild"
-} as const
 
-export const PROVIDER_EVENT_NAME = {
-  addProvider: "pointer.add-provider",
-  copyProvider: "pointer.copy-provider",
-  discoverProviders: "pointer.discover-providers",
-  exportProviders: "pointer.export-providers",
-  focusProviderTab: "pointer.focus-provider-tab",
-  getActiveChatProvider: "pointer.get-active-provider",
-  getActiveEmbeddingsProvider: "pointer.get-active-embeddings-provider",
-  getAllProviders: "pointer.get-providers",
-  importProviders: "pointer.import-providers",
-  listProviderModels: "pointer.list-provider-models",
-  removeProvider: "pointer.remove-provider",
-  resetProvidersToDefaults: "pointer.reset-providers-to-defaults",
-  setActiveChatProvider: "pointer.set-active-chat-provider",
-  setActiveEmbeddingsProvider: "pointer.set-active-embeddings-provider",
-  testProvider: "pointer.test-provider",
-  updateProvider: "pointer.update-provider",
-  useDiscoveredServer: "pointer.use-discovered-server"
-} as const
 

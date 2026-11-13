@@ -1,30 +1,18 @@
 import fs from "fs"
 import ignore from "ignore"
 import path from "path"
-import * as vscode from "vscode"
 import {
-  ColorThemeKind,
-  Position,
-  Range,
-  Terminal,
-  TextDocument,
-  window,
-  workspace
+ColorThemeKind,Terminal,window,
+workspace
 } from "vscode"
-import { SyntaxNode } from "web-tree-sitter"
 
 import {
-  EVENT_NAME,
-  FIM_MAX_PREFIX_CHARS,
-  FIM_MAX_SUFFIX_CHARS,
-  knownErrorMessages,
-  NORMALIZE_REGEX,
-  POINTER
+EVENT_NAME,POINTER
 } from "../common/constants"
 import { supportedLanguages } from "../common/languages"
-import { LanguageType, PrefixSuffix, Theme } from "../common/types"
+import { LanguageType, Theme } from "../common/types"
 
-import { isIndexablePath } from "./embeddings/indexable"
+import { isIndexablePath } from "./indexable"
 import { ExtensionBridge } from "./messaging/bridge"
 
 export const getTextSelection = () => {
@@ -62,8 +50,6 @@ export const trimToLineBoundary = (
   const newline = text.lastIndexOf("\n", maxChars - 1)
   return newline === -1 ? text.slice(0, maxChars) : text.slice(0, newline + 1)
 }
-
-const BLOCK_OPENERS = ["{", "(", "[", ":", "=>", "=", ","]
 
 export const getTheme = () => {
   const currentTheme = window.activeColorTheme

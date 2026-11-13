@@ -2,37 +2,34 @@ import { ChildProcess, execFile, spawn } from "child_process"
 import { existsSync } from "fs"
 import path from "path"
 import {
-  commands,
-  Diagnostic,
-  DiagnosticSeverity,
-  languages,
-  Location,
-  LocationLink,
-  Position,
-  Range,
-  Terminal,
-  TerminalShellIntegration,
-  Uri,
-  window,
-  workspace,
-  WorkspaceEdit
+commands,
+Diagnostic,
+DiagnosticSeverity,
+languages,
+Location,
+LocationLink,
+Position,
+Range,
+Terminal,
+TerminalShellIntegration,
+Uri,
+window,
+workspace,
+WorkspaceEdit
 } from "vscode"
 
 import {
-  DEFAULT_RERANK_THRESHOLD,
-  DEFAULT_WORKSPACE_HIT_CHARS,
-  POINTER,
-  POINTER_COMMAND_NAME
+POINTER,
+POINTER_COMMAND_NAME
 } from "../../common/constants"
 import { logger } from "../../common/logger"
 import type { ChatEditMode, ChatEditOutcome } from "../edit/service"
-import { WorkspaceSearch } from "../embeddings/search"
 import { stripAnsi, tailOutput } from "../terminal/output"
 import type { Replacement } from "../tools/edit"
 import { isProtectedPath } from "../tools/helpers"
 import { EditorDiagnostic, EditorLocation, EditorSink, FileOpsSink } from "../tools/more"
 import { WorkspaceView } from "../tools/view"
-import { CodeSearch, CommandOutcome, CommandSink, EditOutcome, EditSink } from "../tools/workspace"
+import { CommandOutcome, CommandSink, EditOutcome, EditSink } from "../tools/workspace"
 
 import { changesBetween, MAX_COMMAND_CHANGES, snapshotTree, TreeSnapshot } from "./command-snapshot"
 import type { ReplyChanges } from "./reply-changes"
@@ -44,8 +41,6 @@ const COMMAND_TIMEOUT_MS = 120_000
 const INTEGRATION_WAIT_MS = 4000
 const OUTPUT_TAIL = { maxChars: 4000, maxLines: 80 }
 const MAX_CAPTURE_CHARS = 200_000
-const SEARCH_HITS = 6
-const SEARCH_CHARS = 8000
 
 export type ApproveChange = (detail: string, approval: "command" | "change") => Promise<boolean>
 
@@ -686,14 +681,3 @@ const keepCommandChanges = async (
 
 export const normalCommand = (command: string) => command.trim().replace(/\s+/g, " ")
 
-export const indexSearch = (search: WorkspaceSearch, threshold: () => number | undefined): CodeSearch => ({
-  async search(query) {
-    const result = await search.searchDetailed(query, {
-      limit: SEARCH_HITS,
-      threshold: threshold() || DEFAULT_RERANK_THRESHOLD,
-      maxChars: SEARCH_CHARS,
-      expandChars: DEFAULT_WORKSPACE_HIT_CHARS
-    })
-    return result.hits.filter((hit) => hit.kind !== "imports")
-  }
-})

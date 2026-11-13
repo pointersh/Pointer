@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React,{ useCallback,useEffect,useMemo,useRef,useState } from "react"
 import { useTranslation } from "./strings"
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso"
 import Mention from "@tiptap/extension-mention"
@@ -10,36 +10,30 @@ import * as cheerio from "cheerio"
 import cx from "classnames"
 import { v4 as uuidv4 } from "uuid"
 
-import { ASSISTANT, EVENT_NAME, GLOBAL_STORAGE_KEY, USER } from "../common/constants"
-import { contextFit } from "../common/model-status"
+import { ASSISTANT, EVENT_NAME, USER } from "../common/constants"
 import {
-  AnyContextItem,
-  ChatCompletionMessage,
-  ImageAttachment,
-  MentionType,
-  ReplyChangesView,
-  ToolStepView
+AnyContextItem,
+ChatCompletionMessage,
+ImageAttachment,
+MentionType,
+ReplyChangesView,
+ToolStepView
 } from "../common/types"
 
 import { useAgentMode } from "./hooks/useAgentMode"
 import { useAutoRun } from "./hooks/useAutoRun"
 import { useAutosizeTextArea } from "./hooks/useAutosizeTextArea"
-import { useConversationHistory } from "./hooks/useConversationHistory"
-import { useModelStatus } from "./hooks/useModelStatus"
-import { useProviders } from "./hooks/useProviders"
+import { useConversation } from "./hooks/useConversation"
 import { useSelection } from "./hooks/useSelection"
-import { StorageType, useStorageContext } from "./hooks/useStorageContext"
 import { useSuggestion } from "./hooks/useSuggestion"
 import { useToolSteps } from "./hooks/useToolSteps"
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext"
 import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch"
-import { ProviderSelect } from "./providers/provider-select"
 import AgentSettings from "./agent-settings"
 import { EmptyChat } from "./empty-chat"
 import { createCustomImageExtension } from "./image-extension"
 import MessageItem from "./message-item"
-import { bridge, emit, useServerEvent } from "./messaging"
-import { ModelState } from "./model-state"
+import { emit, useServerEvent } from "./messaging"
 import { answerToolStep } from "./tool-steps"
 import { conversationMarkdown } from "./transcript"
 import { CustomKeyMap, getThinkingMessage } from "./utils"
@@ -97,18 +91,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
   const [isLoading, setIsLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [messages, setMessages] = useState<ChatCompletionMessage[]>([])
-  const { chatProvider, ready: providersReady } = useProviders()
-  const chatDisabled = providersReady && !chatProvider
-  const model = useModelStatus(chatProvider, isLoading)
-  const [draftChars, setDraftChars] = useState(0)
-  const conversationTokens = useMemo(() => {
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const meta = messages[i].meta
-      if (meta?.promptTokens) return meta.promptTokens + (meta.completionTokens ?? 0)
-    }
-    return Math.round(messages.reduce((chars, message) => chars + (message.content?.length ?? 0), 0) / 3.5)
-  }, [messages])
-  const fit = contextFit(conversationTokens, draftChars, model.status?.contextWindow)
+  const chatDisabled = false
   const [completion, setCompletion] = useState<ChatCompletionMessage | null>()
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const { contextItems, removeContextItem } = useWorkspaceContext()
@@ -216,7 +199,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
   const closeAgentSettings = useCallback(() => setAgentSettingsOpen(false), [])
 
   const { conversation, saveLastConversation, setActiveConversation } =
-    useConversationHistory()
+    useConversation()
 
   const chatRef = useRef<HTMLTextAreaElement>(null)
   const editorWrapRef = useRef<HTMLDivElement>(null)
@@ -743,7 +726,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
 
   useEffect(() => {
     if (!active) return
-    emit(EVENT_NAME.pointerHideBackButton)
     editorRef.current?.commands.focus()
   }, [active])
 
@@ -805,8 +787,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
           showOnlyWhenEditable: false
         })
       ],
-      onUpdate: ({ editor }) => {
-        setDraftChars(editor.getText().length)
+      onUpdate: () => {
         recallIndexRef.current = -1
         lastEscapeRef.current = 0
       }
@@ -1106,12 +1087,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
         )}
         <div className={styles.transcript}>
           {messages.length === 0 ? (
-            <EmptyChat
-              status={model.status}
-              warming={model.warming}
-              onWarm={model.warm}
-              disabled={!!generatingRef.current}
-            />
+            <EmptyChat />
           ) : (
             <Virtuoso
               style={{ height: "100%" }}
@@ -1309,19 +1285,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
               </div>
             </div>
           </form>
-          <div className={styles.footer}>
-            <ProviderSelect />
-            <span className={styles.footerEnd}>
-              <ModelState
-                status={model.status}
-                fit={fit}
-                model={chatProvider?.modelName}
-                warming={model.warming}
-                onWarm={model.warm}
-                hideLoad={messages.length === 0}
-              />
-            </span>
-          </div>
         </div>
       </div>
     </VSCodePanelView>

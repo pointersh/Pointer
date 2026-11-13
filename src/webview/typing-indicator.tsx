@@ -1,4 +1,3 @@
-import React from "react"
 
 import { POINTER } from "../common/constants"
 import { WorkspaceSearchReport } from "../common/messaging/protocol"

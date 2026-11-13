@@ -33,7 +33,7 @@ export class ReplyChangesEditor {
     private readonly _open: (file: string) => Promise<string | undefined>
   ) {
     current = _store
-    provider ??= workspace.registerTextDocumentContentProvider(BEFORE_SCHEME, beforeProvider)
+    if (!provider) provider = workspace.registerTextDocumentContentProvider(BEFORE_SCHEME, beforeProvider)
   }
 
   async openDiff(id: string, file: string): Promise<void> {

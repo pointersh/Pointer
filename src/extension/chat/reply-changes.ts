@@ -4,7 +4,7 @@ import path from "path"
 
 import { FileChangeView, ReplyChangesView } from "../../common/types"
 import { diffLines } from "../edit/diff"
-import { looksBinary } from "../embeddings/indexable"
+import { looksBinary } from "../indexable"
 
 export const MAX_KEPT_FILE_BYTES = 1024 * 1024
 export const MAX_KEPT_REPLIES = 50

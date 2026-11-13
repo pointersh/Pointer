@@ -1,75 +1,27 @@
 import * as path from "path"
 import { v4 as uuidv4 } from "uuid"
-import {
-  commands,
-  ExtensionContext,
-  languages,
-  StatusBarAlignment,
-  window,
-  workspace
-} from "vscode"
+import { commands, ExtensionContext, languages, StatusBarAlignment, window, workspace } from "vscode"
 import * as vscode from "vscode"
 
-import {
-  EVENT_NAME,
-  EXTENSION_CONTEXT_NAME,
-  EXTENSION_NAME,
-  POINTER_COMMAND_NAME,
-  WEBUI_TABS
-} from "./common/constants"
+import { EXTENSION_CONTEXT_NAME, EXTENSION_NAME, POINTER_COMMAND_NAME } from "./common/constants"
 import { logger } from "./common/logger"
 import { ContextItem, SelectionContextItem } from "./common/types"
 import { setContext } from "./extension/context"
 import { InlineEditCodeActionProvider } from "./extension/edit/code-actions"
 import { InlineEditCodeLensProvider } from "./extension/edit/code-lens"
-import {
-  ChatEditMode,
-  FileEditProposal,
-  InlineEditArgs,
-  InlineEditService
-} from "./extension/edit/service"
-import { WorkspaceIndex } from "./extension/embeddings"
+import { ChatEditMode, FileEditProposal, InlineEditArgs, InlineEditService } from "./extension/edit/service"
 import { GenerationTracker } from "./extension/generations"
-import { setUpProvidersOnFirstRun } from "./extension/providers/setup"
-import { ProviderStore } from "./extension/providers/store"
 import { SessionManager } from "./extension/session-manager"
 import { PointerStatusBar } from "./extension/status-bar"
 import { terminalHistory } from "./extension/terminal"
 import { SidebarProvider } from "./extension/webview/sidebar"
 
-const TABS = [
-  [POINTER_COMMAND_NAME.manageProviders, EXTENSION_CONTEXT_NAME.pointerManageProviders, WEBUI_TABS.providers],
-  [POINTER_COMMAND_NAME.embeddings, EXTENSION_CONTEXT_NAME.pointerEmbeddingsTab, WEBUI_TABS.embeddings],
-  [POINTER_COMMAND_NAME.conversationHistory, EXTENSION_CONTEXT_NAME.pointerConversationHistory, WEBUI_TABS.history]
-] as const
-
-export async function activate(context: ExtensionContext) {
+export function activate(context: ExtensionContext) {
   setContext(context)
   const generations = new GenerationTracker()
-  const statusBar = new PointerStatusBar(
-    window.createStatusBarItem(StatusBarAlignment.Right),
-    context,
-    generations
-  )
-
-  const providerSetup = setUpProvidersOnFirstRun(context, new ProviderStore(context))
-
-  const workspaceIndex = await WorkspaceIndex.open(context)
-  if (workspaceIndex) context.subscriptions.push(workspaceIndex)
-
-  const sidebarProvider = new SidebarProvider(
-    generations,
-    context,
-    workspaceIndex,
-    new SessionManager()
-  )
+  const statusBar = new PointerStatusBar(window.createStatusBarItem(StatusBarAlignment.Right), context, generations)
+  const sidebarProvider = new SidebarProvider(context, new SessionManager())
   const inlineEdit = new InlineEditService(context, generations)
-
-  const setTab = (contextName: string, tab: string) => {
-    void commands.executeCommand("setContext", contextName, true)
-    sidebarProvider.bridge?.emit(EVENT_NAME.pointerSetTab, tab)
-  }
-
   const addContextItem = (item: ContextItem | SelectionContextItem) => sidebarProvider.addContextItem(item)
 
   context.subscriptions.push(
@@ -99,21 +51,10 @@ export async function activate(context: ExtensionContext) {
       inlineEdit.chatCreate(file, content, mode)
     ),
     commands.registerCommand(POINTER_COMMAND_NAME.stopGeneration, () => generations.stopAll()),
-    ...TABS.map(([command, contextName, tab]) => commands.registerCommand(command, () => setTab(contextName, tab))),
-    commands.registerCommand(POINTER_COMMAND_NAME.hideBackButton, () => {
-      for (const [, contextName] of TABS) void commands.executeCommand("setContext", contextName, false)
-    }),
-    commands.registerCommand(POINTER_COMMAND_NAME.openChat, () => {
-      void commands.executeCommand(POINTER_COMMAND_NAME.hideBackButton)
-      sidebarProvider.bridge?.emit(EVENT_NAME.pointerSetTab, WEBUI_TABS.chat)
-    }),
     commands.registerCommand(POINTER_COMMAND_NAME.settings, () =>
       commands.executeCommand("workbench.action.openSettings", EXTENSION_NAME)
     ),
-    commands.registerCommand(POINTER_COMMAND_NAME.newConversation, () => {
-      sidebarProvider.newConversation()
-      sidebarProvider.bridge?.emit(EVENT_NAME.pointerSetTab, WEBUI_TABS.chat)
-    }),
+    commands.registerCommand(POINTER_COMMAND_NAME.newConversation, () => sidebarProvider.newConversation()),
     commands.registerCommand(POINTER_COMMAND_NAME.addFileToContext, async (clicked?: vscode.Uri, selected?: vscode.Uri[]) => {
       const active = window.activeTextEditor?.document.uri
       const uris = selected?.length ? selected : clicked ? [clicked] : active ? [active] : []
@@ -159,7 +100,6 @@ export async function activate(context: ExtensionContext) {
   )
 
   statusBar.refresh()
-  void providerSetup.then(() => statusBar.refresh())
 }
 
 export function deactivate() {}

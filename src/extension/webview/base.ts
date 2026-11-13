@@ -1,8 +1,6 @@
-import { models } from "fluency.js"
 import * as vscode from "vscode"
 
 import {
-  ACTIVE_FIM_PROVIDER_STORAGE_KEY,
   EVENT_NAME,
   POINTER_COMMAND_NAME,
   WORKSPACE_STORAGE_KEY
@@ -12,22 +10,11 @@ import {
   ContextValue,
   NewDocumentRequest
 } from "../../common/messaging/protocol"
-import {
-  AnyContextItem,
-  ModelCatalogue,
-  PointerProvider
-} from "../../common/types"
-import { Chat } from "../chat"
-import { ConversationHistory } from "../chat/conversation-history"
-import { runStarter } from "../chat/starters"
+import { AnyContextItem } from "../../common/types"
+import { Agent } from "../agent"
 import { searchSymbols } from "../chat/symbols"
-import { WorkspaceIndex } from "../embeddings"
-import { EmbeddingService } from "../embeddings/service"
-import { GenerationTracker } from "../generations"
 import { ExtensionBridge } from "../messaging/bridge"
-import { ProviderManager } from "../providers/manager"
 import { SessionManager } from "../session-manager"
-import { TemplateProvider } from "../templates/provider"
 import { getLanguage, getTerminal, getTextSelection, getTheme } from "../utils"
 
 import { resolveLanguageId, stripShellPrompts } from "./code-actions"
@@ -37,18 +24,12 @@ import { FileTreeProvider } from "./file-tree"
 const storageKeyFor = (scope: string, key: string) => `${scope}-${key}`
 
 export class BaseProvider {
-  private _workspaceIndex: WorkspaceIndex | undefined
-  private _embeddingService: EmbeddingService | undefined
   private _fileTreeProvider: FileTreeProvider
   private _sessionManager: SessionManager | undefined
-  private _generations: GenerationTracker
-  private _templateProvider: TemplateProvider
   private _disposables: vscode.Disposable[] = []
   public bridge: ExtensionBridge | undefined
-  public chat: Chat | undefined
-  public providers: ProviderManager | undefined
+  public agent: Agent | undefined
   public context: vscode.ExtensionContext
-  public conversationHistory: ConversationHistory | undefined
   public webView?: vscode.Webview
 
   private _sidebarReadyHandler?: () => void
@@ -59,23 +40,18 @@ export class BaseProvider {
 
   constructor(
     context: vscode.ExtensionContext,
-    generations: GenerationTracker,
-    index?: WorkspaceIndex,
     sessionManager?: SessionManager
   ) {
     this.context = context
     this._fileTreeProvider = new FileTreeProvider()
-    this._workspaceIndex = index
     this._sessionManager = sessionManager
-    this._generations = generations
-    this._templateProvider = new TemplateProvider()
   }
 
   public registerWebView(webView: vscode.Webview) {
     this.dispose()
     this.webView = webView
     this.bridge = new ExtensionBridge(webView)
-    this.initializeServices(this.bridge)
+    new FileHandler(this.bridge)
     this.registerHandlers(this.bridge)
     this.registerEditorListeners(this.bridge)
     logger.info("Webview registered successfully")
@@ -84,37 +60,8 @@ export class BaseProvider {
   public dispose() {
     this.bridge?.dispose()
     this.bridge = undefined
-    this.chat?.dispose()
-    this._embeddingService?.dispose()
-    this._embeddingService = undefined
-    this.conversationHistory?.dispose()
     this._disposables.forEach((disposable) => disposable.dispose())
     this._disposables = []
-  }
-
-  private initializeServices(bridge: ExtensionBridge) {
-    this.chat = new Chat(
-      this._generations,
-      this.context,
-      bridge,
-      this._workspaceIndex?.search
-    )
-
-    this.conversationHistory = new ConversationHistory(
-      this.context,
-      bridge,
-      this.chat
-    )
-
-    this.providers = new ProviderManager(this.context, bridge)
-    this._embeddingService = new EmbeddingService(
-      this.context,
-      bridge,
-      this._workspaceIndex
-    )
-    new FileHandler(bridge)
-
-    logger.info("Provider services initialized successfully")
   }
 
   private registerHandlers(bridge: ExtensionBridge) {
@@ -122,7 +69,7 @@ export class BaseProvider {
       [EVENT_NAME.pointerAcceptSolution]: (code) =>
         void vscode.commands.executeCommand(POINTER_COMMAND_NAME.applyCode, code),
       [EVENT_NAME.pointerChatMessage]: ({ messages, mentions }) =>
-        void this.chat?.completion(messages, mentions),
+        void this.agent?.completion(messages, mentions),
       [EVENT_NAME.pointerFileListRequest]: () =>
         this._fileTreeProvider.getAllFiles(),
       [EVENT_NAME.pointerGetConfigValue]: ({ key }) => ({
@@ -131,12 +78,6 @@ export class BaseProvider {
       }),
       [EVENT_NAME.pointerGetContextItems]: () =>
         this.broadcastContextItems(this.readContextItems()),
-      [EVENT_NAME.pointerGetModels]: () => models as unknown as ModelCatalogue,
-      [EVENT_NAME.pointerModelStatus]: async () => (await this.chat?.modelStatus()) ?? null,
-      [EVENT_NAME.pointerWarmModel]: async () => (await this.chat?.warmModel()) ?? null,
-      [EVENT_NAME.pointerStarter]: (kind) => {
-        if (this.chat) void runStarter(this.chat, kind)
-      },
       [EVENT_NAME.pointerGlobalContext]: ({ key }) =>
         this.readGlobalContext(key),
       [EVENT_NAME.pointerGetWorkspaceContext]: ({ key }) =>
@@ -149,10 +90,6 @@ export class BaseProvider {
         this.writeWorkspaceContext(value),
       [EVENT_NAME.pointerSetSessionContext]: (value) =>
         this.writeSessionContext(value),
-      [EVENT_NAME.pointerHideBackButton]: () =>
-        void vscode.commands.executeCommand(POINTER_COMMAND_NAME.hideBackButton),
-      [EVENT_NAME.pointerOpenProviders]: () =>
-        void vscode.commands.executeCommand(POINTER_COMMAND_NAME.manageProviders),
       [EVENT_NAME.pointerNewConversation]: () => this.newConversation(),
       [EVENT_NAME.pointerNewDocument]: (request) =>
         this.createNewUntitledDocument(request),
@@ -170,14 +107,14 @@ export class BaseProvider {
           .update(key, value, vscode.ConfigurationTarget.Global),
       [EVENT_NAME.pointerSidebarReady]: () => this._sidebarReadyHandler?.(),
       [EVENT_NAME.pointerStopGeneration]: () => this.destroyStream(),
-      [EVENT_NAME.pointerToolApproval]: ({ id, run, always }) => this.chat?.answerToolApproval(id, run, always),
-      [EVENT_NAME.pointerToolStop]: ({ id }) => this.chat?.stopToolStep(id),
-      [EVENT_NAME.pointerSteer]: ({ id, text }) => this.chat?.steer(id, text),
-      [EVENT_NAME.pointerOpenChange]: ({ id, path }) => void this.chat?.openChange(id, path),
+      [EVENT_NAME.pointerToolApproval]: ({ id, run, always }) => this.agent?.answerToolApproval(id, run, always),
+      [EVENT_NAME.pointerToolStop]: ({ id }) => this.agent?.stopToolStep(id),
+      [EVENT_NAME.pointerSteer]: ({ id, text }) => this.agent?.steer(id, text),
+      [EVENT_NAME.pointerOpenChange]: ({ id, path }) => void this.agent?.openChange(id, path),
       [EVENT_NAME.pointerOpenAgentSettings]: () =>
         void vscode.commands.executeCommand("workbench.action.openSettings", "pointer.chatTools"),
       [EVENT_NAME.pointerUndoChanges]: async ({ id, paths }) =>
-        (await this.chat?.undoChanges(id, paths)) ?? { error: "The chat is not ready." },
+        (await this.agent?.undoChanges(id, paths)) ?? { error: "The chat is not ready." },
       [EVENT_NAME.pointerSymbolSearch]: ({ query }) => searchSymbols(query),
       [EVENT_NAME.pointerTextSelection]: () => getTextSelection()
     })
@@ -197,10 +134,8 @@ export class BaseProvider {
     )
   }
 
-
-
   public destroyStream = () => {
-    this.chat?.abort()
+    this.agent?.abort()
     this.bridge?.emit(EVENT_NAME.pointerStopGeneration)
   }
 
@@ -233,7 +168,6 @@ export class BaseProvider {
   private broadcastContextItems = (items: AnyContextItem[]) => {
     this.bridge?.emit(EVENT_NAME.pointerUpdateContextItems, items)
   }
-
 
   private readGlobalContext = (key: string): ContextValue => ({
     key,
@@ -275,12 +209,10 @@ export class BaseProvider {
     this.bridge?.emit(EVENT_NAME.pointerSessionContext, { key, value })
   }
 
-
   public newConversation = () => {
-    this.conversationHistory?.resetConversation()
-    this.chat?.resetConversation()
+    this.agent?.resetConversation()
     this.bridge?.emit(EVENT_NAME.pointerNewConversation)
-    this.chat?.discardReply()
+    this.agent?.discardReply()
   }
 
   private createNewUntitledDocument = async ({

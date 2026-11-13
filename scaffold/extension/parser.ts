@@ -1,6 +1,5 @@
 import path from "path"
-import { Position } from "vscode"
-import Parser, { SyntaxNode } from "web-tree-sitter"
+import Parser from "web-tree-sitter"
 
 import { WASM_LANGUAGES } from "../common/constants"
 import { assetPath } from "./context"

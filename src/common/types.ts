@@ -1,9 +1,7 @@
 import { ReactNode } from "react"
 import { ChatCompletionMessageParam } from "fluency.js"
-import { InlineCompletionItem, InlineCompletionList } from "vscode"
 
 import type { WorkspaceSearchReport } from "./messaging/protocol"
-import { ALL_BRACKETS } from "./constants"
 import { CodeLanguageDetails } from "./languages"
 
 export interface PrefixSuffix {

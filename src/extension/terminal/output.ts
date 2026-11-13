@@ -38,15 +38,6 @@ export const tailOutput = (
   return dropped > 0 ? `[${dropped} earlier lines not shown]\n${text}` : text
 }
 
-const LOCATION_PATTERNS = [
-  /(?:^|[\s("'`[])((?:[A-Za-z]:)?[^\s:"'`()[\]]+?\.[A-Za-z0-9]{1,10}):(\d+)(?::(\d+))?(?=[\s:)"'`\],]|$)/gm,
-  /(?:^|[\s("'`])((?:[A-Za-z]:)?[^\s:"'`()]+?\.[A-Za-z0-9]{1,10})\((\d+),(\d+)\)/gm,
-  /File "([^"]+)", line (\d+)/g
-]
-
-const NOT_CODE = /^(https?:|file:|node:|internal\/)/i
-const LIBRARY = /(^|[\\/])(node_modules|site-packages|\.venv|venv|dist|out|build)[\\/]/
-
 export const runFailed = (run: TerminalRun): boolean =>
   run.exitCode !== undefined
     ? run.exitCode !== 0

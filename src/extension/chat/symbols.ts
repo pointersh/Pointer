@@ -1,13 +1,11 @@
 import * as path from "path"
 import {
-  commands,
-  DocumentSymbol,
-  Location,
-  SymbolInformation,
-  SymbolKind,
-  Uri,
-  window,
-  workspace
+commands,
+DocumentSymbol,SymbolInformation,
+SymbolKind,
+Uri,
+window,
+workspace
 } from "vscode"
 
 import { ContextItem } from "../../common/types"

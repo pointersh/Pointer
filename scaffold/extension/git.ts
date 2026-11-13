@@ -22,25 +22,6 @@ const tryGit = async (cwd: string, args: string): Promise<string | undefined> =>
 export const isGitRepository = async (cwd: string): Promise<boolean> =>
   (await tryGit(cwd, "rev-parse --is-inside-work-tree"))?.trim() === "true"
 
-const BASE_CANDIDATES = [
-  "origin/main",
-  "main",
-  "origin/master",
-  "master",
-  "origin/develop",
-  "develop",
-  "origin/development",
-  "development"
-]
-
-const getRemoteDefaultBranch = async (
-  cwd: string
-): Promise<string | undefined> => {
-  const ref = await tryGit(cwd, "symbolic-ref --quiet refs/remotes/origin/HEAD")
-  const name = ref?.trim().replace(/^refs\/remotes\//, "")
-  return name || undefined
-}
-
 export const getWorkingTreeDiff = async (cwd: string): Promise<string> => {
   const hasHead = await tryGit(cwd, "rev-parse --verify --quiet HEAD")
   if (hasHead?.trim()) return runGit(cwd, "diff HEAD")

@@ -1,12 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { useTranslation } from "./strings"
 import cx from "classnames"
 
 import { EVENT_NAME } from "../common/constants"
 import {
-  WorkspaceHitSummary,
-  WorkspaceNearMiss,
-  WorkspaceSearchReport
+WorkspaceHitSummary,
+WorkspaceNearMiss,
+WorkspaceSearchReport
 } from "../common/messaging/protocol"
 
 import { isSearchFinished } from "./hooks/useWorkspaceSearch"
