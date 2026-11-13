@@ -1,3 +1,4 @@
+import * as path from "path"
 import {
 commands,
 DocumentSymbol,SymbolInformation,
@@ -9,7 +10,8 @@ workspace
 
 import { ContextItem } from "../../common/types"
 
-import { encodeSymbolRef } from "./symbol-ref"
+import { ContextEntry } from "./context-files"
+import { decodeSymbolRef, encodeSymbolRef } from "./symbol-ref"
 
 const MAX_RESULTS = 30
 
@@ -102,4 +104,35 @@ export const searchSymbols = async (query: string): Promise<ContextItem[]> => {
         symbol.kind
       )
     )
+}
+
+export const readSymbolEntry = async (
+  id: string
+): Promise<ContextEntry | undefined> => {
+  const ref = decodeSymbolRef(id)
+  const root = workspace.workspaceFolders?.[0]?.uri.fsPath
+  if (!ref || !root) return undefined
+
+  const uri = Uri.file(path.join(root, ref.path))
+  const document = await workspace.openTextDocument(uri).then(
+    (doc) => doc,
+    () => undefined
+  )
+  if (!document) return undefined
+
+  const all = await allSymbols(uri)
+  const symbol =
+    all.find(
+      (s) => s.name === ref.name && rangeOf(s).start.line === ref.line
+    ) ||
+    all.find((s) => rangeOf(s).start.line === ref.line) ||
+    all.find((s) => s.name === ref.name)
+  if (!symbol) return undefined
+
+  const range = rangeOf(symbol)
+  return {
+    path: ref.path,
+    content: document.getText(range),
+    range: { startLine: range.start.line, endLine: range.end.line }
+  }
 }

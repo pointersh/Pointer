@@ -7,4 +7,8 @@ export interface TextModel {
 
 let current: TextModel | undefined
 
+export const setTextModel = (model: TextModel | undefined) => {
+  current = model
+}
+
 export const textModel = () => current

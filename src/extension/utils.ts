@@ -6,10 +6,13 @@ ColorThemeKind,Terminal,window,
 workspace
 } from "vscode"
 
-import { POINTER } from "../common/constants"
+import {
+EVENT_NAME,POINTER
+} from "../common/constants"
 import { supportedLanguages } from "../common/languages"
 import { LanguageType, Theme } from "../common/types"
 
+import { ExtensionBridge } from "./messaging/bridge"
 import { isIndexablePath } from "./indexable"
 
 export const getTextSelection = () => {
@@ -30,6 +33,24 @@ export const getLanguage = (): LanguageType => {
   }
 }
 
+export const prefixWindowStep = (numLinesPrefix: number) =>
+  Math.max(1, Math.floor(numLinesPrefix / 4))
+
+export const trimToLineBoundary = (
+  text: string,
+  maxChars: number,
+  side: "start" | "end"
+): string => {
+  if (text.length <= maxChars) return text
+  if (side === "start") {
+    const cut = text.length - maxChars
+    const newline = text.indexOf("\n", cut)
+    return newline === -1 ? text.slice(cut) : text.slice(newline + 1)
+  }
+  const newline = text.lastIndexOf("\n", maxChars - 1)
+  return newline === -1 ? text.slice(0, maxChars) : text.slice(0, newline + 1)
+}
+
 export const getTheme = () => {
   const currentTheme = window.activeColorTheme
   if (currentTheme.kind === ColorThemeKind.Light) {
@@ -47,6 +68,13 @@ export const getTerminal = async (): Promise<Terminal | undefined> => {
   const terminal = window.createTerminal({ name: POINTER })
   terminal.show()
   return terminal
+}
+
+export const updateLoadingMessage = (
+  bridge: ExtensionBridge | undefined,
+  message: string
+) => {
+  bridge?.emit(EVENT_NAME.pointerSendLoader, message)
 }
 
 export function getNonce() {

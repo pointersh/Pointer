@@ -1,4 +1,4 @@
-import { parseLenientJson } from "./protocol"
+import { parseLenientJson, ToolSpec } from "./protocol"
 
 export interface Task {
   text: string
@@ -9,6 +9,15 @@ const MAX_TASKS = 20
 const MAX_TASK_CHARS = 200
 
 export const TASKS_TOOL_NAME = "update_tasks"
+
+export const TASKS_TOOL: ToolSpec = {
+  name: TASKS_TOOL_NAME,
+  description:
+    "Write down your steps for work with several parts, or update the list. Send the whole list each time, one step per line: `[ ] step` for one still to do, `[x] step` for one done.",
+  guidance:
+    "For work with three or more parts, write the steps down first with update_tasks, and send the list again with `[x]` as you finish each. Do not use it for a question or a single change.",
+  parameters: [{ name: "tasks", description: "The whole list, one step per line: `[ ] step` or `[x] step`." }]
+}
 
 const DONE_WORDS = /^(done|completed?|finished|x|true|yes)$/i
 
@@ -57,5 +66,10 @@ export const parseTasks = (raw: string | undefined): Task[] | undefined => {
     .map((task) => ({ text: task.text.length > MAX_TASK_CHARS ? `${task.text.slice(0, MAX_TASK_CHARS)}…` : task.text, done: task.done }))
   return kept.length ? kept : undefined
 }
+
+export const renderTasks = (tasks: Task[]) => tasks.map((task) => `[${task.done ? "x" : " "}] ${task.text}`).join("\n")
+
+export const sameTasks = (a: Task[], b: Task[]) =>
+  a.length === b.length && a.every((task, i) => task.text === b[i].text && task.done === b[i].done)
 
 export const tasksProgress = (tasks: Task[]) => `${tasks.filter((task) => task.done).length} of ${tasks.length} done`

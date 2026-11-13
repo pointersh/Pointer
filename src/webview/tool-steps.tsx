@@ -1,6 +1,6 @@
 import React, { useState } from "react"
-import cx from "classnames"
 import { Code } from "@pointersh/highlight/react"
+import cx from "classnames"
 
 import { EVENT_NAME } from "../common/constants"
 import { ToolStepView } from "../common/types"

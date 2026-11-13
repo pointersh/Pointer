@@ -32,6 +32,38 @@ export const globToRegExp = (glob: string): RegExp => {
   return new RegExp(pattern.includes("/") ? `^${source}$` : `(?:^|/)${source}$`)
 }
 
+export interface SymbolPosition {
+  line: number
+  character: number
+}
+
+export const locateSymbol = (text: string, name: string, line?: number): SymbolPosition | undefined => {
+  const word = new RegExp(`(?<![\\w$])${escapeRegex(name)}(?![\\w$])`)
+  const lines = text.split("\n")
+  const on = (index: number): SymbolPosition | undefined => {
+    const match = lines[index]?.match(word)
+    return match?.index === undefined ? undefined : { line: index, character: match.index }
+  }
+  if (line !== undefined && line >= 1) {
+    const wanted = Math.min(line - 1, lines.length - 1)
+    for (let distance = 0; distance < lines.length; distance++) {
+      const found = on(wanted - distance) ?? on(wanted + distance)
+      if (found) return found
+    }
+    return undefined
+  }
+  const declaration = new RegExp(
+    `\\b(?:function\\*?|class|interface|type|enum|struct|trait|def|fn|func|const|let|var|val)\\s+${escapeRegex(name)}(?![\\w$])`
+  )
+  const declared = lines.findIndex((l) => declaration.test(l))
+  if (declared !== -1) return on(declared)
+  for (let index = 0; index < lines.length; index++) {
+    const found = on(index)
+    if (found) return found
+  }
+  return undefined
+}
+
 export const splitArgs = (line: string): string[] => {
   const args: string[] = []
   let current = ""
@@ -177,3 +209,10 @@ export const withoutHiddenDiffs = (
   })
   return { text: kept.join(""), dropped }
 }
+
+export const isProtectedPath = (relative: string): boolean =>
+  /(^|\/)\.vscode\//i.test(relative) ||
+  /(^|\/)\.gitignore$/i.test(relative) ||
+  /(^|\/)AGENTS\.md$/i.test(relative) ||
+  /\.code-workspace$/i.test(relative) ||
+  /^(CLAUDE\.md|\.github\/copilot-instructions\.md)$/i.test(relative)
