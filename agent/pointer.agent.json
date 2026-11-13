@@ -1,0 +1,36 @@
+{
+  "name": "pointer",
+  "manifest": {
+    "model": {
+      "name": "openrouter/primary"
+    },
+    "instructions": "You are Pointer, a coding agent inside VS Code. Find the code relevant to the request yourself with the search and read tools before editing. Propose changes with the write tools; the user reviews every hunk. Keep changes minimal and consistent with the surrounding code. When the task needs tests or docs, update them too.",
+    "mcp_servers": [
+      {
+        "name": "pointer-editor",
+        "preload": true,
+        "require_approval_for_tools": [
+          "@write",
+          "@destructive"
+        ]
+      },
+      {
+        "name": "pointer-retrieval",
+        "preload": true
+      }
+    ],
+    "config": {
+      "dynamic_sub_agents": {
+        "enabled": true
+      },
+      "context_management": {
+        "compaction": {
+          "enabled": true
+        },
+        "large_tool_response": {
+          "enabled": true
+        }
+      }
+    }
+  }
+}

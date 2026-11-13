@@ -2,7 +2,7 @@
   "name": "pointer",
   "displayName": "Pointer",
   "description": "Editor-native coding agent on TrueForge: finds the right code, proposes multi-file changes, and shows every hunk for review before it touches disk.",
-  "version": "0.1.0",
+  "version": "0.1.0-beta",
   "icon": "assets/icon.png",
   "keywords": [
     "ai",
@@ -34,7 +34,9 @@
     "onStartupFinished"
   ],
   "author": {
-    "name": "Pointer authors"
+    "name": "Ayush Yadav",
+    "email": "ayush421301@gmail.com",
+    "url": "https://thatayush.com"
   },
   "main": "./out/index.js",
   "contributes": {

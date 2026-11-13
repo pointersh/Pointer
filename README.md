@@ -7,7 +7,7 @@ An editor-native coding agent for VS Code whose agent loop runs on
 code in a repository too large for any context window, proposes multi-file
 changes, and shows every hunk for review before anything touches disk.
 
-> Status: early. The editor side (inline edit, agent panel, per-hunk review,
+> **Beta.** The editor side (inline edit, agent panel, per-hunk review,
 > undo, editor tools) is in place; the TrueForge client and MCP server are being
 > wired in. See [PRD.md](PRD.md).
 
@@ -38,6 +38,18 @@ Open the folder in VS Code and press F5 to launch the Extension Development Host
 TrueForge setup, agent definition and example model configuration: coming with
 the TrueForge client.
 
+## Layout
+
+```
+src/                       VS Code extension (TypeScript)
+  extension/               host side: inline edit, agent tools, review/undo, webview host
+  webview/                 React agent panel
+  common/                  shared types and the extension <-> webview protocol
+agent/                     TrueForge agent definition + example model provider config
+crates/pointer-retrieval/  Rust retrieval engine, served as an MCP server
+scaffold/                  upstream reference code kept only for ports (not built)
+```
+
 ## Fork point
 
 Pointer started from [pointersh/Pointer](https://github.com/pointersh/Pointer) (MIT) at
@@ -51,6 +63,18 @@ What changed since then:
 
 The full delta is in the git history from the first commit.
 
+## Contact
+
+Built by **Ayush Yadav**.
+
+- GitHub: [@ayuxy027](https://github.com/ayuxy027)
+- X: [@ayuxy027](https://x.com/ayuxy027)
+- LinkedIn: [ayushyadav27](https://www.linkedin.com/in/ayushyadav27/)
+- Email: [ayush421301@gmail.com](mailto:ayush421301@gmail.com)
+- Web: [thatayush.com](https://thatayush.com)
+
+Bug reports and ideas: [open an issue](https://github.com/ayuxy027/Pointer/issues).
+
 ## License
 
-MIT. See [LICENSE](LICENSE).
+MIT © 2026 Ayush Yadav. See [LICENSE](LICENSE).

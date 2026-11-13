@@ -1,0 +1,8 @@
+[package]
+name = "pointer-retrieval"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Pointer's retrieval engine: repo map, BM25 and symbol search over the workspace, served as an MCP server."
+
+[dependencies]
