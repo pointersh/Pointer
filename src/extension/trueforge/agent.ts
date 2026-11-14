@@ -6,7 +6,7 @@ import { ToolSteps } from "../chat/tool-steps"
 import { GenerationRun, GenerationTracker } from "../generations"
 import { ExtensionBridge } from "../messaging/bridge"
 
-import { AGENT_MANIFEST, AGENT_NAME, describeError, modelChain } from "./client"
+import { AGENT_MANIFEST, AGENT_NAME, agentManifest, describeError, modelChain } from "./client"
 import { cancelSession, createSession, runTurn, TurnResult } from "./session"
 
 const WRITE_TOOL = /^(edit_file|create_file|delete_file|move_file|rename_symbol|run_command)$/
@@ -133,7 +133,7 @@ export class TrueForgeAgent implements Agent {
     const earlier = transcript(history)
     return createSession({
       spec: {
-        ...AGENT_MANIFEST,
+        ...agentManifest(),
         model: { name: chain[this._model] },
         ...(earlier ? { messages: [{ type: "user.message", content: `Conversation so far:\n\n${earlier}` }] } : {})
       }

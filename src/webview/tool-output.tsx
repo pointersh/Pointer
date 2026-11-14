@@ -138,6 +138,29 @@ export const ToolOutput = ({ step }: { step: ToolStepView }) => {
         </>
       )
     }
+    case "search_codebase": {
+      const chosen = output
+        .split("\n")
+        .map((line) => /^\s*-?\s*(.+?):(\d+)-(\d+)\s+·\s+([\d.]+)\s+·\s+(.+)$/.exec(line))
+        .filter((match): match is RegExpExecArray => !!match)
+      if (!chosen.length) break
+      const dropped = /dropped \d+[^\n]*/.exec(output)?.[0]
+      return (
+        <>
+          <Label>{t("pointing-at")}</Label>
+          <div className={styles.located}>
+            {chosen.map(([, path, start, end, score, reason]) => (
+              <div key={`${path}:${start}`} className={styles.hit}>
+                <FileLink path={path} line={Number(start)} endLine={Number(end)} />
+                <span className={styles.relevance}>{score}</span>
+                <div className={styles.note}>{reason}</div>
+              </div>
+            ))}
+          </div>
+          {dropped && <div className={styles.note}>{dropped}</div>}
+        </>
+      )
+    }
     case "search_code": {
       const hits = parseSearchHits(output)
       if (!hits.length) break

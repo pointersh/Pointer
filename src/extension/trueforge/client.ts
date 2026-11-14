@@ -6,6 +6,15 @@ import agentDefinition from "../../../agent/pointer.agent.json"
 export const AGENT_NAME = agentDefinition.name
 export const AGENT_MANIFEST = agentDefinition.manifest
 
+const liveServers = new Set<string>()
+
+export const markServerLive = (name: string) => liveServers.add(name)
+
+export const agentManifest = () => ({
+  ...AGENT_MANIFEST,
+  mcp_servers: AGENT_MANIFEST.mcp_servers.filter((server) => liveServers.has(server.name))
+})
+
 const settings = () => vscode.workspace.getConfiguration("pointer")
 
 export const trueforgeUrl = () => (settings().get<string>("trueforgeUrl") || "http://localhost:8790").replace(/\/$/, "")
@@ -36,10 +45,10 @@ export const registerMcpServer = (name: string, url: string, token: string, desc
 export const upsertAgent = async () => {
   for await (const agent of await trueforge().agents.list()) {
     if (agent.name === AGENT_NAME) {
-      return api("PUT", `/api/v1/agents/${agent.id}`, { description: AGENT_DESCRIPTION, manifest: AGENT_MANIFEST })
+      return api("PUT", `/api/v1/agents/${agent.id}`, { description: AGENT_DESCRIPTION, manifest: agentManifest() })
     }
   }
-  return api("POST", "/api/v1/agents", { name: AGENT_NAME, description: AGENT_DESCRIPTION, manifest: AGENT_MANIFEST })
+  return api("POST", "/api/v1/agents", { name: AGENT_NAME, description: AGENT_DESCRIPTION, manifest: agentManifest() })
 }
 
 const AGENT_DESCRIPTION = "Pointer: editor-native coding agent for VS Code."

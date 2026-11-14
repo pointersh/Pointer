@@ -311,6 +311,11 @@
           "default": [],
           "markdownDescription": "Models to use, in order, as `provider/model` names configured in TrueForge. If a turn fails on one, Pointer retries on the next. Empty uses the model in `agent/pointer.agent.json`."
         },
+        "pointer.retrievalPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the pointer-retrieval binary. Empty uses target/release/pointer-retrieval inside the extension."
+        },
         "pointer.enabled": {
           "order": 0,
           "type": "boolean",
