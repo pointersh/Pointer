@@ -5,6 +5,10 @@ use std::fmt::Write;
 const STOP: &[&str] = &[
     "the", "and", "for", "with", "this", "that", "from", "into", "add", "new", "use", "get", "set", "self", "def", "return",
     "import", "const", "let", "var", "function", "class", "pub", "fn", "is", "are", "was", "to", "of", "in", "on", "an", "it",
+    "as", "be", "by", "at", "or", "if", "any", "all", "its", "must", "should", "will", "would", "can", "could", "other", "also",
+    "then", "than", "there", "which", "when", "where", "what", "so", "not", "no", "do", "does", "each", "every", "alongside",
+    "appear", "make", "sure", "we", "you", "your", "our", "my", "has", "have", "had", "been", "being", "were", "such", "these",
+    "those", "them", "they", "their", "via", "per", "like", "just", "only", "well", "please",
 ];
 const RRF_K: f32 = 60.0;
 const POOL: usize = 40;
