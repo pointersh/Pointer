@@ -14,6 +14,7 @@ const streamOn = async function* (model: string, messages: ChatCompletionMessage
   signal.addEventListener("abort", onAbort, { once: true })
   const chunks: string[] = []
   let wake: (() => void) | undefined
+  let finished = false
   let sent = 0
   const done = runTurn(sessionId, input, {
     onText: (text) => {
@@ -21,13 +22,15 @@ const streamOn = async function* (model: string, messages: ChatCompletionMessage
       sent = text.length
       wake?.()
     }
-  }, signal).finally(() => wake?.())
+  }, signal).finally(() => {
+    finished = true
+    wake?.()
+  })
   try {
-    let finished = false
-    void done.then(() => (finished = true), () => (finished = true))
-    while (!finished || chunks.length) {
-      if (!chunks.length) await new Promise<void>((resolve) => (wake = resolve))
+    for (;;) {
       while (chunks.length) yield chunks.shift()!
+      if (finished) break
+      await new Promise<void>((resolve) => (wake = resolve))
     }
     const result = await done
     if (result.status === "error") throw new Error(result.error ?? "The model failed.")

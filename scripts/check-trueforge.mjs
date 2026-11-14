@@ -10,7 +10,8 @@ await esbuild.build({
   stdin: {
     contents: `export { startEditorMcp } from "./src/extension/mcp/server"
 export { registerMcpServer } from "./src/extension/trueforge/client"
-export { createSession, runTurn } from "./src/extension/trueforge/session"`,
+export { createSession, runTurn } from "./src/extension/trueforge/session"
+export { trueforgeTextModel } from "./src/extension/trueforge/inline"`,
     resolveDir: process.cwd(),
     loader: "ts"
   },
@@ -27,7 +28,12 @@ export { createSession, runTurn } from "./src/extension/trueforge/session"`,
     }
   }]
 })
-const { startEditorMcp, registerMcpServer, createSession, runTurn } = await import(pathToFileURL(out).href)
+const { startEditorMcp, registerMcpServer, createSession, runTurn, trueforgeTextModel } = await import(pathToFileURL(out).href)
+
+let inline = ""
+for await (const chunk of trueforgeTextModel().stream([{ role: "system", content: "Reply with code only." }, { role: "user", content: "Write a Python one-liner that returns 43." }], new AbortController().signal)) inline += chunk
+assert.match(inline, /43/)
+console.log(`inline ok · ${inline.trim().split("\n")[0].slice(0, 60)}`)
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "pointer-tf-"))
 fs.writeFileSync(path.join(root, "hello.py"), "def hello():\n    return 42\n")
