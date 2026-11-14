@@ -25,6 +25,7 @@ export const createSession = async (agent: { name: string } | { spec: InlineSpec
 }
 
 export interface TurnHandlers {
+  withThinking?: boolean
   onText?(text: string): void
   onToolCall?(call: { id: string; name: string; args: Record<string, string> }): void
   onToolResult?(id: string, output: string): void
@@ -68,10 +69,14 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
   let lastEventId: string | undefined
   const result: TurnResult = { status: "error", text: "" }
 
-  const mainText = () =>
+  const mainText = (thinking = handlers.withThinking) =>
     [...messages.values()]
       .filter((m) => m.type === "model.message" && m.threadId === mainThread)
-      .map((m) => textOf((m as TrueForgeApi.ModelMessageEvent).content))
+      .map((m) => {
+        const message = m as TrueForgeApi.ModelMessageEvent
+        const reasoning = thinking && message.reasoningContent ? `<think>${message.reasoningContent}</think>` : ""
+        return reasoning + textOf(message.content)
+      })
       .join("")
 
   const handle = async (event: Event): Promise<"next" | "done" | "resubscribe"> => {

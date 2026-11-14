@@ -80,6 +80,7 @@ export class TrueForgeAgent implements Agent {
             this._sessionId,
             input,
             {
+              withThinking: true,
               onText: (text) => this._bridge.emit(EVENT_NAME.pointerOnCompletion, { role: ASSISTANT, content: text || " " }),
               onToolCall: ({ id, name, args }) => this._steps.start({ id, name, args }),
               onToolResult: (id, output) =>
