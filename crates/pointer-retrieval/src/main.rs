@@ -124,7 +124,7 @@ impl Retrieval {
     )]
     fn search_codebase(&self, Parameters(args): Parameters<SearchArgs>) -> String {
         let started = Instant::now();
-        let out = self.store.current().search_text(&args.query, args.budget_tokens.unwrap_or(6000), &[]);
+        let out = self.store.current().search_text(&args.query, args.budget_tokens.unwrap_or(4500).min(5000), &[]);
         eprintln!("pointer-retrieval: search {:?} in {:?}", args.query, started.elapsed());
         out
     }
