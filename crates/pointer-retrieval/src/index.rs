@@ -9,6 +9,42 @@ const STOP: &[&str] = &[
 const RRF_K: f32 = 60.0;
 const POOL: usize = 40;
 
+const GENERIC: &[&str] = &[
+    "app", "name", "data", "value", "values", "config", "request", "response", "result", "error", "test", "command", "run", "main",
+    "init", "new", "get", "set", "load", "call", "args", "kwargs", "options", "self", "cls", "obj", "item", "key", "path", "file",
+];
+const DOC_INTENT: &[&str] = &["doc", "docs", "document", "documented", "documentation", "readme", "guide", "explain", "describe"];
+const TEST_INTENT: &[&str] = &["test", "tests", "tested", "testing", "covered", "coverage", "spec"];
+const GENERIC_SHARE: f32 = 0.25;
+
+fn stem(word: String) -> String {
+    if word.len() > 4 && word.ends_with('s') && !word.ends_with("ss") && !word.ends_with("us") && !word.ends_with("is") {
+        word[..word.len() - 1].to_string()
+    } else {
+        word
+    }
+}
+
+pub fn is_doc_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    lower.starts_with("docs/") || lower.contains("/docs/") || [".md", ".rst", ".txt", ".mdx", ".markdown"].iter().any(|e| lower.ends_with(e))
+}
+
+pub fn is_test_path(path: &str) -> bool {
+    let lower = path.to_ascii_lowercase();
+    let name = lower.rsplit('/').next().unwrap_or(&lower);
+    lower.split('/').any(|p| matches!(p, "tests" | "test" | "__tests__" | "spec" | "fixtures" | "testdata"))
+        || name.starts_with("test_")
+        || name.contains("_test.")
+        || name.contains(".test.")
+        || name.contains(".spec.")
+        || name == "conftest.py"
+}
+
+fn generic_path(path: &str) -> bool {
+    is_test_path(path) || is_doc_path(path) || path.split('/').any(|p| matches!(p, "examples" | "example" | "scripts" | "benchmarks"))
+}
+
 pub fn tokenize(text: &str) -> Vec<String> {
     let mut out = Vec::new();
     for word in text.split(|c: char| !c.is_alphanumeric()) {
@@ -34,12 +70,13 @@ pub fn tokenize(text: &str) -> Vec<String> {
         if parts.len() > 1 && whole.len() >= 2 {
             out.push(whole);
         }
-        out.extend(parts.into_iter().filter(|p| p.len() >= 2 && !STOP.contains(&p.as_str())));
+        out.extend(parts.into_iter().filter(|p| p.len() >= 2 && !STOP.contains(&p.as_str())).map(stem));
     }
     out
 }
 
 pub struct FileData {
+    #[cfg_attr(not(feature = "semantic"), allow(dead_code))]
     pub hash: u64,
     pub parsed: Parsed,
 }
@@ -51,7 +88,10 @@ pub struct ChunkRef {
     pub text: String,
     pub symbols: Vec<String>,
     pub symbol_tokens: Vec<Vec<String>>,
+    pub section: Option<String>,
     pub tokens: usize,
+    #[cfg_attr(not(feature = "semantic"), allow(dead_code))]
+    pub hash: u64,
 }
 
 pub struct Index {
@@ -61,6 +101,7 @@ pub struct Index {
     avg_len: f32,
     pub defs: BTreeMap<String, Vec<(String, Def)>>,
     pub idents: HashMap<String, Vec<(String, u32)>>,
+    ref_files: HashMap<String, usize>,
     pub rank: HashMap<String, f32>,
     pub files: usize,
 }
@@ -77,6 +118,30 @@ pub trait Signal {
 
 struct Bm25;
 struct Symbols;
+struct Only {
+    label: &'static str,
+    keep: fn(&str) -> bool,
+}
+
+pub struct Precomputed(pub Vec<(usize, f32, String)>);
+
+impl Signal for Precomputed {
+    fn rank(&self, _: &Index, _: &[String]) -> Vec<(usize, f32, String)> {
+        self.0.clone()
+    }
+}
+
+impl Signal for Only {
+    fn rank(&self, index: &Index, query: &[String]) -> Vec<(usize, f32, String)> {
+        index
+            .bm25(query)
+            .into_iter()
+            .filter(|(chunk, _, _)| (self.keep)(&index.chunks[*chunk].path))
+            .take(5)
+            .map(|(chunk, score, _)| (chunk, score, format!("best {} match", self.label)))
+            .collect()
+    }
+}
 
 impl Signal for Bm25 {
     fn rank(&self, index: &Index, query: &[String]) -> Vec<(usize, f32, String)> {
@@ -129,9 +194,11 @@ impl Index {
                     start: chunk.start,
                     end: chunk.end,
                     tokens: tokens_of(&chunk.text),
+                    hash: xxhash_rust::xxh3::xxh3_64(chunk.text.as_bytes()),
                     text: chunk.text.clone(),
                     symbol_tokens: chunk.symbols.iter().map(|s| tokenize(s)).collect(),
                     symbols: chunk.symbols.clone(),
+                    section: chunk.section.clone(),
                 });
             }
             for def in &parsed.defs {
@@ -145,13 +212,24 @@ impl Index {
             }
         }
         idents.retain(|word, _| defs.contains_key(word));
+        let ref_files: HashMap<String, usize> =
+            idents.iter().map(|(w, refs)| (w.clone(), refs.iter().map(|(p, _)| p).collect::<HashSet<_>>().len())).collect();
 
         let mut postings: HashMap<String, Vec<(usize, f32)>> = HashMap::new();
         let mut lengths = Vec::with_capacity(chunks.len());
         for (i, chunk) in chunks.iter().enumerate() {
             let mut counts: HashMap<String, f32> = HashMap::new();
             let path_tokens = tokenize(&chunk.path);
-            for token in path_tokens.iter().chain(path_tokens.iter()).cloned().chain(chunk.symbols.iter().flat_map(|s| tokenize(s))).chain(tokenize(&chunk.text)) {
+            let section_tokens = chunk.section.as_deref().map(tokenize).unwrap_or_default();
+            for token in path_tokens
+                .iter()
+                .chain(path_tokens.iter())
+                .chain(section_tokens.iter())
+                .chain(section_tokens.iter())
+                .cloned()
+                .chain(chunk.symbols.iter().flat_map(|s| tokenize(s)))
+                .chain(tokenize(&chunk.text))
+            {
                 *counts.entry(token).or_default() += 1.0;
             }
             lengths.push(counts.values().sum());
@@ -161,7 +239,7 @@ impl Index {
         }
         let avg_len = if lengths.is_empty() { 1.0 } else { lengths.iter().sum::<f32>() / lengths.len() as f32 };
         let rank = pagerank(files.keys(), &defs, &idents);
-        Index { chunks, postings, lengths, avg_len, defs, idents, rank, files: files.len() }
+        Index { chunks, postings, lengths, avg_len, defs, idents, ref_files, rank, files: files.len() }
     }
 
     pub fn bm25(&self, query: &[String]) -> Vec<(usize, f32, Vec<String>)> {
@@ -186,21 +264,41 @@ impl Index {
         out
     }
 
-    pub fn referenced_by(&self, chunk: &ChunkRef) -> usize {
+    pub fn is_generic(&self, name: &str) -> bool {
+        let df = self.ref_files.get(name).copied().unwrap_or(0) as f32;
+        name.len() <= 2
+            || GENERIC.contains(&name.to_lowercase().as_str())
+            || name.starts_with("test")
+            || self.defs.get(name).is_some_and(|d| d.len() > 3)
+            || df > (self.files as f32 * GENERIC_SHARE).max(4.0)
+    }
+
+    pub fn referenced_by(&self, chunk: &ChunkRef) -> Option<(String, usize)> {
         chunk
             .symbols
             .iter()
-            .filter(|s| !s.starts_with("test") && self.defs.get(*s).is_some_and(|d| d.len() <= 3))
-            .filter_map(|s| self.idents.get(s))
-            .flat_map(|refs| refs.iter().map(|(p, _)| p))
-            .filter(|p| **p != chunk.path)
-            .collect::<HashSet<_>>()
-            .len()
+            .filter(|s| !self.is_generic(s))
+            .filter_map(|s| {
+                let files = self.idents.get(s)?.iter().map(|(p, _)| p).filter(|p| **p != chunk.path).collect::<HashSet<_>>().len();
+                (files > 0).then(|| (s.clone(), files))
+            })
+            .max_by(|a, b| a.1.cmp(&b.1).then(b.0.cmp(&a.0)))
     }
 
     pub fn search(&self, query: &str, extra: &[&dyn Signal]) -> Vec<Hit> {
         let terms = tokenize(query);
+        let docs = Only { label: "docs", keep: is_doc_path };
+        let tests = Only { label: "test", keep: is_test_path };
+        let code = Only { label: "code", keep: |p| !is_doc_path(p) && !is_test_path(p) };
         let mut signals: Vec<&dyn Signal> = vec![&Bm25, &Symbols];
+        let lower: Vec<String> = query.split(|c: char| !c.is_alphanumeric()).map(str::to_lowercase).collect();
+        if lower.iter().any(|w| DOC_INTENT.contains(&w.as_str())) {
+            signals.push(&docs);
+            signals.push(&code);
+        }
+        if lower.iter().any(|w| TEST_INTENT.contains(&w.as_str())) {
+            signals.push(&tests);
+        }
         signals.extend_from_slice(extra);
         let mut fused: HashMap<usize, (f32, Vec<String>)> = HashMap::new();
         for signal in signals {
@@ -227,12 +325,14 @@ impl Index {
     pub fn reason(&self, hit: &Hit) -> String {
         let chunk = &self.chunks[hit.chunk];
         let mut parts = Vec::new();
+        if let Some(section) = &chunk.section {
+            parts.push(format!("section \"{section}\""));
+        }
         if !chunk.symbols.is_empty() {
             let shown: Vec<_> = chunk.symbols.iter().take(3).cloned().collect();
             parts.push(format!("defines {}", shown.join(", ")));
-            let refs = self.referenced_by(chunk);
-            if refs > 0 {
-                parts.push(format!("referenced by {refs} file{}", if refs == 1 { "" } else { "s" }));
+            if let Some((name, refs)) = self.referenced_by(chunk) {
+                parts.push(format!("{name} referenced by {refs} file{}", if refs == 1 { "" } else { "s" }));
             }
         }
         parts.extend(hit.signals.iter().filter(|s| !s.starts_with("name ")).cloned());
@@ -287,7 +387,8 @@ impl Index {
     }
 
     pub fn repo_map(&self, budget: usize) -> String {
-        let mut files: Vec<(&String, f32)> = self.rank.iter().map(|(p, r)| (p, *r)).collect();
+        let mut files: Vec<(&String, f32)> =
+            self.rank.iter().map(|(p, r)| (p, if generic_path(p) { r * 0.2 } else { *r })).collect();
         files.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(b.0)));
         let mut by_file: HashMap<&String, Vec<&Def>> = HashMap::new();
         for entries in self.defs.values() {
@@ -353,11 +454,12 @@ fn pagerank<'a>(
     for (name, refs) in idents {
         let Some(targets) = defs.get(name) else { continue };
         let referencing: HashSet<&String> = refs.iter().map(|(p, _)| p).collect();
-        if referencing.len() * 10 > n.max(20) {
+        if referencing.len() * 10 > n.max(20) || name.len() <= 2 || GENERIC.contains(&name.to_lowercase().as_str()) {
             continue;
         }
         let def_files: HashSet<usize> = targets.iter().filter_map(|(p, _)| id.get(p).copied()).collect();
-        let weight = 1.0 / def_files.len() as f32;
+        let idf = ((n as f32 + 1.0) / (referencing.len() as f32 + 1.0)).ln().max(0.1);
+        let weight = idf / def_files.len() as f32;
         let mut counts: HashMap<usize, f32> = HashMap::new();
         for (path, _) in refs {
             if let Some(&from) = id.get(path) {
@@ -407,6 +509,7 @@ mod tests {
     fn tokenizer_splits_identifiers() {
         assert_eq!(tokenize("getHTTPServer"), ["gethttpserver", "http", "server"]);
         assert_eq!(tokenize("load_dotenv cli.py"), ["load", "dotenv", "cli", "py"]);
+        assert_eq!(tokenize("built-in commands"), ["built", "command"]);
         assert_eq!(tokenize("AppGroup"), ["appgroup", "app", "group"]);
     }
 
@@ -418,6 +521,34 @@ mod tests {
         ]);
         let top = idx.bm25(&tokenize("render template page"));
         assert_eq!(idx.chunks[top[0].0].path, "b.py");
+    }
+
+    #[test]
+    fn generic_names_do_not_inflate_references() {
+        let mut files: Vec<(String, String)> = vec![
+            ("src/cli.py".into(), "class AppGroup:\n    def command(self):\n        return 1\n".into()),
+            ("src/app.py".into(), "from .cli import AppGroup\ncli = AppGroup()\n".into()),
+        ];
+        for i in 0..12 {
+            files.push((format!("src/m{i}.py"), format!("def f{i}():\n    return command()\n")));
+        }
+        let refs: Vec<(&str, &str)> = files.iter().map(|(p, s)| (p.as_str(), s.as_str())).collect();
+        let idx = index(&refs);
+        let cli = idx.chunks.iter().find(|c| c.path == "src/cli.py").unwrap();
+        assert_eq!(idx.referenced_by(cli), Some(("AppGroup".to_string(), 1)));
+        assert!(idx.is_generic("command"));
+    }
+
+    #[test]
+    fn docs_intent_surfaces_docs() {
+        let idx = index(&[
+            ("src/cli.py", "def command():\n    return 'cli'\n"),
+            ("docs/cli.rst", "CLI\n===\n\nCustom Commands\n---------------\n\nRegister a command with the cli group.\n"),
+            ("src/other.py", "def other():\n    return 'cli command'\n"),
+        ]);
+        let text = idx.search_text("add a cli command and document it", 4000, &[]);
+        let listed: Vec<&str> = text.lines().skip(1).take_while(|l| !l.is_empty()).collect();
+        assert!(listed.iter().any(|l| l.starts_with("docs/cli.rst") && l.contains("section")), "{text}");
     }
 
     #[test]
@@ -438,9 +569,14 @@ mod tests {
         let first = text.lines().nth(1).unwrap();
         assert!(first.starts_with("src/cli.py:1-3"), "{text}");
         assert!(first.contains("defines AppGroup"), "{first}");
-        assert!(first.contains("referenced by 1 file"), "{first}");
+        assert!(first.contains("AppGroup referenced by 1 file"), "{first}");
         assert!(first.contains("BM25"), "{first}");
         assert!(idx.find_symbol("AppGroup").contains("src/app.py:3"));
         assert!(idx.repo_map(500).starts_with("src/cli.py"));
+        let mapped = index(&[
+            ("tests/test_basic.py", "from app import run\ndef test_run():\n    run()\ndef test_again():\n    run()\n"),
+            ("src/app.py", "def run():\n    return 1\n"),
+        ]);
+        assert!(mapped.repo_map(500).starts_with("src/app.py"), "{}", mapped.repo_map(500));
     }
 }

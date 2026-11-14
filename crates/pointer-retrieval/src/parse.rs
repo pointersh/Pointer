@@ -18,6 +18,7 @@ pub struct Chunk {
     pub end: u32,
     pub text: String,
     pub symbols: Vec<String>,
+    pub section: Option<String>,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -151,7 +152,7 @@ impl Chunker<'_> {
         }
         let (start, end) = (first as u32 + 1, last as u32 + 1);
         let symbols = self.defs.iter().filter(|d| d.line >= start && d.line <= end).map(|d| d.name.clone()).collect();
-        self.out.push(Chunk { start, end, text: body.trim_end().to_string(), symbols });
+        self.out.push(Chunk { start, end, text: body.trim_end().to_string(), symbols, section: None });
     }
 
     fn emit(&mut self, start: usize, end: usize) {
@@ -253,7 +254,66 @@ pub fn idents(src: &str) -> HashMap<String, Vec<u32>> {
     map
 }
 
+fn is_prose(path: &str) -> bool {
+    matches!(path.rsplit('.').next().map(str::to_ascii_lowercase).as_deref(), Some("md" | "markdown" | "rst" | "txt" | "mdx"))
+}
+
+fn is_underline(line: &str, title: &str) -> bool {
+    let line = line.trim_end();
+    let first = line.chars().next();
+    line.len() >= 3
+        && line.len() >= title.trim().chars().count()
+        && first.is_some_and(|c| "=-~^\"'*+#`".contains(c))
+        && line.chars().all(|c| Some(c) == first)
+}
+
+pub fn sections(src: &str) -> Vec<(usize, String)> {
+    let lines: Vec<&str> = src.lines().collect();
+    let mut out = Vec::new();
+    for (i, line) in lines.iter().enumerate() {
+        if let Some(title) = line.strip_prefix('#').map(|t| t.trim_start_matches('#').trim()).filter(|t| !t.is_empty()) {
+            out.push((i, title.to_string()));
+        } else if !line.trim().is_empty()
+            && lines.get(i + 1).is_some_and(|next| is_underline(next, line))
+            && !is_underline(line, "")
+        {
+            out.push((i, line.trim().to_string()));
+        }
+    }
+    out
+}
+
+fn chunk_prose(src: &str) -> Vec<Chunk> {
+    let starts = line_starts(src);
+    let total = src.lines().count();
+    let mut bounds = sections(src);
+    if bounds.first().map(|b| b.0) != Some(0) {
+        bounds.insert(0, (0, String::new()));
+    }
+    let mut out = Vec::new();
+    for (k, (first, title)) in bounds.iter().enumerate() {
+        let last = bounds.get(k + 1).map(|b| b.0).unwrap_or(total).saturating_sub(1);
+        let mut line = *first;
+        while line <= last && line < total {
+            let mut stop = line;
+            while stop < last && tokens_of(&src[starts[line]..starts.get(stop + 2).copied().unwrap_or(src.len())]) <= MAX_TOKENS {
+                stop += 1;
+            }
+            let body = &src[starts[line]..starts.get(stop + 1).copied().unwrap_or(src.len())];
+            if !body.trim().is_empty() {
+                let section = (!title.is_empty()).then(|| title.clone());
+                out.push(Chunk { start: line as u32 + 1, end: stop as u32 + 1, text: body.trim_end().to_string(), symbols: Vec::new(), section });
+            }
+            line = stop + 1;
+        }
+    }
+    out
+}
+
 pub fn parse(path: &str, src: &str) -> Parsed {
+    if is_prose(path) {
+        return Parsed { idents: HashMap::new(), defs: Vec::new(), chunks: chunk_prose(src) };
+    }
     let mut defs = Vec::new();
     let tree = language(path).and_then(|lang| {
         let mut parser = Parser::new();
@@ -303,8 +363,19 @@ mod tests {
 
     #[test]
     fn unknown_language_falls_back_to_lines() {
-        let parsed = parse("notes.rst", "Commands\n========\n\nflask run starts the server.\n");
+        let parsed = parse("notes.ini", "[a]\nb = 1\n");
         assert_eq!(parsed.chunks.len(), 1);
         assert!(parsed.defs.is_empty());
+    }
+
+    #[test]
+    fn docs_chunk_by_section() {
+        let src = "Title\n=====\n\nIntro.\n\nCustom Commands\n---------------\n\nUse @app.cli.command.\n\n## Plugins\n\nEntry points.\n";
+        let rst = parse("cli.rst", src);
+        let titles: Vec<_> = rst.chunks.iter().map(|c| c.section.clone().unwrap_or_default()).collect();
+        assert_eq!(titles, ["Title", "Custom Commands", "Plugins"]);
+        assert_eq!(rst.chunks[1].start, 6);
+        assert!(rst.chunks[1].text.contains("app.cli.command"));
+        assert!(rst.defs.is_empty());
     }
 }

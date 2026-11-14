@@ -24,3 +24,8 @@ xxhash-rust = { version = "0.8", features = ["xxh3"] }
 notify = "8"
 uuid = { version = "1", features = ["v4"] }
 anyhow = "1"
+fastembed = { version = "7.7", optional = true, default-features = false, features = ["hf-hub-native-tls", "onnx", "ort-download-binaries-native-tls"] }
+
+[features]
+default = ["semantic"]
+semantic = ["dep:fastembed"]

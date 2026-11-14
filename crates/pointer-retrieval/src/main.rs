@@ -1,5 +1,7 @@
 mod index;
 mod parse;
+#[cfg(feature = "semantic")]
+mod semantic;
 
 use index::{FileData, Index};
 use rayon::prelude::*;
@@ -30,7 +32,7 @@ impl Store {
     fn read(&self, path: &Path) -> Option<(String, FileData)> {
         let rel = self.relative(path)?;
         let name = path.file_name()?.to_string_lossy();
-        if LOCKFILES.contains(&name.as_ref()) || rel.split('/').any(|p| p == ".git") {
+        if LOCKFILES.contains(&name.as_ref()) || rel.split('/').any(|p| p == ".git" || p == ".pointer") {
             return None;
         }
         let meta = std::fs::metadata(path).ok()?;
@@ -114,6 +116,30 @@ struct MapArgs {
 #[derive(Clone)]
 struct Retrieval {
     store: Arc<Store>,
+    #[cfg(feature = "semantic")]
+    semantic: Option<Arc<semantic::Semantic>>,
+}
+
+impl Retrieval {
+    #[cfg(feature = "semantic")]
+    fn semantic_signal(&self, index: &Index, query: &str) -> Vec<(usize, f32, String)> {
+        self.semantic.as_ref().map(|s| s.rank(index, query)).unwrap_or_default()
+    }
+
+    #[cfg(not(feature = "semantic"))]
+    fn semantic_signal(&self, _: &Index, _: &str) -> Vec<(usize, f32, String)> {
+        Vec::new()
+    }
+
+    #[cfg(feature = "semantic")]
+    fn semantic_status(&self) -> String {
+        self.semantic.as_ref().map_or_else(|| "semantic: off".into(), |s| format!("{}; vectors {} KB", s.status(), s.memory_bytes() / 1024))
+    }
+
+    #[cfg(not(feature = "semantic"))]
+    fn semantic_status(&self) -> String {
+        "semantic: off (built without the semantic feature)".into()
+    }
 }
 
 #[tool_router(server_handler)]
@@ -124,7 +150,10 @@ impl Retrieval {
     )]
     fn search_codebase(&self, Parameters(args): Parameters<SearchArgs>) -> String {
         let started = Instant::now();
-        let out = self.store.current().search_text(&args.query, args.budget_tokens.unwrap_or(4500).min(5000), &[]);
+        let index = self.store.current();
+        let semantic = index::Precomputed(self.semantic_signal(&index, &args.query));
+        let extra: Vec<&dyn index::Signal> = if semantic.0.is_empty() { Vec::new() } else { vec![&semantic] };
+        let out = index.search_text(&args.query, args.budget_tokens.unwrap_or(4500).min(5000), &extra);
         eprintln!("pointer-retrieval: search {:?} in {:?}", args.query, started.elapsed());
         out
     }
@@ -141,14 +170,20 @@ impl Retrieval {
     fn repo_map(&self, Parameters(args): Parameters<MapArgs>) -> String {
         self.store.current().repo_map(args.budget_tokens.unwrap_or(2000))
     }
+
+    #[tool(description = "Indexing state: chunk count and whether semantic search is off, building (with progress) or ready.", annotations(read_only_hint = true))]
+    fn index_status(&self) -> String {
+        let index = self.store.current();
+        format!("{}\nchunks: {} in {} files", self.semantic_status(), index.chunks.len(), index.files)
+    }
 }
 
-fn watch(store: Arc<Store>) -> notify::Result<notify::RecommendedWatcher> {
+fn watch(store: Arc<Store>, after: impl Fn() + Send + 'static) -> notify::Result<notify::RecommendedWatcher> {
     use notify::Watcher;
     let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if let Ok(event) = event {
-            for path in event.paths {
+            for path in event.paths.into_iter().filter(|p| !p.components().any(|c| c.as_os_str() == ".pointer")) {
                 let _ = tx.send(path);
             }
         }
@@ -165,6 +200,7 @@ fn watch(store: Arc<Store>) -> notify::Result<notify::RecommendedWatcher> {
             batch.dedup();
             let started = Instant::now();
             store.update(&batch, &ignored);
+            after();
             eprintln!("pointer-retrieval: reindexed {} paths in {:?}", batch.len(), started.elapsed());
         }
     });
@@ -178,7 +214,7 @@ fn arg(args: &[String], name: &str) -> Option<String> {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let root = PathBuf::from(arg(&args, "--root").ok_or_else(|| anyhow::anyhow!("usage: pointer-retrieval --root <dir> [--port 0]"))?);
+    let root = PathBuf::from(arg(&args, "--root").ok_or_else(|| anyhow::anyhow!("usage: pointer-retrieval --root <dir> [--port 0] [--semantic]"))?);
     let root = root.canonicalize()?;
     let port: u16 = arg(&args, "--port").map(|p| p.parse()).transpose()?.unwrap_or(0);
 
@@ -191,7 +227,23 @@ async fn main() -> anyhow::Result<()> {
     store.index_all();
     let index = store.current();
     eprintln!("pointer-retrieval: indexed {} files, {} chunks in {:?}", index.files, index.chunks.len(), started.elapsed());
-    let _watcher = watch(store.clone())?;
+    #[cfg(feature = "semantic")]
+    let semantic = args.iter().any(|a| a == "--semantic").then(|| {
+        let source = store.clone();
+        semantic::Semantic::start(&store.root, move || source.current())
+    });
+    #[cfg(not(feature = "semantic"))]
+    if args.iter().any(|a| a == "--semantic") {
+        eprintln!("pointer-retrieval: built without the semantic feature; --semantic ignored");
+    }
+    #[cfg(feature = "semantic")]
+    let notify = semantic.clone();
+    let _watcher = watch(store.clone(), move || {
+        #[cfg(feature = "semantic")]
+        if let Some(s) = &notify {
+            s.changed();
+        }
+    })?;
 
     let token = uuid::Uuid::new_v4().simple().to_string();
     let mut config = StreamableHttpServerConfig::default();
@@ -199,7 +251,13 @@ async fn main() -> anyhow::Result<()> {
     config.json_response = true;
     let service_store = store.clone();
     let service = StreamableHttpService::new(
-        move || Ok(Retrieval { store: service_store.clone() }),
+        move || {
+            Ok(Retrieval {
+                store: service_store.clone(),
+                #[cfg(feature = "semantic")]
+                semantic: semantic.clone(),
+            })
+        },
         Arc::new(LocalSessionManager::default()),
         config,
     );
