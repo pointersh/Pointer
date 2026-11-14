@@ -8,8 +8,11 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Instant, SystemTime};
 
 const MAGIC: &[u8; 8] = b"PTRVEC01";
-const BATCH: usize = 8;
-const MAX_LENGTH: usize = 512;
+const BATCH: usize = 4;
+const MAX_LENGTH: usize = 192;
+const PASSAGE_CHARS: usize = 750;
+const MIN_CHARS: usize = 80;
+const RECENT: std::time::Duration = std::time::Duration::from_secs(30 * 24 * 3600);
 const POOL: usize = 100;
 
 struct Vector {
@@ -92,12 +95,16 @@ impl Semantic {
 
     fn embed_missing(&self, root: &Path, index: &Index) {
         let started = Instant::now();
+        let wanted: Vec<usize> = {
+            let mut seen = std::collections::HashSet::new();
+            index.chunks.iter().enumerate().filter(|(_, c)| embeddable(c) && seen.insert(c.hash)).map(|(i, _)| i).collect()
+        };
         let mut missing: Vec<usize> = {
             let have = self.vectors.read().unwrap();
-            index.chunks.iter().enumerate().filter(|(_, c)| !have.contains_key(&c.hash)).map(|(i, _)| i).collect()
+            wanted.iter().copied().filter(|&i| !have.contains_key(&index.chunks[i].hash)).collect()
         };
-        self.total.store(index.chunks.len(), Ordering::Relaxed);
-        self.done.store(index.chunks.len() - missing.len(), Ordering::Relaxed);
+        self.total.store(wanted.len(), Ordering::Relaxed);
+        self.done.store(wanted.len() - missing.len(), Ordering::Relaxed);
         if missing.is_empty() {
             return;
         }
@@ -108,7 +115,13 @@ impl Semantic {
                 std::fs::metadata(root.join(path)).and_then(|m| m.modified()).unwrap_or(SystemTime::UNIX_EPOCH)
             });
         }
-        missing.sort_by(|a, b| mtimes[index.chunks[*b].path.as_str()].cmp(&mtimes[index.chunks[*a].path.as_str()]).then(a.cmp(b)));
+        let now = SystemTime::now();
+        let bucket = |i: usize| {
+            let path = index.chunks[i].path.as_str();
+            let old = now.duration_since(mtimes[path]).is_ok_and(|age| age > RECENT);
+            (old, is_test(path))
+        };
+        missing.sort_by_key(|&i| (bucket(i), index.chunks[i].text.len().min(PASSAGE_CHARS), i));
         let count = missing.len();
         for (n, batch) in missing.chunks(BATCH).enumerate() {
             let texts: Vec<String> = batch.iter().map(|&i| passage(index, i)).collect();
@@ -205,7 +218,19 @@ impl Semantic {
 fn passage(index: &Index, i: usize) -> String {
     let c = &index.chunks[i];
     let label = c.section.as_deref().map(String::from).unwrap_or_else(|| c.symbols.join(", "));
-    format!("{} {}\n{}", c.path, label, c.text)
+    let end = c.text.char_indices().nth(PASSAGE_CHARS).map_or(c.text.len(), |(at, _)| at);
+    format!("{} {}\n{}", c.path, label, &c.text[..end])
+}
+
+fn is_test(path: &str) -> bool {
+    path.split('/').any(|part| part == "tests" || part == "test" || part.starts_with("test_") || part.ends_with("_test.py"))
+}
+
+fn embeddable(c: &crate::index::ChunkRef) -> bool {
+    let path = c.path.as_str();
+    let data = [".json", ".csv", ".tsv", ".svg", ".lock", ".min.js", ".map"].iter().any(|ext| path.ends_with(ext));
+    let fixture = path.split('/').any(|part| matches!(part, "fixtures" | "fixture" | "testdata" | "__snapshots__" | "snapshots"));
+    !data && !fixture && c.text.trim().len() >= MIN_CHARS
 }
 
 fn load(file: &Path) -> Option<HashMap<u64, Vector>> {
