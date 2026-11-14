@@ -80,6 +80,7 @@ against your TrueForge.
 | `pointer.trueforgeUrl` | `http://localhost:8790` | Where TrueForge runs |
 | `pointer.models` | `["pointer/primary", "pointer-backup/primary"]` | Model chain, tried in order |
 | `pointer.retrievalPath` | `target/release/pointer-retrieval` | Retrieval engine binary |
+| `pointer.semanticSearch` | `false` | Add local jina code embeddings to retrieval. Downloads the model once (~630 MB) and builds in the background; the index lives in `.pointer/`, which ignores itself |
 
 ## Layout
 

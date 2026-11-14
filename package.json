@@ -316,6 +316,11 @@
           "default": "",
           "description": "Path to the pointer-retrieval binary. Empty uses target/release/pointer-retrieval inside the extension."
         },
+        "pointer.semanticSearch": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Add local semantic search (`jina-embeddings-v2-base-code`, run in-process; no API calls) to retrieval. The first run downloads the model (~630 MB) and embeds the workspace in the background, which takes minutes on a CPU. Search stays instant on BM25, symbols and the repo map meanwhile."
+        },
         "pointer.enabled": {
           "order": 0,
           "type": "boolean",

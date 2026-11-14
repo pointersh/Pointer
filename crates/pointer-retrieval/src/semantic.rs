@@ -148,6 +148,12 @@ impl Semantic {
         drop(have);
         let write = || -> std::io::Result<()> {
             std::fs::create_dir_all(self.file.parent().unwrap())?;
+            if let Some(dot) = self.file.ancestors().find(|p| p.ends_with(".pointer")) {
+                let ignore = dot.join(".gitignore");
+                if !ignore.exists() {
+                    std::fs::write(ignore, "*\n")?;
+                }
+            }
             let tmp = self.file.with_extension("tmp");
             std::fs::File::create(&tmp)?.write_all(&bytes)?;
             std::fs::rename(tmp, &self.file)

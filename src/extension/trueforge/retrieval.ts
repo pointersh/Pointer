@@ -24,7 +24,8 @@ export const startRetrieval = (context: vscode.ExtensionContext, root: string): 
     logger.warn(`pointer-retrieval not found at ${binary}; build it with \`cargo build --release\`. Falling back to the editor's search tools.`)
     return Promise.resolve(undefined)
   }
-  const child = spawn(binary, ["--root", root], { stdio: ["ignore", "pipe", "pipe"] })
+  const semantic = vscode.workspace.getConfiguration("pointer").get<boolean>("semanticSearch", false)
+  const child = spawn(binary, ["--root", root, ...(semantic ? ["--semantic"] : [])], { stdio: ["ignore", "pipe", "pipe"] })
   child.stderr.on("data", (chunk) => logger.debug(`[retrieval] ${String(chunk).trimEnd()}`))
   return new Promise((resolve) => {
     let buffer = ""

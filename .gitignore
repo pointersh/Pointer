@@ -11,3 +11,4 @@ pointer.gateway.json
 
 # rust
 /target
+.pointer/
