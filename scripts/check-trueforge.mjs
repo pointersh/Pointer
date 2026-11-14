@@ -26,7 +26,7 @@ export { GenerationTracker } from "./src/extension/generations"`,
     setup: (b) => {
       b.onResolve({ filter: /^vscode$/ }, () => ({ path: "vscode", namespace: "stub" }))
       b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-        contents: "module.exports={workspace:{getConfiguration:()=>({get:()=>undefined})},window:{createOutputChannel:()=>({info(){},warn(){},error(){},debug(){},trace(){},appendLine(){},show(){},dispose(){}})}}"
+        contents: "module.exports={workspace:{getConfiguration:()=>({get:()=>undefined})},window:{setStatusBarMessage(){},createOutputChannel:()=>({info(){},warn(){},error(){},debug(){},trace(){},appendLine(){},show(){},dispose(){}})}}"
       }))
     }
   }]

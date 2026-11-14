@@ -1,3 +1,6 @@
+import * as vscode from "vscode"
+
+import { logger } from "../../common/logger"
 import { ChatCompletionMessage } from "../../common/types"
 import { TextModel } from "../model"
 
@@ -56,6 +59,9 @@ export const trueforgeTextModel = (): TextModel => ({
         return
       } catch (error) {
         if (signal.aborted || produced || i === chain.length - 1) throw new Error(describeError(error))
+        const notice = `Pointer: ${chain[i]} failed (${describeError(error)}); retrying on ${chain[i + 1]}`
+        logger.warn(notice)
+        vscode.window.setStatusBarMessage(notice, 8000)
       }
     }
   }
