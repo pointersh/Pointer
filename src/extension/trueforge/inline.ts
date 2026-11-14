@@ -18,6 +18,7 @@ const streamOn = async function* (model: string, messages: ChatCompletionMessage
   let sent = 0
   const done = runTurn(sessionId, input, {
     onText: (text) => {
+      if (text.length <= sent) return
       chunks.push(text.slice(sent))
       sent = text.length
       wake?.()

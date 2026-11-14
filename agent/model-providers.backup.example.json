@@ -1,0 +1,19 @@
+{
+  "manifest": {
+    "type": "custom",
+    "name": "pointer-backup",
+    "base_url": "https://another-provider.example/v1",
+    "auth": {
+      "api_key": "YOUR_SECOND_API_KEY"
+    },
+    "models": [
+      {
+        "name": "primary",
+        "model_id": "BACKUP_MODEL_ID",
+        "properties": {
+          "context_length": 128000
+        }
+      }
+    ]
+  }
+}

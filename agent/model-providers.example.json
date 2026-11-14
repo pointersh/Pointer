@@ -13,13 +13,6 @@
         "properties": {
           "context_length": 128000
         }
-      },
-      {
-        "name": "fallback",
-        "model_id": "FALLBACK_MODEL_ID",
-        "properties": {
-          "context_length": 128000
-        }
       }
     ]
   }

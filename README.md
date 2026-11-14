@@ -38,11 +38,13 @@ OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","openrouter.ai"]' \
   npx @truefoundry/trueforge@latest --port 8790
 ```
 
-**2. Register a model provider named `pointer`** with two models, `primary`
-and `fallback`. The agent uses `pointer/primary` and falls back to
-`pointer/fallback` automatically. Copy
-[`agent/model-providers.example.json`](agent/model-providers.example.json), fill
-in your base URL, key and model IDs, then:
+**2. Register two model providers:** `pointer` for the primary model and
+`pointer-backup` for the fallback. Give each its own endpoint or key, so that
+when one breaks, the other still answers. Pointer tries `pointer/primary` first
+and switches to `pointer-backup/primary` automatically. Fill in
+[`agent/model-providers.example.json`](agent/model-providers.example.json) and
+[`agent/model-providers.backup.example.json`](agent/model-providers.backup.example.json),
+then register each:
 
 ```sh
 curl -X PUT localhost:8790/api/v1/settings/model-providers \
@@ -76,7 +78,7 @@ against your TrueForge.
 | Setting | Default | |
 |---|---|---|
 | `pointer.trueforgeUrl` | `http://localhost:8790` | Where TrueForge runs |
-| `pointer.models` | `["pointer/primary", "pointer/fallback"]` | Model chain, tried in order |
+| `pointer.models` | `["pointer/primary", "pointer-backup/primary"]` | Model chain, tried in order |
 | `pointer.retrievalPath` | `target/release/pointer-retrieval` | Retrieval engine binary |
 
 ## Layout

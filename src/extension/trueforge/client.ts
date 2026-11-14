@@ -21,7 +21,7 @@ export const trueforgeUrl = () => (settings().get<string>("trueforgeUrl") || "ht
 
 export const modelChain = (): string[] => {
   const configured = settings().get<string[]>("models") ?? []
-  return configured.length ? configured : [AGENT_MANIFEST.model.name, "pointer/fallback"]
+  return configured.length ? configured : [AGENT_MANIFEST.model.name, "pointer-backup/primary"]
 }
 
 export const trueforge = () => new TrueForge({ baseUrl: trueforgeUrl(), timeoutInSeconds: 900 })

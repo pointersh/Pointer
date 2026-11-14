@@ -309,7 +309,7 @@
             "type": "string"
           },
           "default": [],
-          "markdownDescription": "Models to use, in order, as `provider/model` names configured in TrueForge. If a turn fails on one, Pointer retries on the next. Empty uses the model in `agent/pointer.agent.json`."
+          "markdownDescription": "Models to use, in order, as `provider/model` names configured in TrueForge. If a turn fails on one, Pointer retries on the next. Empty uses `pointer/primary`, then `pointer-backup/primary`."
         },
         "pointer.retrievalPath": {
           "type": "string",
