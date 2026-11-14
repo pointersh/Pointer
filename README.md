@@ -26,17 +26,58 @@ changes, and shows every hunk for review before anything touches disk.
 
 ## Setup
 
+Requirements: Node 22.14 or newer, VS Code 1.93 or newer, and Rust (stable) for
+the retrieval engine.
+
+**1. Start TrueForge locally.** `OUTBOUND_URL_ALLOWED_HOSTS` is an exclusive
+allowlist. Include loopback, where Pointer's MCP servers run, and your model
+provider's host.
+
 ```sh
-git clone https://github.com/ayuxy027/Pointer.git
-cd Pointer
-npm ci
-npm run build
+OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","openrouter.ai"]' \
+  npx @truefoundry/trueforge@latest --port 8790
 ```
 
-Open the folder in VS Code and press F5 to launch the Extension Development Host.
+**2. Register a model provider named `pointer`** with two models, `primary`
+and `fallback`. The agent uses `pointer/primary` and falls back to
+`pointer/fallback` automatically. Copy
+[`agent/model-providers.example.json`](agent/model-providers.example.json), fill
+in your base URL, key and model IDs, then:
 
-TrueForge setup, agent definition and example model configuration: coming with
-the TrueForge client.
+```sh
+curl -X PUT localhost:8790/api/v1/settings/model-providers \
+  -H 'content-type: application/json' --data @my-provider.json
+```
+
+Any OpenAI-compatible endpoint works, as do TrueForge's built-in providers.
+Keys stay in TrueForge and are never stored in this repo.
+
+**3. Build Pointer.**
+
+```sh
+git clone https://github.com/ayuxy027/Pointer.git && cd Pointer
+npm ci
+npm run build
+cargo build --release
+```
+
+**4. Run it.** Open the folder in VS Code and press F5. In the Extension
+Development Host, open the repository you want to work on. On activation,
+Pointer:
+1. starts its editor MCP server and the retrieval engine;
+2. registers both with TrueForge;
+3. creates or updates the `pointer` agent from
+   [`agent/pointer.agent.json`](agent/pointer.agent.json).
+
+**Checks.** `npm run check:mcp` tests the editor MCP server.
+`npm run check:trueforge` runs one full live turn (read, then an approved edit)
+against your TrueForge.
+
+| Setting | Default | |
+|---|---|---|
+| `pointer.trueforgeUrl` | `http://localhost:8790` | Where TrueForge runs |
+| `pointer.models` | `["pointer/primary", "pointer/fallback"]` | Model chain, tried in order |
+| `pointer.retrievalPath` | `target/release/pointer-retrieval` | Retrieval engine binary |
 
 ## Layout
 
