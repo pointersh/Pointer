@@ -1,4 +1,4 @@
-import React,{ useCallback,useEffect,useMemo,useRef,useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Virtuoso, VirtuosoHandle } from "react-virtuoso"
 import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
@@ -10,9 +10,7 @@ import { ASSISTANT, EVENT_NAME, USER } from "../common/constants"
 import {
 AnyContextItem,
 ChatCompletionMessage,
-MentionType,
-ReplyChangesView,
-ToolStepView
+MentionType, ToolStepView
 } from "../common/types"
 
 import { useAutosizeTextArea } from "./hooks/useAutosizeTextArea"
@@ -249,7 +247,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     setCompletion(incoming)
   })
 
-
   useServerEvent(EVENT_NAME.pointerNewConversation, () => {
     updateQueue([])
     setMessages([])
@@ -313,18 +310,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     userStoppedRef.current = true
     emit(EVENT_NAME.pointerStopGeneration)
   }, [])
-
-  const handleChangesUpdate = useCallback(
-    (index: number, changes: ReplyChangesView) => {
-      setMessages((prev) => {
-        if (!prev?.[index] || prev[index].changes?.id !== changes.id) return prev
-        const updatedMessages = prev.map((message, i) => (i === index ? { ...message, changes } : message))
-        saveLastConversation({ ...conversation, messages: updatedMessages })
-        return updatedMessages
-      })
-    },
-    [conversation, saveLastConversation]
-  )
 
   const getMentions = useCallback(() => {
     const mentions: MentionType[] = []
@@ -535,7 +520,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     })
   }, [conversation, chatDisabled, clearToolSteps, t])
 
-
   const handleNewConversation = useCallback(() => {
     setActiveConversation({
       id: crypto.randomUUID(),
@@ -669,7 +653,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     editor?.setEditable(!chatDisabled)
   }, [editor, chatDisabled])
 
-
   useAutosizeTextArea(chatRef, editorRef.current?.getText() || "")
 
   useEffect(() => {
@@ -797,7 +780,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
         completion={completion}
         steps={toolSteps}
         handleContinue={handleContinue}
-        handleChangesUpdate={handleChangesUpdate}
         index={Math.min(index, messages.length - 1)}
         isLoading={isLoading}
         message={messages[Math.min(index, messages.length - 1)]}
@@ -806,7 +788,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     ),
     [
       handleContinue,
-      handleChangesUpdate,
       isLoading,
       messages,
       completion,

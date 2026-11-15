@@ -5,15 +5,13 @@ import remarkGfm from "remark-gfm"
 
 import { ASSISTANT, EVENT_NAME, POINTER, YOU } from "../common/constants"
 import {
-ChatCompletionMessage, ReplyChangesView,
-ReplyMeta,
+ChatCompletionMessage, ReplyMeta,
 ToolStepView
 } from "../common/types"
 
 import { Button } from "./button"
 import CodeBlock from "./code-block"
 import { emit } from "./messaging"
-import { ReplyChanges } from "./reply-changes"
 import { replyParts } from "./reply-parts"
 import { useTranslation } from "./strings"
 import { useToast } from "./toast"
@@ -28,7 +26,6 @@ interface MessageProps {
   message?: ChatCompletionMessage
   onHeightChange?: () => void
   onContinue?: () => void
-  onChangesUpdate?: (index: number, changes: ReplyChangesView) => void
 }
 
 interface ThinkingSectionProps {
@@ -237,8 +234,7 @@ export const Message: React.FC<MessageProps> = ({
   steps,
   message,
   onHeightChange,
-  onContinue,
-  onChangesUpdate
+  onContinue
 }) => {
   const { t } = useTranslation()
   const [isThinkingCollapsed, setIsThinkingCollapsed] = React.useState(false)
@@ -387,13 +383,6 @@ export const Message: React.FC<MessageProps> = ({
                 {part.text.trim()}
               </Markdown>
             ) : null
-          )}
-          {message.changes && (
-            <ReplyChanges
-              changes={message.changes}
-              onUpdate={(changes) => index !== undefined && onChangesUpdate?.(index, changes)}
-              onError={showToast}
-            />
           )}
           {message.meta && <ReplyFooter meta={message.meta} onContinue={onContinue} actions={footerActions ? options : undefined} />}
         </>

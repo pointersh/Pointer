@@ -110,11 +110,6 @@ export class BaseProvider {
       [EVENT_NAME.pointerStopGeneration]: () => this.destroyStream(),
       [EVENT_NAME.pointerToolApproval]: ({ id, run, always }) => this.agent?.answerToolApproval(id, run, always),
       [EVENT_NAME.pointerToolStop]: ({ id }) => this.agent?.stopToolStep(id),
-      [EVENT_NAME.pointerOpenChange]: ({ id, path }) => void this.agent?.openChange(id, path),
-      [EVENT_NAME.pointerOpenAgentSettings]: () =>
-        void vscode.commands.executeCommand("workbench.action.openSettings", "pointer.chatTools"),
-      [EVENT_NAME.pointerUndoChanges]: async ({ id, paths }) =>
-        (await this.agent?.undoChanges(id, paths)) ?? { error: "The chat is not ready." },
       [EVENT_NAME.pointerSymbolSearch]: ({ query }) => searchSymbols(query),
       [EVENT_NAME.pointerTextSelection]: () => getTextSelection()
     })

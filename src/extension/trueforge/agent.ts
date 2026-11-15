@@ -1,6 +1,6 @@
 import { ASSISTANT, EVENT_NAME } from "../../common/constants"
 import { logger } from "../../common/logger"
-import { ChatCompletionMessage, MentionType, ReplyChangesView, ReplyMeta } from "../../common/types"
+import { ChatCompletionMessage, MentionType, ReplyMeta } from "../../common/types"
 import { Agent } from "../agent"
 import { ToolSteps } from "../chat/tool-steps"
 import { GenerationRun, GenerationTracker } from "../generations"
@@ -10,11 +10,6 @@ import { AGENT_MANIFEST, AGENT_NAME, agentManifest, describeError, modelChain } 
 import { cancelSession, createSession, runTurn, TurnResult } from "./session"
 
 const WRITE_TOOL = /^(edit_file|create_file|delete_file|move_file|rename_symbol|run_command)$/
-
-export interface ChangeReview {
-  openDiff(id: string, file: string): Promise<unknown>
-  undo(id: string, paths?: string[]): Promise<{ view?: ReplyChangesView; error?: string }>
-}
 
 const plainText = (html: string) =>
   html
@@ -48,8 +43,7 @@ export class TrueForgeAgent implements Agent {
 
   constructor(
     private readonly _bridge: ExtensionBridge,
-    private readonly _generations: GenerationTracker,
-    private readonly _changes?: ChangeReview
+    private readonly _generations: GenerationTracker
   ) {
     this._steps = new ToolSteps((steps) => _bridge.emit(EVENT_NAME.pointerToolSteps, steps))
   }
@@ -176,12 +170,4 @@ export class TrueForgeAgent implements Agent {
     this._steps.stop(id)
   }
 
-
-  public openChange(id: string, file: string) {
-    return this._changes?.openDiff(id, file) ?? Promise.resolve(undefined)
-  }
-
-  public undoChanges(id: string, paths?: string[]) {
-    return this._changes?.undo(id, paths) ?? Promise.resolve({ error: "Undo is not available yet." })
-  }
 }

@@ -1,4 +1,4 @@
-import { ChatCompletionMessage, MentionType, ReplyChangesView } from "../common/types"
+import { ChatCompletionMessage, MentionType } from "../common/types"
 
 export interface Agent {
   readonly replying: boolean
@@ -8,6 +8,4 @@ export interface Agent {
   resetConversation(): void
   answerToolApproval(id: string, run: boolean, always?: boolean): void
   stopToolStep(id: string): void
-  openChange(id: string, file: string): Promise<unknown>
-  undoChanges(id: string, paths?: string[]): Promise<{ view?: ReplyChangesView; error?: string }>
 }

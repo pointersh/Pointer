@@ -1,6 +1,6 @@
 import { memo } from "react"
 
-import { ChatCompletionMessage, ReplyChangesView, ToolStepView } from "../common/types"
+import { ChatCompletionMessage, ToolStepView } from "../common/types"
 
 import Message from "./message"
 import TypingIndicator from "./typing-indicator"
@@ -14,11 +14,10 @@ interface MessageListProps {
   isLoading: boolean
   index: number
   handleContinue?: () => void
-  handleChangesUpdate?: (index: number, changes: ReplyChangesView) => void
 }
 
 const MessageItem = memo(
-  ({ message, messages, completion, pending, steps, isLoading, index, handleContinue, handleChangesUpdate }: MessageListProps) => {
+  ({ message, messages, completion, pending, steps, isLoading, index, handleContinue }: MessageListProps) => {
     if (pending) {
       return completion ? (
         <Message message={completion} steps={steps} index={index} />
@@ -35,7 +34,6 @@ const MessageItem = memo(
         message={message}
         index={index}
         onContinue={canContinue ? handleContinue : undefined}
-        onChangesUpdate={handleChangesUpdate}
       />
     )
   }

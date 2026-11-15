@@ -2,8 +2,7 @@ import { EVENT_NAME } from "../constants"
 import type {
 AnyContextItem,
 ChatCompletionMessage,
-ContextItem, MentionType, ReplyChangesView,
-ThemeType,
+ContextItem, MentionType, ThemeType,
 ToolStepView
 } from "../types"
 
@@ -72,9 +71,6 @@ export interface ClientEvents {
   [EVENT_NAME.pointerTextSelection]: Channel<void, string>
   [EVENT_NAME.pointerToolApproval]: Channel<{ id: string; run: boolean; always?: boolean }>
   [EVENT_NAME.pointerToolStop]: Channel<{ id: string }>
-  [EVENT_NAME.pointerOpenAgentSettings]: Channel
-  [EVENT_NAME.pointerOpenChange]: Channel<{ id: string; path: string }>
-  [EVENT_NAME.pointerUndoChanges]: Channel<{ id: string; paths?: string[] }, { view?: ReplyChangesView; error?: string }>
 }
 
 export interface ServerEvents {
