@@ -1,13 +1,10 @@
 out
 dist
 node_modules
-.vscode-test/
 *.vsix
-
 
 # local Claude Code settings and worktrees
 .claude/
-pointer.gateway.json
 
 # rust
 /target

@@ -43,28 +43,8 @@
     "menus": {
       "editor/context": [
         {
-          "when": "editorTextFocus",
-          "command": "pointer.explain"
-        },
-        {
-          "when": "editorTextFocus",
-          "command": "pointer.refactor"
-        },
-        {
           "when": "editorTextFocus && !editorReadonly",
           "command": "pointer.edit"
-        },
-        {
-          "when": "editorTextFocus",
-          "command": "pointer.addTypes"
-        },
-        {
-          "when": "editorTextFocus",
-          "command": "pointer.addTests"
-        },
-        {
-          "when": "editorTextFocus",
-          "command": "pointer.generateDocs"
         },
         {
           "when": "editorTextFocus",
@@ -77,16 +57,6 @@
       ],
       "view/title": [
         {
-          "command": "pointer.manageTemplates",
-          "group": "navigation@4",
-          "when": "view == pointer.sidebar"
-        },
-        {
-          "command": "pointer.openPanelChat",
-          "when": "view == pointer.sidebar",
-          "group": "navigation@7"
-        },
-        {
           "command": "pointer.newConversation",
           "when": "view == pointer.sidebar",
           "group": "navigation@8"
@@ -95,18 +65,9 @@
           "command": "pointer.settings",
           "when": "view == pointer.sidebar",
           "group": "navigation@9"
-        },
-        {
-          "command": "pointer.exportConversation",
-          "when": "view == pointer.sidebar",
-          "group": "conversation@1"
         }
       ],
       "commandPalette": [
-        {
-          "command": "pointer.statusBarMenu",
-          "when": "false"
-        },
         {
           "command": "pointer.acceptEdit",
           "when": "pointerInlineEditPending"
@@ -114,16 +75,6 @@
         {
           "command": "pointer.rejectEdit",
           "when": "pointerInlineEditPending"
-        }
-      ],
-      "terminal/context": [
-        {
-          "command": "pointer.fixTerminalError",
-          "group": "pointer@1"
-        },
-        {
-          "command": "pointer.terminalCommand",
-          "group": "pointer@2"
         }
       ],
       "explorer/context": [
@@ -136,14 +87,6 @@
     },
     "commands": [
       {
-        "command": "pointer.explain",
-        "title": "Pointer - Explain"
-      },
-      {
-        "command": "pointer.refactor",
-        "title": "Pointer - Refactor"
-      },
-      {
         "command": "pointer.edit",
         "title": "Pointer - Edit with instruction..."
       },
@@ -154,18 +97,6 @@
       {
         "command": "pointer.rejectEdit",
         "title": "Pointer - Reject edit"
-      },
-      {
-        "command": "pointer.addTypes",
-        "title": "Pointer - Add types"
-      },
-      {
-        "command": "pointer.addTests",
-        "title": "Pointer - Write tests"
-      },
-      {
-        "command": "pointer.generateDocs",
-        "title": "Pointer - Generate docs"
       },
       {
         "command": "pointer.enable",
@@ -193,37 +124,10 @@
         "icon": "$(gear)"
       },
       {
-        "command": "pointer.openPanelChat",
-        "shortTitle": "Open pointer panel chat",
-        "title": "Open pointer panel chat",
-        "icon": "$(screen-full)"
-      },
-      {
-        "command": "pointer.exportConversation",
-        "title": "Pointer - Open conversation as Markdown",
-        "icon": "$(markdown)"
-      },
-      {
-        "command": "pointer.forgetAlwaysRunCommands",
-        "title": "Pointer - Forget commands set to always run"
-      },
-      {
         "command": "pointer.newConversation",
         "shortTitle": "New chat",
         "title": "Start a new chat",
         "icon": "$(plus)"
-      },
-      {
-        "command": "pointer.templates",
-        "shortTitle": "Edit pointer templates",
-        "title": "Edit pointer templates",
-        "icon": "$(pencil)"
-      },
-      {
-        "command": "pointer.manageTemplates",
-        "shortTitle": "Manage pointer templates",
-        "title": "Manage pointer templates",
-        "icon": "$(book)"
       },
       {
         "command": "pointer.showLogs",
@@ -236,18 +140,6 @@
       {
         "command": "pointer.addSelectionToContext",
         "title": "Pointer: Add Selection to Context"
-      },
-      {
-        "command": "pointer.statusBarMenu",
-        "title": "Pointer - Status bar options"
-      },
-      {
-        "command": "pointer.terminalCommand",
-        "title": "Pointer - Write a terminal command from a description"
-      },
-      {
-        "command": "pointer.fixTerminalError",
-        "title": "Pointer - Fix the last terminal error"
       }
     ],
     "keybindings": [
@@ -321,82 +213,11 @@
           "default": false,
           "markdownDescription": "Add local semantic search (`jina-embeddings-v2-base-code`, run in-process; no API calls) to retrieval. The first run downloads the model (~630 MB) and embeds the workspace in the background, which takes minutes on a CPU. Search stays instant on BM25, symbols and the repo map meanwhile."
         },
-        "pointer.enabled": {
-          "order": 0,
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Toggles the Pointer extension on or off. When `true`, Pointer is active and ready to provide completions."
-        },
-        "pointer.temperature": {
-          "order": 6,
-          "type": "number",
-          "default": 0.2,
-          "markdownDescription": "Controls the randomness of code completions. Lower values (e.g., 0.2) produce more focused and deterministic completions, while higher values (e.g., 0.8) lead to more diverse ones. Chat, inline edit and code review send no temperature; the server's default applies.",
-          "required": true
-        },
-        "pointer.numPredictFim": {
-          "order": 12,
-          "type": "number",
-          "default": 512,
-          "markdownDescription": "Defines the maximum number of tokens for Fill-in-Middle (FIM) completions. Use `-1` for no limit. Pointer will attempt to stop at logical line breaks regardless of this setting.",
-          "required": true
-        },
         "pointer.embeddingIgnoredGlobs": {
           "order": 14,
           "type": "array",
           "default": [],
           "markdownDescription": "Extra file patterns to skip when building embeddings, such as `**/*.md` or `**/fixtures/**`. Only source, config and documentation files are indexed to begin with; binaries such as fonts and images are always skipped."
-        },
-        "pointer.embeddingUpdateOnSave": {
-          "order": 14,
-          "type": "boolean",
-          "default": true,
-          "description": "Keep the workspace index current: re-embed a file when it is saved and forget it when it is deleted. Only applies once the workspace has been indexed."
-        },
-        "pointer.ollamaHostname": {
-          "order": 15,
-          "type": "string",
-          "default": "0.0.0.0",
-          "markdownDescription": "Specifies the hostname for the Ollama API. Use `0.0.0.0` for localhost or provide a specific IP address or domain name.",
-          "required": true
-        },
-        "pointer.ollamaApiPort": {
-          "order": 16,
-          "type": [
-            "number",
-            "null"
-          ],
-          "default": 11434,
-          "markdownDescription": "Sets the port number for the Ollama API. The default is `11434`, but you can change it if your Ollama instance uses a different port.",
-          "required": false
-        },
-        "pointer.keepAlive": {
-          "order": 17,
-          "type": "string",
-          "default": "5m",
-          "markdownDescription": "Sets the duration to keep models in memory for Ollama API. Use formats like `5m` for 5 minutes or `1h` for 1 hour. Set to `-1` to keep models in memory indefinitely."
-        },
-        "pointer.ollamaUseTls": {
-          "order": 18,
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "When `true`, Pointer will use TLS encryption for connections to the Ollama API. Ensure your Ollama instance is configured for TLS before enabling this option."
-        },
-        "pointer.secretShield": {
-          "order": 18,
-          "type": "string",
-          "enum": [
-            "offMachine",
-            "always",
-            "off"
-          ],
-          "enumDescriptions": [
-            "Redact credentials in prompts sent to anything that is not on this machine: hosted APIs, a Pointer gateway, a paired device, a server elsewhere on the network.",
-            "Redact credentials in every prompt, local servers included.",
-            "Send prompts as they are."
-          ],
-          "default": "offMachine",
-          "markdownDescription": "**Secret shield.** API keys, tokens, private keys and passwords in a prompt (your question, attached files, the code around the cursor) are replaced with placeholders like `REDACTED_GITHUB_TOKEN_1` before the request is sent, and put back wherever the reply repeats a placeholder. The model never sees the value; the chat shows how many were withheld. Detection covers well-known token formats, private key blocks, passwords in URLs, and secret-named values in code and `.env` files."
         },
         "pointer.enableLogging": {
           "order": 19,
@@ -489,13 +310,6 @@
           "markdownDescription": "How many tool steps one agent reply may take before the model is asked to answer with what it has (with `#pointer.chatTools#` on). More lets a capable model finish longer tasks in one reply; each step is another request to the model.",
           "scope": "machine"
         },
-        "pointer.chatToolsTasks": {
-          "order": 20,
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Let the model keep a task list for work with several parts (with `#pointer.chatTools#` on). The list shows in the reply as it is ticked off, and is put back in front of the model when a reply runs out of steps or the next turn begins.",
-          "scope": "machine"
-        },
         "pointer.chatToolsCommandsRunIn": {
           "order": 20,
           "type": "string",
@@ -510,16 +324,6 @@
           "default": "background",
           "markdownDescription": "Where the chat model's commands run (with `#pointer.chatToolsCommands#` not `off`).",
           "scope": "machine"
-        },
-        "pointer.providerStorageLocation": {
-          "order": 22,
-          "type": "string",
-          "enum": [
-            "globalState",
-            "file"
-          ],
-          "default": "globalState",
-          "markdownDescription": "Specifies where to store Pointer provider configurations. 'globalState' uses VS Code's global state (persists per domain, may be lost if domain changes frequently). 'file' stores configurations in a file within the extension's global storage directory (more resilient to domain changes)."
         }
       }
     }
@@ -560,7 +364,6 @@
     "@tiptap/suggestion": "^2.5.9",
     "@truefoundry/trueforge-sdk": "^0.185.0",
     "@types/react": "^18.2.46",
-    "@vscode/codicons": "^0.0.35",
     "classnames": "^2.5.1",
     "dompurify": "^3.2.3",
     "fuse.js": "^7.0.0",
