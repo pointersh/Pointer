@@ -72,7 +72,6 @@ export interface ClientEvents {
   [EVENT_NAME.pointerTextSelection]: Channel<void, string>
   [EVENT_NAME.pointerToolApproval]: Channel<{ id: string; run: boolean; always?: boolean }>
   [EVENT_NAME.pointerToolStop]: Channel<{ id: string }>
-  [EVENT_NAME.pointerSteer]: Channel<{ id: string; text?: string }>
   [EVENT_NAME.pointerOpenAgentSettings]: Channel
   [EVENT_NAME.pointerOpenChange]: Channel<{ id: string; path: string }>
   [EVENT_NAME.pointerUndoChanges]: Channel<{ id: string; paths?: string[] }, { view?: ReplyChangesView; error?: string }>

@@ -8,7 +8,6 @@ export interface Agent {
   resetConversation(): void
   answerToolApproval(id: string, run: boolean, always?: boolean): void
   stopToolStep(id: string): void
-  steer(id: string, text?: string): void
   openChange(id: string, file: string): Promise<unknown>
   undoChanges(id: string, paths?: string[]): Promise<{ view?: ReplyChangesView; error?: string }>
 }

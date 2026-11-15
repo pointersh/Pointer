@@ -26,7 +26,6 @@ export const EVENT_NAME = {
   pointerTextSelection: "pointer-text-selection",
   pointerToolApproval: "pointer-tool-approval",
   pointerToolStop: "pointer-tool-stop",
-  pointerSteer: "pointer-steer",
   pointerOpenChange: "pointer-open-change",
   pointerUndoChanges: "pointer-undo-changes",
   pointerOpenAgentSettings: "pointer-open-agent-settings",

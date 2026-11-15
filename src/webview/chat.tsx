@@ -10,7 +10,6 @@ import { ASSISTANT, EVENT_NAME, USER } from "../common/constants"
 import {
 AnyContextItem,
 ChatCompletionMessage,
-ImageAttachment,
 MentionType,
 ReplyChangesView,
 ToolStepView
@@ -24,7 +23,6 @@ import { useToolSteps } from "./hooks/useToolSteps"
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext"
 import { Button } from "./button"
 import { EmptyChat } from "./empty-chat"
-import { createCustomImageExtension } from "./image-extension"
 import MessageItem from "./message-item"
 import { emit, useServerEvent } from "./messaging"
 import { useTranslation } from "./strings"
@@ -57,7 +55,6 @@ interface QueuedMessage {
   input: string
   text: string
   mentions: MentionType[]
-  images: ImageAttachment[]
 }
 
 const htmlText = (html: string) =>
@@ -72,12 +69,10 @@ export const Chat = (props: ChatProps): JSX.Element => {
   const { fullScreen, active = true } = props
   const generatingRef = useRef(false)
   const editorRef = useRef<Editor | null>(null)
-  const imagesRef = useRef<ImageAttachment[]>([])
   const stopRef = useRef(false)
   const selection = useSelection()
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const [messages, setMessages] = useState<ChatCompletionMessage[]>([])
   const chatDisabled = false
   const [completion, setCompletion] = useState<ChatCompletionMessage | null>()
@@ -311,7 +306,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     if (!editor || !waiting.length) return
     const draft = editor.isEmpty ? "" : editor.getHTML()
     editor.commands.setContent(draft + waiting.map((message) => message.html).join(""), false)
-    imagesRef.current = [...imagesRef.current, ...waiting.flatMap((message) => message.images)]
     editor.commands.focus("end")
   }
 
@@ -392,7 +386,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     const editor = editorRef.current
     if (!editor || editor.isEmpty) return false
     rememberPrompt(editor.getHTML())
-    imagesRef.current = []
     editor.commands.clearContent()
     return true
   }, [])
@@ -459,8 +452,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
         ...(prevMessages || []),
         {
           role: USER,
-          content: message.input,
-          images: message.images.length > 0 ? message.images : undefined
+          content: message.input
         }
       ]
 
@@ -501,10 +493,8 @@ export const Chat = (props: ChatProps): JSX.Element => {
       html,
       input,
       text,
-      mentions: getMentions(),
-      images: imagesRef.current
+      mentions: getMentions()
     }
-    imagesRef.current = []
     clearEditor()
     rememberPrompt(html)
 
@@ -630,10 +620,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     [JSON.stringify(filePaths)]
   )
 
-  const CustomImageExtension = createCustomImageExtension((id: string) => {
-    imagesRef.current = imagesRef.current.filter((img) => img.id !== id)
-  })
-
   const editor = useEditor(
     {
       extensions: [
@@ -646,9 +632,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
           renderText({ node }) {
             return node.attrs.label
           }
-        }),
-        CustomImageExtension.configure({
-          allowBase64: true
         }),
         CustomKeyMap.configure({
           handleSubmitForm,
@@ -678,8 +661,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
       handleEscape,
       handleInterrupt,
       startNewConversation,
-      t,
-      imagesRef
+      t
     ]
   )
 
@@ -687,95 +669,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     editor?.setEditable(!chatDisabled)
   }, [editor, chatDisabled])
 
-  const handleImageUpload = useCallback(
-    (file: File) => {
-      const reader = new FileReader()
-      reader.onload = (e) => {
-        const base64 = e.target?.result as string
-        const imageData = base64.startsWith("data:")
-          ? base64
-          : `data:${file.type};base64,${base64.split(",").pop()}`
-        const id = crypto.randomUUID()
-        const newImage = { id, data: imageData, type: file.type }
-
-        imagesRef.current = [...imagesRef.current, newImage]
-
-        const { state } = editor?.view || {}
-
-        if (state) {
-          if (
-            state.selection.empty &&
-            state.selection.$head.pos === state.doc.content.size
-          ) {
-            editor?.chain().focus().createParagraphNear().run()
-          }
-
-          editor
-            ?.chain()
-            .focus()
-            .insertContent({
-              type: "image",
-              attrs: { src: imageData, id }
-            })
-            .run()
-
-          editor?.chain().focus().createParagraphNear().run()
-        } else {
-          editor
-            ?.chain()
-            .focus()
-            .insertContent({
-              type: "image",
-              attrs: { src: imageData, id }
-            })
-            .run()
-        }
-      }
-      reader.readAsDataURL(file)
-    },
-    [editor]
-  )
-
-  const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault()
-      const files = Array.from(e.dataTransfer.files).filter((file) =>
-        file.type.startsWith("image/")
-      )
-      files.forEach(handleImageUpload)
-    },
-    [handleImageUpload]
-  )
-
-  const handlePaste = useCallback(
-    (e: React.ClipboardEvent<HTMLFormElement>) => {
-      const items = Array.from(e.clipboardData?.items || [])
-      const imageItem = items.find((item) => item.type.startsWith("image/"))
-
-      if (imageItem) {
-        e.preventDefault()
-        const file = imageItem.getAsFile()
-        if (file) handleImageUpload(file)
-        return
-      }
-    },
-    [handleImageUpload]
-  )
-
-  const handleFileSelect = useCallback(() => {
-    fileInputRef.current?.click()
-  }, [])
-
-  const handleFileChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const files = Array.from(e.target.files || []).filter((file) =>
-        file.type.startsWith("image/")
-      )
-      files.forEach(handleImageUpload)
-      e.target.value = ""
-    },
-    [handleImageUpload]
-  )
 
   useAutosizeTextArea(chatRef, editorRef.current?.getText() || "")
 
@@ -1017,7 +910,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
           >
             <span className={styles.resizeGrip} />
           </div>
-          <form onDrop={handleDrop} onPaste={handlePaste}>
+          <form>
             <div
               className={cx(styles.chatBox, {
                 [styles.chatBoxDisabled]: chatDisabled
@@ -1025,14 +918,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
               title={chatDisabled ? t("chat-disabled-no-provider") : undefined}
               onMouseDown={handleComposerMouseDown}
             >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/*"
-                multiple
-                style={{ display: "none" }}
-              />
               <span className={styles.prompt} aria-hidden="true">
                 <>&#10095;&#10095;</>
               </span>
@@ -1051,15 +936,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
                 />
               </div>
               <div className={styles.chatButtons}>
-                <Button
-                  appearance="icon"
-                  role="button"
-                  disabled={chatDisabled}
-                  onClick={handleFileSelect}
-                  title={t("upload-image")}
-                >
-                  <span className="codicon codicon-device-camera" />
-                </Button>
                 {generatingRef.current ? (
                   <Button
                     appearance="icon"

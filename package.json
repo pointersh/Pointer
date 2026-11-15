@@ -355,7 +355,6 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",
     "@pointersh/highlight": "0.1.0",
-    "@tiptap/extension-image": "^2.11.7",
     "@tiptap/extension-mention": "^2.5.9",
     "@tiptap/extension-placeholder": "^2.5.9",
     "@tiptap/pm": "^2.5.9",

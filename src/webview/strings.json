@@ -26,7 +26,6 @@
   "status": "Status",
   "stop-generation": "Stop generation",
   "thinking": "Thinking...",
-  "upload-image": "Upload image",
   "empty-chat-title": "Ask pointer anything",
   "chat-disabled-no-provider": "Set up a chat provider first.",
   "apply-code": "Apply to the editor as a diff you can accept or reject",

@@ -176,7 +176,6 @@ export class TrueForgeAgent implements Agent {
     this._steps.stop(id)
   }
 
-  public steer() {}
 
   public openChange(id: string, file: string) {
     return this._changes?.openDiff(id, file) ?? Promise.resolve(undefined)

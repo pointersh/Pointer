@@ -110,7 +110,6 @@ export class BaseProvider {
       [EVENT_NAME.pointerStopGeneration]: () => this.destroyStream(),
       [EVENT_NAME.pointerToolApproval]: ({ id, run, always }) => this.agent?.answerToolApproval(id, run, always),
       [EVENT_NAME.pointerToolStop]: ({ id }) => this.agent?.stopToolStep(id),
-      [EVENT_NAME.pointerSteer]: ({ id, text }) => this.agent?.steer(id, text),
       [EVENT_NAME.pointerOpenChange]: ({ id, path }) => void this.agent?.openChange(id, path),
       [EVENT_NAME.pointerOpenAgentSettings]: () =>
         void vscode.commands.executeCommand("workbench.action.openSettings", "pointer.chatTools"),

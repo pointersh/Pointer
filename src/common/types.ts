@@ -7,11 +7,6 @@ export interface LanguageType {
   languageId: string | undefined
 }
 
-export interface ImageAttachment {
-  data: string
-  type: string
-  id?: string
-}
 
 export interface ChatCompletionMessageParam {
   role: "system" | "user" | "assistant" | "tool"
@@ -22,7 +17,6 @@ export interface ChatCompletionMessageParam {
 
 export type ChatCompletionMessage = ChatCompletionMessageParam & {
   id?: string
-  images?: ImageAttachment[] | string[]
   prompt?: string
   meta?: ReplyMeta
   toolSteps?: ToolStepView[]
