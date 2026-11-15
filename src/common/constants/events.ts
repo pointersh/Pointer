@@ -9,22 +9,16 @@ export const EVENT_NAME = {
   pointerGlobalContext: "pointer-global-context",
   pointerNewConversation: "pointer-new-conversation",
   pointerNewDocument: "pointer-new-document",
-  pointerNotification: "pointer-notification",
   pointerOnCompletion: "pointer-on-completion",
-  pointerOnLoading: "pointer-on-loading",
   pointerOpenFile: "pointer-open-file",
   pointerRemoveContextItem: "pointer-remove-context-item",
   pointerRunInTerminal: "pointer-run-in-terminal",
   pointerInsertAtCursor: "pointer-insert-at-cursor",
-  pointerExportConversation: "pointer-export-conversation",
-  pointerSendLanguage: "pointer-send-language",
-  pointerSendLoader: "pointer-send-loader",
   pointerSendTheme: "pointer-send-theme",
   pointerSessionContext: "pointer-session-context",
   pointerSetConfigValue: "pointer-set-config-value",
   pointerSetGlobalContext: "pointer-set-global-context",
   pointerSetSessionContext: "pointer-set-session-context",
-  pointerSetTab: "pointer-set-tab",
   pointerSetWorkspaceContext: "pointer-set-workspace-context",
   pointerSidebarReady: "pointer-sidebar-ready",
   pointerStopGeneration: "pointer-stop-generation",
@@ -37,8 +31,7 @@ export const EVENT_NAME = {
   pointerUndoChanges: "pointer-undo-changes",
   pointerOpenAgentSettings: "pointer-open-agent-settings",
   pointerToolSteps: "pointer-tool-steps",
-  pointerUpdateContextItems: "pointer-update-context-items",
-  pointerWorkspaceSearch: "pointer-workspace-search"
+  pointerUpdateContextItems: "pointer-update-context-items"
 } as const
 
 

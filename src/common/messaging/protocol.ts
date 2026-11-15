@@ -2,8 +2,7 @@ import { EVENT_NAME } from "../constants"
 import type {
 AnyContextItem,
 ChatCompletionMessage,
-ContextItem,LanguageType,
-MentionType,ReplyChangesView,
+ContextItem, MentionType, ReplyChangesView,
 ThemeType,
 ToolStepView
 } from "../types"
@@ -42,41 +41,6 @@ export interface ProviderTestResult {
   sample?: string
 }
 
-export interface WorkspaceHitSummary {
-  path: string
-  startLine: number
-  endLine: number
-  score: number
-  content: string
-  kind?: "imports" | "team"
-}
-
-export interface WorkspaceNearMiss {
-  path: string
-  startLine: number
-  endLine: number
-  score: number
-}
-
-export type WorkspaceSearchStage =
-  | "unavailable"
-  | "embedding"
-  | "retrieving"
-  | "reranking"
-  | "done"
-  | "empty"
-
-export interface WorkspaceSearchReport {
-  stage: WorkspaceSearchStage
-  query: string
-  threshold: number
-  candidates?: number
-  hits: WorkspaceHitSummary[]
-  nearMisses: WorkspaceNearMiss[]
-  elapsedMs?: number
-  note?: string
-}
-
 export interface NewDocumentRequest {
   content: string
   language?: string
@@ -92,12 +56,10 @@ export interface ClientEvents {
   [EVENT_NAME.pointerGlobalContext]: Channel<{ key: string }, ContextValue>
   [EVENT_NAME.pointerNewConversation]: Channel
   [EVENT_NAME.pointerNewDocument]: Channel<NewDocumentRequest>
-  [EVENT_NAME.pointerNotification]: Channel<string>
   [EVENT_NAME.pointerOpenFile]: Channel<string | FileLocation>
   [EVENT_NAME.pointerRemoveContextItem]: Channel<string>
   [EVENT_NAME.pointerRunInTerminal]: Channel<string>
   [EVENT_NAME.pointerInsertAtCursor]: Channel<string>
-  [EVENT_NAME.pointerSendLanguage]: Channel<void, LanguageType>
   [EVENT_NAME.pointerSendTheme]: Channel<void, ThemeType>
   [EVENT_NAME.pointerSessionContext]: Channel<{ key: string }, ContextValue>
   [EVENT_NAME.pointerSetConfigValue]: Channel<ConfigValue>
@@ -122,18 +84,12 @@ export interface ServerEvents {
   [EVENT_NAME.pointerGetWorkspaceContext]: ContextValue
   [EVENT_NAME.pointerGlobalContext]: ContextValue
   [EVENT_NAME.pointerNewConversation]: void
-  [EVENT_NAME.pointerExportConversation]: void
   [EVENT_NAME.pointerOnCompletion]: ChatCompletionMessage
-  [EVENT_NAME.pointerOnLoading]: void
-  [EVENT_NAME.pointerSendLanguage]: LanguageType
-  [EVENT_NAME.pointerSendLoader]: string
   [EVENT_NAME.pointerSendTheme]: ThemeType
   [EVENT_NAME.pointerSessionContext]: ContextValue
-  [EVENT_NAME.pointerSetTab]: string
   [EVENT_NAME.pointerStopGeneration]: void
   [EVENT_NAME.pointerTextSelection]: string
   [EVENT_NAME.pointerUpdateContextItems]: AnyContextItem[]
-  [EVENT_NAME.pointerWorkspaceSearch]: WorkspaceSearchReport
   [EVENT_NAME.pointerToolSteps]: ToolStepView[]
 
 }

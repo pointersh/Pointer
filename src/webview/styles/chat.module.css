@@ -344,86 +344,9 @@ vscode-button.sendButton[appearance="icon"]::part(control) {
 .composer {
   --tw-agent: var(--tw-fg);
 }
-.agent .prompt, .agent:focus-within .prompt {
-  color: var(--tw-fg-dim);
-  letter-spacing: -0.12em;
-}
-.agentBusy .prompt {
-  animation: agent-pulse 0.9s ease-in-out infinite;
-}
 @keyframes agent-pulse {
   50% {
     opacity: 0.45;
-  }
-}
-.modeSwitches {
-  position: absolute;
-  bottom: 6px;
-  left: 8px;
-  max-width: calc(100% - 8px - 72px);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  overflow: hidden;
-}
-@container (max-width: 380px) {
-  .switchKey {
-    display: none;
-  }
-}
-@container (max-width: 250px) {
-  .switchLabel {
-    display: none;
-  }
-}
-.agentToggle {
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  height: 20px;
-  padding: 0 8px 0 7px;
-  border-radius: 999px;
-  background: none;
-  border: 0;
-  color: var(--tw-fg-faint);
-  font-family: inherit;
-  font-size: var(--tw-fs-xs);
-  letter-spacing: var(--tw-track);
-  white-space: nowrap;
-  cursor: pointer;
-  transition:
-    color 0.12s ease,
-    background 0.12s ease;
-}
-.agentToggle:hover {
-  color: var(--tw-fg-dim);
-  background: color-mix(in srgb, var(--tw-fg) 6%, transparent);
-}
-.agentDot {
-  width: 6px;
-  height: 6px;
-  border: 1px solid currentColor;
-  border-radius: 50%;
-  transition: background 0.15s ease;
-}
-.agentToggle:disabled {
-  cursor: not-allowed;
-}
-.agentToggleOn, .agentToggleOn:hover {
-  color: var(--tw-agent);
-  background: color-mix(in srgb, var(--tw-agent) 10%, transparent);
-}
-.agentToggle :global(.codicon) {
-  font-size: 11px !important;
-}
-.agentToggleOn .agentDot {
-  background: var(--tw-agent);
-  border-color: var(--tw-agent);
-}
-@media (prefers-reduced-motion: reduce) {
-  .agentBusy .prompt {
-    animation: none;
   }
 }
 .queue {

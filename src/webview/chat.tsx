@@ -16,16 +16,12 @@ ReplyChangesView,
 ToolStepView
 } from "../common/types"
 
-import { useAgentMode } from "./hooks/useAgentMode"
-import { useAutoRun } from "./hooks/useAutoRun"
 import { useAutosizeTextArea } from "./hooks/useAutosizeTextArea"
 import { useConversation } from "./hooks/useConversation"
 import { useSelection } from "./hooks/useSelection"
 import { useSuggestion } from "./hooks/useSuggestion"
 import { useToolSteps } from "./hooks/useToolSteps"
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext"
-import { useWorkspaceSearch } from "./hooks/useWorkspaceSearch"
-import AgentSettings from "./agent-settings"
 import { Button } from "./button"
 import { EmptyChat } from "./empty-chat"
 import { createCustomImageExtension } from "./image-extension"
@@ -33,7 +29,6 @@ import MessageItem from "./message-item"
 import { emit, useServerEvent } from "./messaging"
 import { useTranslation } from "./strings"
 import { answerToolStep } from "./tool-steps"
-import { conversationMarkdown } from "./transcript"
 import { CustomKeyMap, getThinkingMessage } from "./utils"
 
 import styles from "./styles/chat.module.css"
@@ -63,14 +58,10 @@ interface QueuedMessage {
   text: string
   mentions: MentionType[]
   images: ImageAttachment[]
-  steer?: boolean
 }
 
 const htmlText = (html: string) =>
   (new DOMParser().parseFromString(html, "text/html").body.textContent ?? "").trim()
-
-const steeringText = (input: string) =>
-  htmlText(input.replace(/<br\s*\/?>/g, "\n"))
 
 interface ChatProps {
   fullScreen?: boolean
@@ -92,11 +83,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
   const [completion, setCompletion] = useState<ChatCompletionMessage | null>()
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const { contextItems, removeContextItem } = useWorkspaceContext()
-  const {
-    report: searchReport,
-    clear: clearSearchReport,
-    take: takeSearchReport
-  } = useWorkspaceSearch()
   const completionRef = useRef<ChatCompletionMessage | null | undefined>()
   completionRef.current = completion
   const { steps: toolSteps, clear: clearToolSteps, take: takeToolSteps } = useToolSteps(
@@ -188,12 +174,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
       settleUntilRef.current = Date.now() + 1000
     }
   }, [isLoading, pinToEnd, setFollowing])
-  const { agentMode, toggleAgentMode } = useAgentMode()
-  const agentModeRef = useRef(agentMode)
-  agentModeRef.current = agentMode
-  const { autoRun, autoRunAvailable, toggleAutoRun, setAutoRun } = useAutoRun()
-  const [agentSettingsOpen, setAgentSettingsOpen] = useState(false)
-  const closeAgentSettings = useCallback(() => setAgentSettingsOpen(false), [])
 
   const { conversation, saveLastConversation, setActiveConversation } =
     useConversation()
@@ -225,11 +205,9 @@ export const Chat = (props: ChatProps): JSX.Element => {
 
     let incoming = added
     if (added.role === ASSISTANT) {
-      const context = takeSearchReport()
       const steps = takeToolSteps()
-      incoming = { ...added, ...(context ? { context } : {}), ...(steps ? { toolSteps: steps } : {}) }
+      incoming = { ...added, ...(steps ? { toolSteps: steps } : {}) }
     } else {
-      clearSearchReport()
       clearToolSteps()
     }
 
@@ -276,13 +254,11 @@ export const Chat = (props: ChatProps): JSX.Element => {
     setCompletion(incoming)
   })
 
-  useServerEvent(EVENT_NAME.pointerOnLoading, () => setIsLoading(true))
 
   useServerEvent(EVENT_NAME.pointerNewConversation, () => {
     updateQueue([])
     setMessages([])
     setCompletion(null)
-    clearSearchReport()
     clearToolSteps()
     setActiveConversation({
       id: crypto.randomUUID(),
@@ -474,7 +450,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
   const sendMessage = (message: QueuedMessage) => {
     generatingRef.current = true
     setIsLoading(true)
-    clearSearchReport()
     clearToolSteps()
 
     const conversationId = conversation?.id || crypto.randomUUID()
@@ -534,9 +509,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
     rememberPrompt(html)
 
     if (generatingRef.current) {
-      const steer = agentModeRef.current && !message.mentions.length && !message.images.length
-      updateQueue([...queuedRef.current, { ...message, steer }])
-      if (steer) emit(EVENT_NAME.pointerSteer, { id: message.id, text: steeringText(input) })
+      updateQueue([...queuedRef.current, message])
       return
     }
     sendRef.current(message)
@@ -546,7 +519,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     if (generatingRef.current || chatDisabled) return
     generatingRef.current = true
     setIsLoading(true)
-    clearSearchReport()
     clearToolSteps()
     setMessages((prev) => {
       const last = prev?.[prev.length - 1]
@@ -571,17 +543,8 @@ export const Chat = (props: ChatProps): JSX.Element => {
       })
       return updatedMessages
     })
-  }, [conversation, chatDisabled, clearSearchReport, clearToolSteps, t])
+  }, [conversation, chatDisabled, clearToolSteps, t])
 
-  const handleOpenAsMarkdown = useCallback(() => {
-    if (!messages.length) return
-    emit(EVENT_NAME.pointerNewDocument, {
-      content: conversationMarkdown(conversation?.title, messages),
-      language: "markdown"
-    })
-  }, [conversation?.title, messages])
-
-  useServerEvent(EVENT_NAME.pointerExportConversation, handleOpenAsMarkdown)
 
   const handleNewConversation = useCallback(() => {
     setActiveConversation({
@@ -695,7 +658,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
           approve: approveWaiting,
           interrupt: handleInterrupt,
           newConversation: startNewConversation,
-          toggleAgentMode,
           scrollTranscript
         }),
         Placeholder.configure({
@@ -940,7 +902,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
         key={`message-list-${index}`}
         pending={index >= messages.length}
         completion={completion}
-        context={searchReport}
         steps={toolSteps}
         handleContinue={handleContinue}
         handleChangesUpdate={handleChangesUpdate}
@@ -956,7 +917,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
       isLoading,
       messages,
       completion,
-      searchReport,
       toolSteps
     ]
   )
@@ -972,14 +932,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
               title={t("new-conversation")}
             >
               <i className="codicon codicon-comment-discussion" />
-            </Button>
-            <Button
-              onClick={handleOpenAsMarkdown}
-              appearance="icon"
-              disabled={!messages.length}
-              title={t("open-as-markdown")}
-            >
-              <i className="codicon codicon-markdown" />
             </Button>
           </div>
         )}
@@ -1028,20 +980,12 @@ export const Chat = (props: ChatProps): JSX.Element => {
             )
           )}
         </div>
-        <div className={cx(styles.composer, { [styles.agentBusy]: agentMode && (isLoading || generatingRef.current) })}>
-          {agentMode && agentSettingsOpen && (
-            <AgentSettings autoRun={autoRun} setAutoRun={setAutoRun} onClose={closeAgentSettings} />
-          )}
+        <div className={styles.composer}>
           {!!queued.length && (
             <ol className={styles.queue} aria-label={t("queued-title")}>
               {queued.map((message) => (
                 <li key={message.id} className={styles.queued}>
-                  <span
-                    className={styles.queuedLabel}
-                    title={message.steer ? t("queued-steer-title") : undefined}
-                  >
-                    {t(message.steer ? "queued-steer" : "queued")}
-                  </span>
+                  <span className={styles.queuedLabel}>{t("queued")}</span>
                   <span className={styles.queuedText} title={message.text}>
                     {message.text}
                   </span>
@@ -1049,7 +993,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
                     type="button"
                     className={styles.queuedRemove}
                     onClick={() => {
-                      if (message.steer) emit(EVENT_NAME.pointerSteer, { id: message.id })
                       updateQueue(queuedRef.current.filter((entry) => entry.id !== message.id))
                     }}
                     title={t("queued-remove")}
@@ -1077,8 +1020,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
           <form onDrop={handleDrop} onPaste={handlePaste}>
             <div
               className={cx(styles.chatBox, {
-                [styles.chatBoxDisabled]: chatDisabled,
-                [styles.agent]: agentMode
+                [styles.chatBoxDisabled]: chatDisabled
               })}
               title={chatDisabled ? t("chat-disabled-no-provider") : undefined}
               onMouseDown={handleComposerMouseDown}
@@ -1092,7 +1034,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
                 style={{ display: "none" }}
               />
               <span className={styles.prompt} aria-hidden="true">
-                {agentMode ? <>&#10095;&#10095;</> : <>&#10095;</>}
+                <>&#10095;&#10095;</>
               </span>
               <div
                 ref={editorWrapRef}
@@ -1107,50 +1049,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
                   className={styles.tiptap}
                   editor={editorRef.current}
                 />
-              </div>
-              <div className={styles.modeSwitches}>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={agentMode}
-                  disabled={chatDisabled}
-                  className={cx(styles.agentToggle, { [styles.agentToggleOn]: agentMode })}
-                  onClick={toggleAgentMode}
-                  title={t(agentMode ? "agent-mode-on-title" : "agent-mode-off-title")}
-                >
-                  <span className={styles.agentDot} aria-hidden="true" />
-                  {t(agentMode ? "agent-mode-on" : "agent-mode")}
-                  <span className={styles.switchKey}>{t("agent-mode-key")}</span>
-                </button>
-                {agentMode && autoRunAvailable && (
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={autoRun}
-                    disabled={chatDisabled}
-                    className={cx(styles.agentToggle, { [styles.agentToggleOn]: autoRun })}
-                    onClick={toggleAutoRun}
-                    title={t(autoRun ? "auto-run-on-title" : "auto-run-off-title")}
-                  >
-                    <span className="codicon codicon-terminal" aria-hidden="true" />
-                    <span className={styles.switchLabel}>{t("auto-run")}</span>
-                  </button>
-                )}
-                {agentMode && (
-                  <button
-                    type="button"
-                    data-agent-settings-toggle
-                    aria-expanded={agentSettingsOpen}
-                    className={cx(styles.agentToggle, { [styles.agentToggleOn]: agentSettingsOpen })}
-                    onClick={() => {
-                      setAgentSettingsOpen((open) => !open)
-                    }}
-                    title={t("agent-settings-title")}
-                    aria-label={t("agent-settings-title")}
-                  >
-                    <span className="codicon codicon-settings-gear" aria-hidden="true" />
-                  </button>
-                )}
               </div>
               <div className={styles.chatButtons}>
                 <Button

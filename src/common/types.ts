@@ -1,6 +1,5 @@
 import { ReactNode } from "react"
 
-import type { WorkspaceSearchReport } from "./messaging/protocol"
 import { CodeLanguageDetails } from "./languages"
 
 export interface LanguageType {
@@ -24,7 +23,6 @@ export interface ChatCompletionMessageParam {
 export type ChatCompletionMessage = ChatCompletionMessageParam & {
   id?: string
   images?: ImageAttachment[] | string[]
-  context?: WorkspaceSearchReport
   prompt?: string
   meta?: ReplyMeta
   toolSteps?: ToolStepView[]

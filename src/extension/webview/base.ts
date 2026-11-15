@@ -97,13 +97,10 @@ export class BaseProvider {
       [EVENT_NAME.pointerNewConversation]: () => this.newConversation(),
       [EVENT_NAME.pointerNewDocument]: (request) =>
         this.createNewUntitledDocument(request),
-      [EVENT_NAME.pointerNotification]: (message) =>
-        void vscode.window.showInformationMessage(message),
       [EVENT_NAME.pointerRemoveContextItem]: (id) => this.removeContextItem(id),
       [EVENT_NAME.pointerRunInTerminal]: (command) =>
         this.sendToTerminal(command),
       [EVENT_NAME.pointerInsertAtCursor]: (code) => this.insertAtCursor(code),
-      [EVENT_NAME.pointerSendLanguage]: () => getLanguage(),
       [EVENT_NAME.pointerSendTheme]: () => getTheme(),
       [EVENT_NAME.pointerSetConfigValue]: ({ key, value }) =>
         void vscode.workspace

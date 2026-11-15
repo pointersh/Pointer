@@ -1,12 +1,11 @@
-import React,{ useCallback,useEffect,useMemo,useRef } from "react"
-import Markdown,{ Components } from "react-markdown"
+import React, { useCallback, useEffect, useMemo, useRef } from "react"
+import Markdown, { Components } from "react-markdown"
 import DOMPurify from "dompurify"
 import remarkGfm from "remark-gfm"
 
 import { ASSISTANT, EVENT_NAME, POINTER, YOU } from "../common/constants"
-import { WorkspaceSearchReport } from "../common/messaging/protocol"
 import {
-ChatCompletionMessage,ReplyChangesView,
+ChatCompletionMessage, ReplyChangesView,
 ReplyMeta,
 ToolStepView
 } from "../common/types"
@@ -20,13 +19,11 @@ import { useTranslation } from "./strings"
 import { useToast } from "./toast"
 import ToolSteps from "./tool-steps"
 import { getThinkingMessage } from "./utils"
-import WorkspaceContext from "./workspace-context"
 
 import styles from "./styles/message.module.css"
 
 interface MessageProps {
   index?: number
-  context?: WorkspaceSearchReport
   steps?: ToolStepView[]
   message?: ChatCompletionMessage
   onHeightChange?: () => void
@@ -237,7 +234,6 @@ const Collapsible = ({ children }: { children: React.ReactNode }) => {
 
 export const Message: React.FC<MessageProps> = ({
   index = 0,
-  context,
   steps,
   message,
   onHeightChange,
@@ -381,11 +377,6 @@ export const Message: React.FC<MessageProps> = ({
         </span>
         {!footerActions && options}
       </div>
-      {message.role === ASSISTANT && (
-        <>
-          <WorkspaceContext report={message.context ?? context} />
-        </>
-      )}
       {message.role === ASSISTANT ? (
         <>
           {replyParts(messageContent, message.toolSteps ?? steps).map((part, i) =>

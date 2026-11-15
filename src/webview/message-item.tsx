@@ -1,6 +1,5 @@
 import { memo } from "react"
 
-import { WorkspaceSearchReport } from "../common/messaging/protocol"
 import { ChatCompletionMessage, ReplyChangesView, ToolStepView } from "../common/types"
 
 import Message from "./message"
@@ -11,7 +10,6 @@ interface MessageListProps {
   messages: ChatCompletionMessage[]
   completion?: ChatCompletionMessage | null
   pending?: boolean
-  context?: WorkspaceSearchReport
   steps?: ToolStepView[]
   isLoading: boolean
   index: number
@@ -20,12 +18,12 @@ interface MessageListProps {
 }
 
 const MessageItem = memo(
-  ({ message, messages, completion, pending, context, steps, isLoading, index, handleContinue, handleChangesUpdate }: MessageListProps) => {
+  ({ message, messages, completion, pending, steps, isLoading, index, handleContinue, handleChangesUpdate }: MessageListProps) => {
     if (pending) {
       return completion ? (
-        <Message message={completion} context={context} steps={steps} index={index} />
+        <Message message={completion} steps={steps} index={index} />
       ) : (
-        <TypingIndicator context={context} steps={steps} />
+        <TypingIndicator steps={steps} />
       )
     }
     const isAgentMessage = message?.role === "assistant"
