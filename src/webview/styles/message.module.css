@@ -84,7 +84,7 @@
   pointer-events: none;
   transition: opacity 0.12s ease;
 }
-.message:hover .messageOptions, .message:focus-within .messageOptions, .message:has(.tiptap) .messageOptions {
+.message:hover .messageOptions, .message:focus-within .messageOptions {
   opacity: 1;
   pointer-events: auto;
 }
@@ -214,46 +214,6 @@
   height: auto;
   margin: 8px 0;
   border-radius: var(--tw-radius);
-}
-.imageGallery {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 10px;
-}
-.imageContainer {
-  position: relative;
-  display: inline-block;
-  width: 120px;
-  height: 120px;
-  border-radius: var(--tw-radius);
-  background: var(--tw-fill);
-  overflow: hidden;
-}
-.chatImageSquare {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-.tiptap {
-  width: 100%;
-  padding: 8px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--tw-radius);
-  background: var(--tw-bg);
-  color: var(--tw-fg);
-  font-family: var(--tw-font);
-  font-size: var(--tw-fs);
-  line-height: var(--tw-lh);
-  outline: none;
-  box-sizing: border-box;
-}
-.tiptap p {
-  margin: 0;
-}
-.editor {
-  outline: none;
 }
 .replyFooter {
   display: flex;

@@ -19,7 +19,7 @@ export const Toast: React.FC<ToastProps> = ({ message, duration = 2000, onClose 
 
   return (
     <div className={styles.toast}>
-      <span className={styles.message}>{message}</span>
+      <span>{message}</span>
     </div>
   );
 };

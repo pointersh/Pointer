@@ -42,23 +42,3 @@ export const runFailed = (run: TerminalRun): boolean =>
   run.exitCode !== undefined
     ? run.exitCode !== 0
     : /\b(error|exception|traceback|failed|fatal|panic)\b/i.test(run.output)
-
-export const formatTerminalRun = (run: TerminalRun): string => {
-  const status =
-    run.exitCode === undefined
-      ? ""
-      : run.exitCode === 0
-        ? " (exit code 0)"
-        : ` (failed with exit code ${run.exitCode})`
-  const output = tailOutput(run.output)
-  return [
-    `Terminal command${status}${run.cwd ? ` in ${run.cwd}` : ""}:`,
-    "```",
-    run.commandLine.trim() || "(unknown command)",
-    "```",
-    "Output:",
-    "```",
-    output.trim() || "(no output)",
-    "```"
-  ].join("\n")
-}

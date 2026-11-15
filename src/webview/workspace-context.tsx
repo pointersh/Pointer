@@ -228,8 +228,7 @@ export const WorkspaceContext = ({ report }: WorkspaceContextProps) => {
   return (
     <section
       className={cx(styles.panel, {
-        [styles.panelBusy]: !finished,
-        [styles.panelOpen]: open && expandable
+        [styles.panelBusy]: !finished
       })}
       aria-live="polite"
     >

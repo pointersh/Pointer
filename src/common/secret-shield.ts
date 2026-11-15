@@ -185,9 +185,3 @@ const heldTail = (text: string): number => {
   }
   return 0
 }
-
-export const describeReport = (report: ShieldReport[]): string =>
-  report.map(({ label, count }) => (count > 1 ? `${label} ×${count}` : label)).join(", ")
-
-export const withheldCount = (report: ShieldReport[]): number =>
-  report.reduce((sum, { count }) => sum + count, 0)

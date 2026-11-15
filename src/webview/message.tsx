@@ -373,7 +373,7 @@ export const Message: React.FC<MessageProps> = ({
       <div className={styles.messageRole}>
         <span className={styles.roleLabel}>
           {message.role !== ASSISTANT && (
-            <span className={styles.rolePrompt} aria-hidden="true">
+            <span aria-hidden="true">
               &#10095;
             </span>
           )}

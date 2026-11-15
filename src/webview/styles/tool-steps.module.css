@@ -145,12 +145,6 @@
   margin: 0 !important;
   background: transparent !important;
 }
-.code {
-  max-height: 280px;
-  overflow: auto !important;
-  font-size: var(--tw-fs-xs);
-  line-height: 1.5;
-}
 .detailLabel .fileLink, .located .fileLink {
   text-transform: none;
 }

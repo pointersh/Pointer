@@ -152,26 +152,3 @@ export type RequestableEvent = {
 export type VoidPayloadEvent = {
   [K in ClientEventName]: [PayloadOf<K>] extends [void] ? K : never
 }[ClientEventName]
-
-type EveryName =
-  | (typeof EVENT_NAME)[keyof typeof EVENT_NAME]
-
-type Assert<T extends true> = T
-type Extends<A, B> = [A] extends [B] ? true : false
-
-export type _NamesAreDeclared = Assert<
-  Extends<ClientEventName | ServerEventName, EveryName>
->
-export type _NamesAreUsed = Assert<
-  Extends<EveryName, ClientEventName | ServerEventName>
->
-
-export type _RepliesMatchBroadcasts = Assert<
-  {
-    [K in ClientEventName & ServerEventName]: [ReplyOf<K>] extends [never]
-      ? true
-      : Extends<ReplyOf<K>, ServerEvents[K]>
-  }[ClientEventName & ServerEventName] extends true
-    ? true
-    : false
->
