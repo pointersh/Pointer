@@ -57,7 +57,7 @@ Keys stay in TrueForge and are never stored in this repo.
 **3. Build Pointer.**
 
 ```sh
-git clone https://github.com/ayuxy027/Pointer.git && cd Pointer
+git clone https://github.com/pointersh/Pointer.git && cd Pointer
 npm ci
 npm run build
 cargo build --release
@@ -118,7 +118,7 @@ Built by **Ayush Yadav**.
 - Email: [ayush421301@gmail.com](mailto:ayush421301@gmail.com)
 - Web: [thatayush.com](https://thatayush.com)
 
-Bug reports and ideas: [open an issue](https://github.com/ayuxy027/Pointer/issues).
+Bug reports and ideas: [open an issue](https://github.com/pointersh/Pointer/issues).
 
 ## License
 

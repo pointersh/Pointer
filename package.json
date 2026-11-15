@@ -15,7 +15,7 @@
     "vscode-extension"
   ],
   "repository": {
-    "url": "https://github.com/ayuxy027/Pointer"
+    "url": "https://github.com/pointersh/Pointer"
   },
   "license": "MIT",
   "publisher": "pointer",
@@ -23,7 +23,7 @@
     "vscode": "^1.93.0"
   },
   "bugs": {
-    "url": "https://github.com/ayuxy027/Pointer/issues"
+    "url": "https://github.com/pointersh/Pointer/issues"
   },
   "categories": [
     "Programming Languages",
