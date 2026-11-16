@@ -8,10 +8,8 @@ import esbuild from "esbuild"
 
 const here = path.dirname(new URL(import.meta.url).pathname)
 const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "highlight-")), "highlight.mjs")
-await esbuild.build({ entryPoints: [path.join(here, "src/index.ts")], bundle: true, format: "esm", outfile: out, loader: { ".wasm": "binary" }, logLevel: "silent" })
-const { tokenize } = await import(pathToFileURL(out).href)
-
-const KINDS = ["text", "comment", "string", "number", "keyword", "fn", "add", "del", "meta", "tag"]
+await esbuild.build({ entryPoints: [path.join(here, "js/index.ts")], bundle: true, format: "esm", outfile: out, loader: { ".wasm": "binary" }, logLevel: "silent" })
+const { tokenize, TOKEN_KINDS: KINDS } = await import(pathToFileURL(out).href)
 const samples = JSON.parse(fs.readFileSync(path.join(here, "parity.json"), "utf8"))
 let tokens = 0
 for (const { language, code, tokens: flat } of samples) {

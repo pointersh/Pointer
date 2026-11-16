@@ -13,6 +13,38 @@ pub enum Kind {
     Tag = 9,
 }
 
+impl Kind {
+    const ALL: [Kind; 10] = [
+        Kind::Text,
+        Kind::Comment,
+        Kind::String,
+        Kind::Number,
+        Kind::Keyword,
+        Kind::Fn,
+        Kind::Add,
+        Kind::Del,
+        Kind::Meta,
+        Kind::Tag,
+    ];
+
+    fn name(self) -> &'static str {
+        match self {
+            Kind::Text => "text",
+            Kind::Comment => "comment",
+            Kind::String => "string",
+            Kind::Number => "number",
+            Kind::Keyword => "keyword",
+            Kind::Fn => "fn",
+            Kind::Add => "add",
+            Kind::Del => "del",
+            Kind::Meta => "meta",
+            Kind::Tag => "tag",
+        }
+    }
+}
+
+static mut KIND_NAMES: Vec<u8> = Vec::new();
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Family {
     C,
@@ -318,9 +350,27 @@ pub unsafe extern "C" fn highlight(ptr: *const u16, code_len: usize, lang_len: u
     output.as_ptr()
 }
 
+#[no_mangle]
+pub unsafe extern "C" fn kind_names() -> *const u8 {
+    let names = &mut *std::ptr::addr_of_mut!(KIND_NAMES);
+    if names.is_empty() {
+        let joined = Kind::ALL.map(Kind::name).join(" ");
+        names.extend((joined.len() as u32).to_le_bytes());
+        names.extend(joined.bytes());
+    }
+    names.as_ptr()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn kinds_are_numbered_in_order() {
+        for (i, kind) in Kind::ALL.into_iter().enumerate() {
+            assert_eq!(kind as usize, i, "{}", kind.name());
+        }
+    }
 
     fn tokens(code: &str, language: &str) -> Vec<(Kind, String)> {
         let units: Vec<u16> = code.encode_utf16().collect();

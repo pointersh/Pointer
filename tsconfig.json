@@ -13,8 +13,8 @@
     "resolveJsonModule": true,
     "paths": {
       "@modelcontextprotocol/sdk/*": ["./node_modules/@modelcontextprotocol/sdk/dist/cjs/*"],
-      "@pointersh/highlight": ["./packages/highlight/src/index.ts"],
-      "@pointersh/highlight/react": ["./packages/highlight/src/react.tsx"]
+      "@pointersh/highlight": ["./crates/pointer-highlight/js/index.ts"],
+      "@pointersh/highlight/react": ["./crates/pointer-highlight/js/react.tsx"]
     },
     "sourceMap": true,
     "strict": true,
@@ -25,5 +25,6 @@
       "src/common/types.ts"
     ]
   },
-  "exclude": ["scaffold", "node_modules", ".vscode-test", "out", "dist", "packages", "scripts", "assets", "deploy"]
+  "include": ["src/**/*", "crates/pointer-highlight/js/**/*"],
+  "exclude": ["scaffold", "node_modules", ".vscode-test", "out", "dist"]
 }

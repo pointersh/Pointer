@@ -7,11 +7,6 @@ declare module "*.css" {
   export default content
 }
 
-declare module "*.wasm" {
-  const content: Uint8Array
-  export default content
-}
-
 declare module "*.svg" {
   const content: string
   export default content

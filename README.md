@@ -92,7 +92,7 @@ src/                       VS Code extension (TypeScript)
 agent/                     TrueForge agent definition + example model provider config
 crates/pointer-retrieval/  Rust retrieval engine, served as an MCP server
 benchmarks/                retrieval benchmark: Rust engine vs BM25 and grep
-packages/highlight/        @pointersh/highlight: zero-dependency syntax highlighter (TS now, Rust/WASM later)
+crates/pointer-highlight/  @pointersh/highlight: syntax highlighter, Rust compiled to WebAssembly, with a typed JS/React API
 scaffold/                  upstream reference code kept only for ports (not built)
 ```
 

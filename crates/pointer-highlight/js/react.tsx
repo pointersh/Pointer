@@ -2,7 +2,7 @@ import { Token, tokenize } from "./index"
 
 export * from "./index"
 
-const render = (tokens: Token[]) =>
+const render = (tokens: readonly Token[]) =>
   tokens.map(([kind, text], i) => (kind === "text" ? text : <span key={i} className={`hl-${kind}`}>{text}</span>))
 
 interface CodeProps {

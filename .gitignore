@@ -8,5 +8,5 @@ node_modules
 
 # rust
 /target
-packages/highlight/highlight.wasm
+crates/pointer-highlight/highlight.wasm
 .pointer/

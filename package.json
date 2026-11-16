@@ -330,15 +330,15 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "lint": "eslint src packages",
-    "lint:fix": "eslint src packages --fix",
+    "lint": "eslint src crates/pointer-highlight/js",
+    "lint:fix": "eslint src crates/pointer-highlight/js --fix",
     "package": "node scripts/build.mjs",
     "vscode:package": "npm exec vsce package",
     "vscode:prepublish": "npm run package",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p . --noEmit",
     "check:mcp": "node scripts/checkMcp.mjs",
-    "check:highlight": "node packages/highlight/parity.mjs",
+    "check:highlight": "node crates/pointer-highlight/parity.mjs",
     "check:trueforge": "node scripts/checkTrueforge.mjs"
   },
   "devDependencies": {
@@ -384,6 +384,6 @@
     "arm64"
   ],
   "workspaces": [
-    "packages/*"
+    "crates/pointer-highlight"
   ]
 }

@@ -7,7 +7,7 @@ import esbuild from "esbuild"
 
 (async () => {
   execSync("cargo build -p pointer-highlight --profile wasm --target wasm32-unknown-unknown", { stdio: "inherit" })
-  fs.copyFileSync("target/wasm32-unknown-unknown/wasm/pointer_highlight.wasm", "packages/highlight/highlight.wasm")
+  fs.copyFileSync("target/wasm32-unknown-unknown/wasm/pointer_highlight.wasm", "crates/pointer-highlight/highlight.wasm")
 
   const extensionConfig = {
     bundle: true,
