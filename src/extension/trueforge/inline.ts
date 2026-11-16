@@ -4,7 +4,7 @@ import { logger } from "../../common/logger"
 import { ChatCompletionMessage } from "../../common/types"
 import { TextModel } from "../model"
 
-import { describeError, modelChain } from "./client"
+import { describeError, modelChain, modelSpec } from "./client"
 import { cancelSession, createSession, runTurn } from "./session"
 
 const NO_TOOLS = { dynamic_sub_agents: { enabled: false }, ask_user_questions: { enabled: false }, generative_ui: { enabled: false } }
@@ -12,7 +12,7 @@ const NO_TOOLS = { dynamic_sub_agents: { enabled: false }, ask_user_questions: {
 const streamOn = async function* (model: string, messages: ChatCompletionMessage[], signal: AbortSignal) {
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n")
   const input = messages.filter((m) => m.role !== "system").map((m) => m.content).join("\n\n")
-  const sessionId = await createSession({ spec: { model: { name: model }, instructions: system, mcp_servers: [], config: NO_TOOLS } })
+  const sessionId = await createSession({ spec: { model: modelSpec(model), instructions: system, mcp_servers: [], config: NO_TOOLS } })
   const onAbort = () => void cancelSession(sessionId)
   signal.addEventListener("abort", onAbort, { once: true })
   const chunks: string[] = []

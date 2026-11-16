@@ -203,6 +203,14 @@
           "default": [],
           "markdownDescription": "Models to use, in order, as `provider/model` names configured in TrueForge. If a turn fails on one, Pointer retries on the next. Empty uses `pointer/primary`, then `pointer-backup/primary`."
         },
+        "pointer.reasoningEffort": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {},
+          "markdownDescription": "Reasoning effort per model, sent to TrueForge as `reasoning_effort`. Defaults: `pointer/primary` → `low`, `pointer-backup/primary` → `none`. Values are provider-specific: on Makora, GLM-5.3-Flash reasons fully unless set to `low`, and DeepSeek-V4.1-Flash unless set to `none`. Measured with `benchmarks/models.mjs`: first answer token falls from 20 s to 1.3 s."
+        },
         "pointer.retrievalPath": {
           "type": "string",
           "default": "",
@@ -242,7 +250,7 @@
     "preview": "node preview/serve.mjs"
   },
   "devDependencies": {
-    "@types/node": "^16.18.68",
+    "@types/node": "^20.19.43",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.2.18",
     "@types/vscode": "^1.93.0",

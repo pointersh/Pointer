@@ -101,6 +101,10 @@ export const startEditorMcp = async ({ root, extras }: EditorMcpOptions): Promis
   return {
     url: `http://127.0.0.1:${port}/mcp`,
     token,
-    dispose: () => new Promise((resolve) => httpServer.close(() => resolve()))
+    dispose: () =>
+      new Promise((resolve) => {
+        httpServer.close(() => resolve())
+        httpServer.closeAllConnections()
+      })
   }
 }

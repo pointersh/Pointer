@@ -59,6 +59,8 @@ const parseArgs = (raw: string): Record<string, string> => {
   }
 }
 
+const SETTLE_POLL_MS = 1000
+
 export const runTurn = async (sessionId: string, input: string, handlers: TurnHandlers, signal: AbortSignal): Promise<TurnResult> => {
   const client = trueforge()
   const messages = new Map<string, Event>()
@@ -146,7 +148,21 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
     return "next"
   }
 
+  const settledTurn = async (stop: AbortSignal) => {
+    while (!stop.aborted) {
+      await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS))
+      if (stop.aborted) return undefined
+      const turn = await client.sessions.getTurn(sessionId, turnId!).catch(() => undefined)
+      const state = turn?.data.state
+      if (state && state.status !== "running" && state.status !== "paused") return state
+    }
+    return undefined
+  }
+
   let stream = await client.sessions.createTurnStream(sessionId, { input: [{ type: "user.message", content: input }] }, { abortSignal: signal })
+  let watch: AbortController | undefined
+  let settled: Awaited<ReturnType<typeof settledTurn>>
+  let fallback = ""
   for (;;) {
     let finished = false
     try {
@@ -158,12 +174,27 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
       }
     } catch (error) {
       if (signal.aborted) return { ...result, status: "cancelled", text: mainText() }
-      throw error
+      if (!settled) throw error
+    }
+    watch?.abort()
+    if (settled && !finished) {
+      result.status = settled.status === "done" ? "done" : settled.status === "error" ? "error" : "cancelled"
+      if (settled.status === "error") result.error = settled.message
+      if (settled.status === "done" && settled.output) fallback = textOf(settled.output.content)
+      break
     }
     if (finished || !turnId || signal.aborted) break
-    stream = await client.sessions.subscribeToTurn(sessionId, turnId, { afterEventId: lastEventId }, { abortSignal: signal })
+    const current = new AbortController()
+    watch = current
+    signal.addEventListener("abort", () => current.abort(), { once: true })
+    stream = await client.sessions.subscribeToTurn(sessionId, turnId, { afterEventId: lastEventId }, { abortSignal: current.signal })
+    void settledTurn(current.signal).then((state) => {
+      if (!state) return
+      settled = state
+      current.abort()
+    })
   }
-  result.text = mainText()
+  result.text = mainText() || fallback
   if (signal.aborted && result.status !== "done") result.status = "cancelled"
   return result
 }

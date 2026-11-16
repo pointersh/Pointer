@@ -10,8 +10,16 @@ const liveServers = new Set<string>()
 
 export const markServerLive = (name: string) => liveServers.add(name)
 
+const REASONING_DEFAULTS: Record<string, string> = { "pointer/primary": "low", "pointer-backup/primary": "none" }
+
+export const modelSpec = (name: string) => {
+  const effort = { ...REASONING_DEFAULTS, ...vscode.workspace.getConfiguration("pointer").get<Record<string, string>>("reasoningEffort") }[name]
+  return { name, params: { parallel_tool_calls: true, ...(effort ? { reasoning_effort: effort } : {}) } }
+}
+
 export const agentManifest = () => ({
   ...AGENT_MANIFEST,
+  model: modelSpec(AGENT_MANIFEST.model.name),
   mcp_servers: AGENT_MANIFEST.mcp_servers
     .filter((server) => liveServers.has(server.name))
     .map((server) =>
