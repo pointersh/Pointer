@@ -1,4 +1,5 @@
 use crate::parse::{tokens_of, Def, Parsed};
+use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;
 
@@ -428,21 +429,27 @@ impl Index {
 
         let mut postings: HashMap<String, Vec<(usize, f32)>> = HashMap::new();
         let mut lengths = Vec::with_capacity(chunks.len());
-        for (i, chunk) in chunks.iter().enumerate() {
-            let mut counts: HashMap<String, f32> = HashMap::new();
-            let path_tokens = tokenize(&chunk.path);
-            let section_tokens = chunk.section.as_deref().map(tokenize).unwrap_or_default();
-            for token in path_tokens
-                .iter()
-                .chain(path_tokens.iter())
-                .chain(section_tokens.iter())
-                .chain(section_tokens.iter())
-                .cloned()
-                .chain(chunk.symbols.iter().flat_map(|s| tokenize(s)))
-                .chain(tokenize(&chunk.text))
-            {
-                *counts.entry(token).or_default() += 1.0;
-            }
+        let counted: Vec<HashMap<String, f32>> = chunks
+            .par_iter()
+            .map(|chunk| {
+                let mut counts: HashMap<String, f32> = HashMap::new();
+                let path_tokens = tokenize(&chunk.path);
+                let section_tokens = chunk.section.as_deref().map(tokenize).unwrap_or_default();
+                for token in path_tokens
+                    .iter()
+                    .chain(path_tokens.iter())
+                    .chain(section_tokens.iter())
+                    .chain(section_tokens.iter())
+                    .cloned()
+                    .chain(chunk.symbols.iter().flat_map(|s| tokenize(s)))
+                    .chain(tokenize(&chunk.text))
+                {
+                    *counts.entry(token).or_default() += 1.0;
+                }
+                counts
+            })
+            .collect();
+        for (i, counts) in counted.into_iter().enumerate() {
             lengths.push(counts.values().sum());
             for (token, tf) in counts {
                 postings.entry(token).or_default().push((i, tf));

@@ -5,7 +5,7 @@ EXT = re.compile(r"\.(py|rst|md|txt|toml|cfg|html)$")
 def tok(s): return [t for t in re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1 \2", s).lower()) if t and t not in STOP]
 t0 = time.perf_counter(); docs = []
 for d, ds, fs in os.walk(root):
-    ds[:] = [x for x in ds if not x.startswith(".")]
+    ds[:] = [x for x in ds if not x.startswith(".") and x not in ("node_modules", "target")]
     for f in fs:
         if not EXT.search(f) or f.startswith("."): continue
         p = os.path.join(d, f); rel = os.path.relpath(p, root); lines = open(p, encoding="utf8", errors="ignore").read().split("\n")

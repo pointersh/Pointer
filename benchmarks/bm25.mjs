@@ -4,7 +4,7 @@ const EXT = /\.(py|rst|md|txt|toml|cfg|html)$/
 const STOP = new Set("a an the and or of to in for with is are be by on at as it this that from where how what which".split(" "))
 const tok = s => s.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter(t => t && !STOP.has(t))
 const t0 = performance.now()
-const files = []; const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (e.name.startsWith(".")) continue; const p = path.join(d, e.name); e.isDirectory() ? walk(p) : EXT.test(e.name) && files.push(p) } }; walk(root)
+const files = []; const walk = d => { for (const e of fs.readdirSync(d, { withFileTypes: true })) { if (e.name.startsWith(".") || e.name === "node_modules" || e.name === "target") continue; const p = path.join(d, e.name); e.isDirectory() ? walk(p) : EXT.test(e.name) && files.push(p) } }; walk(root)
 const docs = []
 for (const f of files) { const lines = fs.readFileSync(f, "utf8").split("\n"); for (let i = 0; i < lines.length; i += 40) docs.push({ f: path.relative(root, f), t: tok(path.relative(root, f) + " " + lines.slice(i, i + 40).join("\n")) }) }
 const df = new Map(); let total = 0
