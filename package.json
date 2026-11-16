@@ -238,7 +238,8 @@
     "typecheck": "tsc -p . --noEmit",
     "check:mcp": "node scripts/checkMcp.mjs",
     "check:highlight": "node crates/pointer-highlight/parity.mjs",
-    "check:trueforge": "node scripts/checkTrueforge.mjs"
+    "check:trueforge": "node scripts/checkTrueforge.mjs",
+    "preview": "node preview/serve.mjs"
   },
   "devDependencies": {
     "@types/node": "^16.18.68",
