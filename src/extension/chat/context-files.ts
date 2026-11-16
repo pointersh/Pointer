@@ -9,13 +9,13 @@ const EXTENSION_TO_LANGUAGE: Record<string, string> = Object.entries(
   return acc
 }, {})
 
-export const normalizeWorkspacePath = (filePath: string): string => {
+const normalizeWorkspacePath = (filePath: string): string => {
   const trimmed = filePath.trim()
   if (/^[A-Za-z]:[\\/]/.test(trimmed)) return trimmed
   return trimmed.replace(/^[\\/]+/, "")
 }
 
-export interface WorkspaceRoot {
+interface WorkspaceRoot {
   name: string
   fsPath: string
 }

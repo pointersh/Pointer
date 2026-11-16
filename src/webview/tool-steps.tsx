@@ -3,7 +3,6 @@ import { Code } from "@pointersh/highlight/react"
 
 import { EVENT_NAME } from "../common/constants"
 import { ToolStepView } from "../common/types"
-import { parseTasks, TASKS_TOOL_NAME, tasksProgress } from "../extension/tools/tasks"
 
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
@@ -171,42 +170,12 @@ const Said = ({ step }: { step: ToolStepView }) => {
   )
 }
 
-const Tasks = ({ step, live }: { step: ToolStepView; live: boolean }) => {
-  const tasks = parseTasks(step.args?.tasks)
-  if (!tasks) return <Step step={step} />
-  const next = tasks.findIndex((task) => !task.done)
-  return (
-    <li className={styles.tasks}>
-      <div className={styles.tasksHead}>{tasksProgress(tasks)}</div>
-      <ul className={styles.taskList}>
-        {tasks.map((task, i) => (
-          <li key={i} className={cx(styles.task, task.done && styles.taskDone, live && i === next && styles.taskNext)}>
-            <span className={styles.glyph} aria-hidden="true">
-              <span className={cx("codicon", task.done ? "codicon-check" : i === next && live ? "codicon-arrow-small-right" : "codicon-circle-small")} />
-            </span>
-            <span className={styles.taskText}>{task.text}</span>
-          </li>
-        ))}
-      </ul>
-    </li>
-  )
-}
-
 export const ToolSteps = ({ steps }: { steps?: ToolStepView[] }) => {
   if (!steps?.length) return null
-  const isList = (step: ToolStepView) => step.name === TASKS_TOOL_NAME && step.status === "done"
-  const latest = [...steps].reverse().find(isList)
-  const live = steps.some((step) => step.status === "running" || step.status === "waiting")
   return (
     <ol className={styles.panel}>
       {steps.map((step) =>
-        step.said ? (
-          <Said key={step.id} step={step} />
-        ) : step === latest ? (
-          <Tasks key={step.id} step={step} live={live} />
-        ) : (
-          <Step key={step.id} step={step} />
-        )
+        step.said ? <Said key={step.id} step={step} /> : <Step key={step.id} step={step} />
       )}
     </ol>
   )

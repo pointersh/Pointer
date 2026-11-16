@@ -1,6 +1,6 @@
 import { ToolStepView } from "../../common/types"
 
-export interface ToolStep {
+interface ToolStep {
   id: string
   index: number
   name?: string
@@ -10,7 +10,7 @@ export interface ToolStep {
   failed?: boolean
 }
 
-export interface ToolStart {
+interface ToolStart {
   id: string
   name: string
   args: Record<string, string>

@@ -1,6 +1,6 @@
 import { ToolStepView } from "../common/types"
 
-export type ReplyPart = { text: string } | { steps: ToolStepView[] }
+type ReplyPart = { text: string } | { steps: ToolStepView[] }
 
 const FENCE_OPEN = /^[ \t]{0,3}(`{3,}|~{3,})([^\n]*)$/
 const FENCE_CLOSE = /^[ \t]{0,3}(`{3,}|~{3,})[ \t]*$/

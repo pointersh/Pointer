@@ -11,9 +11,9 @@ export interface EditRequest {
 }
 
 export const EDIT_CONTEXT_LINES = 40
-export const EDIT_CONTEXT_CHARS = 6000
+const EDIT_CONTEXT_CHARS = 6000
 
-export const EDIT_SYSTEM_PROMPT = [
+const EDIT_SYSTEM_PROMPT = [
   "You are an expert programmer editing code inside the user's editor.",
   "You will be given a piece of code and an instruction.",
   "Rewrite the code so that it follows the instruction.",
@@ -29,7 +29,7 @@ export const EDIT_SYSTEM_PROMPT = [
 const fence = (language: string | undefined, body: string) =>
   `\`\`\`${language || ""}\n${body}\n\`\`\``
 
-export const buildEditPrompt = (request: EditRequest): string => {
+const buildEditPrompt = (request: EditRequest): string => {
   const parts: string[] = []
   if (request.fileName) parts.push(`File: ${request.fileName}`)
 
@@ -63,7 +63,7 @@ const stripReasoning = (text: string) =>
     .replace(/<(think|thinking)>[\s\S]*?<\/\1>/gi, "")
     .replace(/<(think|thinking)>[\s\S]*$/i, "")
 
-export const extractEditedCode = (reply: string): string => {
+const extractEditedCode = (reply: string): string => {
   const text = stripReasoning(reply)
   const open = text.match(/(^|\n)[ \t]*```[^\n]*\n?/)
   if (!open || open.index === undefined) return text.replace(/^\s*\n/, "")
@@ -75,7 +75,7 @@ export const extractEditedCode = (reply: string): string => {
     : text.slice(start, start + close.index)
 }
 
-export const commonIndent = (text: string): string => {
+const commonIndent = (text: string): string => {
   let indent: string | undefined
   for (const line of text.split("\n")) {
     if (!line.trim()) continue

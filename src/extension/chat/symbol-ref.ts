@@ -1,4 +1,4 @@
-export interface SymbolRef {
+interface SymbolRef {
   path: string
   line: number
   name: string
@@ -9,7 +9,7 @@ const PREFIX = "symbol:"
 export const encodeSymbolRef = (ref: SymbolRef): string =>
   `${PREFIX}${ref.line}:${encodeURIComponent(ref.name)}:${ref.path}`
 
-export const isSymbolRef = (id: string): boolean => id.startsWith(PREFIX)
+const isSymbolRef = (id: string): boolean => id.startsWith(PREFIX)
 
 export const decodeSymbolRef = (id: string): SymbolRef | undefined => {
   if (!isSymbolRef(id)) return undefined

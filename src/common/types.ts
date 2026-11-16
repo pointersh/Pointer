@@ -7,7 +7,7 @@ export interface LanguageType {
   languageId: string | undefined
 }
 
-export interface ChatCompletionMessageParam {
+interface ChatCompletionMessageParam {
   role: "system" | "user" | "assistant" | "tool"
   content: string
   name?: string
@@ -20,15 +20,6 @@ export type ChatCompletionMessage = ChatCompletionMessageParam & {
   meta?: ReplyMeta
   toolSteps?: ToolStepView[]
   toolNotes?: string
-}
-
-export interface FileChangeView {
-  path: string
-  status: "modified" | "created" | "deleted"
-  added: number
-  removed: number
-  undone?: boolean
-  noUndo?: boolean
 }
 
 export interface ToolStepView {

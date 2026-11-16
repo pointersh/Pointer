@@ -4,7 +4,7 @@ import { trueforge, trueforgeUrl } from "./client"
 
 type Event = TrueForgeApi.TurnStreamingEvent
 
-export interface InlineSpec {
+interface InlineSpec {
   model: { name: string }
   instructions?: string
   mcp_servers?: unknown[]
@@ -24,7 +24,7 @@ export const createSession = async (agent: { name: string } | { spec: InlineSpec
   return parsed.data?.id ?? parsed.id
 }
 
-export interface TurnHandlers {
+interface TurnHandlers {
   withThinking?: boolean
   onText?(text: string): void
   onToolCall?(call: { id: string; name: string; args: Record<string, string> }): void

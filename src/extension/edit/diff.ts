@@ -1,7 +1,7 @@
 
-export type DiffKind = "equal" | "remove" | "add"
+type DiffKind = "equal" | "remove" | "add"
 
-export interface DiffOp {
+interface DiffOp {
   kind: DiffKind
   line: string
 }
@@ -13,7 +13,7 @@ const equal = op("equal")
 const remove = op("remove")
 const add = op("add")
 
-export const diffLines = (a: string[], b: string[], early = false): DiffOp[] => {
+const diffLines = (a: string[], b: string[], early = false): DiffOp[] => {
   let start = 0
   while (start < a.length && start < b.length && a[start] === b[start]) start++
   let endA = a.length
@@ -83,7 +83,7 @@ export interface DiffLayout {
 
 const TOKEN = /\w+|\s+|[^\w\s]/g
 
-export const diffWords = (
+const diffWords = (
   before: string,
   after: string
 ): { removed: [number, number][]; added: [number, number][] } => {

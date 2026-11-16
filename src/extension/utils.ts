@@ -59,7 +59,7 @@ export function getNonce() {
   return text
 }
 
-export function readGitSubmodulesFile(): string[] | undefined {
+function readGitSubmodulesFile(): string[] | undefined {
   try {
     const folders = workspace.workspaceFolders
     if (!folders || folders.length === 0) return undefined

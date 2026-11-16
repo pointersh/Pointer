@@ -30,7 +30,7 @@ export interface EditorDiagnostic extends EditorLocation {
   source?: string
 }
 
-export interface EditorContextView {
+interface EditorContextView {
   activeFile?: string
   cursorLine?: number
   selection?: { startLine: number; endLine: number; text: string }

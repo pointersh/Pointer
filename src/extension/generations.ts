@@ -1,4 +1,4 @@
-export type GenerationKind = "chat" | "edit" | "completion"
+type GenerationKind = "chat" | "edit" | "completion"
 
 export interface GenerationRun {
   readonly kind: GenerationKind
@@ -7,7 +7,7 @@ export interface GenerationRun {
   finish(): void
 }
 
-export interface GenerationState {
+interface GenerationState {
   busy: boolean
   stoppable: boolean
 }

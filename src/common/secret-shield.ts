@@ -1,5 +1,5 @@
 
-export interface SecretKind {
+interface SecretKind {
   id: string
   label: string
 }
@@ -102,7 +102,7 @@ const PLACEHOLDER = /REDACTED_[A-Z_]+_\d+/g
 const placeholderFor = (kind: string, n: number) =>
   `REDACTED_${kind.toUpperCase().replace(/-/g, "_")}_${n}`
 
-export interface ShieldReport {
+interface ShieldReport {
   kind: string
   label: string
   count: number

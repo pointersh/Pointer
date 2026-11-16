@@ -33,8 +33,6 @@ export interface InlineEditArgs {
 
 export type { Hunk } from "./region"
 
-export type ChatEditMode = "apply" | "review"
-
 export interface ChatEditOutcome {
   ok: boolean
   message: string
@@ -49,18 +47,10 @@ export interface FileEditProposal {
   text: string
 }
 
-const removedLines = (document: vscode.TextDocument, lines: vscode.Range): vscode.Range => {
-  if (lines.end.line + 1 < document.lineCount) return new vscode.Range(lines.start.line, 0, lines.end.line + 1, 0)
-  if (lines.start.line > 0) {
-    return new vscode.Range(lines.start.line - 1, document.lineAt(lines.start.line - 1).range.end.character, lines.end.line, lines.end.character)
-  }
-  return lines
-}
-
 const outsideWorkspace = (uri: vscode.Uri) =>
   !!vscode.workspace.workspaceFolders?.length && !vscode.workspace.getWorkspaceFolder(uri)
 
-export interface PendingEditInfo {
+interface PendingEditInfo {
   line: number
   streaming: boolean
   hunks: number[]
@@ -224,17 +214,14 @@ export class InlineEditService {
     logger.info(`Applied chat code ${how} in ${vscode.workspace.asRelativePath(document.uri)}`)
   }
 
-  public async chatEdit(
-    proposal: FileEditProposal,
-    mode: ChatEditMode = "apply"
-  ): Promise<ChatEditOutcome> {
+  public async chatEdit(proposal: FileEditProposal): Promise<ChatEditOutcome> {
     const pending = this._pending
     const uri = vscode.Uri.file(proposal.file)
     const relative = vscode.workspace.asRelativePath(uri)
     if (outsideWorkspace(uri)) {
       return { ok: false, message: `Not changed: ${relative} is outside the workspace.` }
     }
-    if (this.running || (pending && (mode === "review" || pending.document.uri.fsPath === proposal.file))) {
+    if (this.running || pending) {
       const where = pending ? ` in ${vscode.workspace.asRelativePath(pending.document.uri)}` : ""
       return {
         ok: false,
@@ -256,27 +243,6 @@ export class InlineEditService {
         ? `line ${proposal.startLine + 1}`
         : `lines ${proposal.startLine + 1}-${proposal.endLine + 1}`
 
-    if (mode === "apply") {
-      const edit = new vscode.WorkspaceEdit()
-      edit.replace(uri, proposal.text === "" ? removedLines(document, range) : range, proposal.text)
-      if (!(await vscode.workspace.applyEdit(edit))) {
-        return { ok: false, message: `Not changed: the editor refused the edit to ${relative}.` }
-      }
-      const saved = await document.save()
-      const editor = await vscode.window.showTextDocument(document, { preview: true, preserveFocus: true })
-      const lastLine = document.lineCount - 1
-      const start = Math.min(proposal.startLine, lastLine)
-      const end = Math.min(lastLine, Math.max(start, proposal.startLine + proposal.text.split("\n").length - 1))
-      editor.revealRange(new vscode.Range(start, 0, end, 0), vscode.TextEditorRevealType.InCenterIfOutsideViewport)
-      logger.info(`Chat edited ${relative}:${proposal.startLine + 1}${saved ? "" : " (not saved)"}`)
-      return {
-        ok: true,
-        message: saved
-          ? `Applied and saved: ${relative} ${lines} changed.`
-          : `Applied: ${relative} ${lines} changed in the editor, but the file could not be saved; commands and git will still see the old file.`
-      }
-    }
-
     const editor = await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true })
     const region = new DiffRegion(editor, range)
     this._pending = region
@@ -293,11 +259,7 @@ export class InlineEditService {
     }
   }
 
-  public async chatCreate(
-    file: string,
-    content: string,
-    mode: ChatEditMode = "apply"
-  ): Promise<ChatEditOutcome> {
+  public async chatCreate(file: string, content: string): Promise<ChatEditOutcome> {
     const target = vscode.Uri.file(file)
     const relative = vscode.workspace.asRelativePath(target)
     if (outsideWorkspace(target)) {
@@ -306,24 +268,11 @@ export class InlineEditService {
     if (fs.existsSync(file)) {
       return { ok: false, message: `Not created: ${relative} already exists. Use edit_file to change it.` }
     }
-    if (this.running || (this._pending && mode === "review")) {
+    if (this.running || this._pending) {
       return {
         ok: false,
         message: "Not created: an edit is waiting for the user's review. Tell the user to accept or reject it, then ask again."
       }
-    }
-
-    if (mode === "apply") {
-      const edit = new vscode.WorkspaceEdit()
-      edit.createFile(target, { ignoreIfExists: false, contents: Buffer.from(content, "utf8") })
-      if (!(await vscode.workspace.applyEdit(edit))) {
-        return { ok: false, message: `Not created: the editor refused to create ${relative}.` }
-      }
-      const document = await vscode.workspace.openTextDocument(target)
-      if (document.isDirty) await document.save()
-      await vscode.window.showTextDocument(document, { preview: true, preserveFocus: true })
-      logger.info(`Chat created ${relative}`)
-      return { ok: true, message: `Created and saved ${relative}.` }
     }
 
     const document = await vscode.workspace.openTextDocument(target.with({ scheme: "untitled" }))
@@ -349,7 +298,6 @@ export class InlineEditService {
   public reject(hunk?: number) {
     return this.resolve("reject", hunk)
   }
-
 
   private async resolve(verdict: "accept" | "reject", hunk?: number) {
     const pending = this._pending
@@ -516,7 +464,6 @@ export class InlineEditService {
     const { region, messages, what } = generation
     const { baseline, proposed } = region.sides()
     const snapshot = region.snapshot()
-
 
     this._pending = region
     const run = this.begin()

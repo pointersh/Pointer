@@ -14,8 +14,8 @@ export interface FileLocation {
   column?: number
 }
 
-export const MAX_OUTPUT_CHARS = 12000
-export const MAX_OUTPUT_LINES = 200
+const MAX_OUTPUT_CHARS = 12000
+const MAX_OUTPUT_LINES = 200
 
 // eslint-disable-next-line no-control-regex
 const ANSI = /\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)|\x1b[()][A-Z0-9]|\r/g

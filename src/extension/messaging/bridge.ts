@@ -11,7 +11,7 @@ import {
   ServerPayloadOf
 } from "../../common/messaging/protocol"
 
-export type Handler<K extends ClientEventName> = (
+type Handler<K extends ClientEventName> = (
   payload: PayloadOf<K>
 ) => ReplyOf<K> | Promise<ReplyOf<K>> | void | Promise<void>
 

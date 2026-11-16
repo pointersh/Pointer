@@ -10,7 +10,7 @@ const DECLARATION = new RegExp(
 
 const NOT_NAMES = new Set(["if", "for", "while", "switch", "catch", "return", "function", "else", "do", "try"])
 
-export interface Declaration {
+interface Declaration {
   line: number
   name: string
 }

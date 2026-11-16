@@ -4,7 +4,7 @@ import path from "path"
 
 import { isIndexablePath, looksBinary } from "../indexable"
 
-export const MAX_LINE_CHARS = 200
+const MAX_LINE_CHARS = 200
 const MAX_FILE_BYTES = 512 * 1024
 
 export const clip = (line: string) =>

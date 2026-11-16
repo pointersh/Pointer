@@ -21,7 +21,7 @@ export const languageForPath = (path: string): string => {
   return EXTENSION_LANGUAGES[extension] ?? "text"
 }
 
-export interface FileSlice {
+interface FileSlice {
   path: string
   startLine: number
   code: string
@@ -47,7 +47,7 @@ export const parseReadFile = (output: string): FileSlice | undefined => {
   return { path: match[1], startLine: Number(match[2]), code: code.join("\n"), note }
 }
 
-export interface CommandRun {
+interface CommandRun {
   command: string
   status: string
   output: string
@@ -66,7 +66,7 @@ export const parseCommandRun = (output: string): CommandRun | undefined => {
   }
 }
 
-export type DiffLineKind = "add" | "del" | "hunk" | "meta" | "context"
+type DiffLineKind = "add" | "del" | "hunk" | "meta" | "context"
 
 export interface DiffLine {
   kind: DiffLineKind
@@ -89,7 +89,7 @@ export const replacementDiff = (find: string, replace: string): DiffLine[] => [
   ...replace.replace(/\n$/, "").split("\n").map((text) => ({ kind: "add" as const, text: `+${text}` }))
 ]
 
-export interface CodeHitBlock {
+interface CodeHitBlock {
   path: string
   startLine: number
   endLine: number
@@ -115,7 +115,7 @@ export const parseSearchHits = (output: string): CodeHitBlock[] => {
   })
 }
 
-export interface LocatedLine {
+interface LocatedLine {
   path: string
   line: number
   text: string

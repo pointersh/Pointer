@@ -8,12 +8,12 @@ import { AddressInfo } from "net"
 import { WorkspaceView } from "../tools/view"
 import { Tool, ToolExtras, workspaceTools } from "../tools/workspace"
 
-export interface EditorMcpOptions {
+interface EditorMcpOptions {
   root: string | WorkspaceView
   extras: ToolExtras
 }
 
-export interface EditorMcp {
+interface EditorMcp {
   url: string
   token: string
   dispose(): Promise<void>
@@ -65,7 +65,7 @@ const mcpServer = (tools: Tool[]) => {
 }
 
 export const startEditorMcp = async ({ root, extras }: EditorMcpOptions): Promise<EditorMcp> => {
-  const { tools } = workspaceTools(root, [], extras)
+  const tools = workspaceTools(typeof root === "string" ? new WorkspaceView(root) : root, extras)
   const token = randomUUID()
   const httpServer = http.createServer(async (req, res) => {
     const origin = req.headers.origin

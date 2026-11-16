@@ -41,7 +41,7 @@ console.log("inline ok")
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "pointer-tf-"))
 fs.writeFileSync(path.join(root, "hello.py"), "def hello():\n    return 42\n")
 const edit = async () => ({ ok: true, message: "Proposed for review." })
-const mcp = await m.startEditorMcp({ root, extras: { edits: { mode: "review", edit, create: edit } } })
+const mcp = await m.startEditorMcp({ root, extras: { edits: { edit, create: edit } } })
 try {
   await m.registerMcpServer("pointer-editor", mcp.url, mcp.token, "Check workspace.")
   m.markServerLive("pointer-editor")

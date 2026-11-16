@@ -49,10 +49,10 @@ const describe = (error: unknown): string => {
   return String(error)
 }
 
-export const formatMs = (ms: number): string =>
+const formatMs = (ms: number): string =>
   ms >= 1000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms)}ms`
 
-export const formatCount = (n: number): string =>
+const formatCount = (n: number): string =>
   n >= 10_000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 
 const indent = (text: string, max = MAX_BLOCK_CHARS): string => {
@@ -66,7 +66,7 @@ const indent = (text: string, max = MAX_BLOCK_CHARS): string => {
     .join("\n")
 }
 
-export class Logger {
+class Logger {
   private static instance: Logger
   private readonly channel: LogSink
 

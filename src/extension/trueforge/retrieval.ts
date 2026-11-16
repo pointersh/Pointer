@@ -5,7 +5,7 @@ import * as vscode from "vscode"
 
 import { logger } from "../../common/logger"
 
-export interface RetrievalServer {
+interface RetrievalServer {
   url: string
   token: string
   dispose(): void

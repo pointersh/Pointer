@@ -14,7 +14,7 @@ fs.writeFileSync(path.join(root, "hello.py"), "def hello():\n    return 42\n")
 const outcome = async () => ({ ok: true, message: "proposed" })
 const mcp = await startEditorMcp({
   root,
-  extras: { edits: { mode: "review", edit: outcome, create: outcome }, commands: { mode: "ask", run: async () => ({ ran: false, output: "" }) } }
+  extras: { edits: { edit: outcome, create: outcome }, commands: { run: async () => ({ ran: false, output: "" }) } }
 })
 
 const rpc = (method, params, token = mcp.token) =>

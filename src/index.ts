@@ -7,7 +7,7 @@ import { logger } from "./common/logger"
 import { ContextItem, SelectionContextItem } from "./common/types"
 import { InlineEditCodeActionProvider } from "./extension/edit/code-actions"
 import { InlineEditCodeLensProvider } from "./extension/edit/code-lens"
-import { ChatEditMode, FileEditProposal, InlineEditArgs, InlineEditService } from "./extension/edit/service"
+import { FileEditProposal, InlineEditArgs, InlineEditService } from "./extension/edit/service"
 import { GenerationTracker } from "./extension/generations"
 import { setTextModel } from "./extension/model"
 import { SessionManager } from "./extension/session-manager"
@@ -51,11 +51,11 @@ export function activate(context: ExtensionContext) {
       inlineEdit.reject(typeof hunk === "number" ? hunk : undefined)
     ),
     commands.registerCommand(POINTER_COMMAND_NAME.applyCode, (code: string) => inlineEdit.propose(String(code ?? ""))),
-    commands.registerCommand(POINTER_COMMAND_NAME.chatFileEdit, (proposal: FileEditProposal, mode?: ChatEditMode) =>
-      inlineEdit.chatEdit(proposal, mode)
+    commands.registerCommand(POINTER_COMMAND_NAME.chatFileEdit, (proposal: FileEditProposal) =>
+      inlineEdit.chatEdit(proposal)
     ),
-    commands.registerCommand(POINTER_COMMAND_NAME.chatFileCreate, (file: string, content: string, mode?: ChatEditMode) =>
-      inlineEdit.chatCreate(file, content, mode)
+    commands.registerCommand(POINTER_COMMAND_NAME.chatFileCreate, (file: string, content: string) =>
+      inlineEdit.chatCreate(file, content)
     ),
     commands.registerCommand(POINTER_COMMAND_NAME.stopGeneration, () => generations.stopAll()),
     commands.registerCommand(POINTER_COMMAND_NAME.settings, () =>

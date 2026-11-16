@@ -132,7 +132,7 @@ const nearestLines = (lines: string[], wanted: string[]): string | undefined => 
   return `The nearest match is ${span}${where}. As they are now:\n${shown.join("\n")}`
 }
 
-export const planReplacement = (
+const planReplacement = (
   content: string,
   rawFind: string,
   rawReplace: string
@@ -196,7 +196,7 @@ export interface EditRequest {
   endLine?: number
 }
 
-export const planLines = (content: string, start: number, end: number, rawReplace: string): Replacement | string => {
+const planLines = (content: string, start: number, end: number, rawReplace: string): Replacement | string => {
   const lines = content.replace(/\r\n/g, "\n").split("\n")
   if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
     return "start_line and end_line must be line numbers from read_file, with end_line not before start_line"

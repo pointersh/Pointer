@@ -1,25 +1,23 @@
 import { EditRequest, planEdits, Replacement } from "./edit"
-import { FolderInstructions, folderInstructionsNote, InstructionFile, readRootInstructions } from "./instructions"
-import { coerceArguments, JsonSchema, McpToolSpec } from "./mcp"
 import {
-  deleteFile,
-  diagnostics,
-  editorContext,
-  EditorSink,
-  FileOpsSink,
-  findFiles,
-  findReferences,
-  git,
-  goToDefinition,
-  insideGitRepository,
-  moveFile,
-  renameSymbol
+deleteFile,
+diagnostics,
+editorContext,
+EditorSink,
+FileOpsSink,
+findFiles,
+findReferences,
+git,
+goToDefinition,
+insideGitRepository,
+moveFile,
+renameSymbol
 } from "./more"
 import { outlineOf, outlineText } from "./outline"
-import { parseLenientJson, ToolCall, ToolSpec } from "./protocol"
+import { parseLenientJson, ToolSpec } from "./protocol"
 import { clip, linesOf, plural, ToolInputError, WorkspaceView } from "./view"
 
-export interface ToolResult {
+interface ToolResult {
   output: string
   summary: string
   failed?: boolean
@@ -28,7 +26,7 @@ export interface ToolResult {
   digest?: string
 }
 
-export interface ToolContext {
+interface ToolContext {
   signal?: AbortSignal
   roomChars?: number
 }
@@ -54,7 +52,6 @@ const SEARCH_BUDGET_MS = 8000
 const MAX_MATCHED_LINE_CHARS = 2000
 
 export interface EditSink {
-  mode: "apply" | "review"
   read?(file: string): Promise<string | undefined>
   edit(file: string, replacement: Replacement): Promise<EditOutcome>
   create(file: string, content: string): Promise<EditOutcome>
@@ -324,29 +321,13 @@ const findSymbol = (view: WorkspaceView): Tool => ({
   }
 })
 
-const EDIT_DESCRIPTION = {
-  apply:
-    "Change a file by replacing an exact piece of it. The change is applied and saved straight away; the user can undo it.",
-  review:
-    "Propose changing a file by replacing an exact piece of it. The user reviews the change as a diff in the editor and nothing is saved until they accept it. One edit at a time."
-}
-
-const EDIT_GUIDANCE = {
-  apply:
-    "When the user asks you to change code, read the lines first, then call edit_file, once per change, until the task is done; use create_file for a new file. Then say briefly what you changed.",
-  review:
-    "When the user asks you to change code, read the lines first, then call edit_file (or create_file for a new file). The user reviews each change before it is applied, so propose one and say briefly what it does."
-}
-
 const MAX_NEW_FILE_CHARS = 100_000
 
 const createFile = (view: WorkspaceView, sink: EditSink): Tool => ({
   name: "create_file",
   acts: true,
   description:
-    (sink.mode === "apply"
-      ? "Create a new file with the given content; missing folders are made. It is written straight away."
-      : "Propose a new file with the given content. The user reviews it before it is saved.") +
+    "Propose a new file with the given content. The user reviews it before it is saved." +
     " The file must not exist yet; use edit_file to change an existing one.",
   parameters: [
     { name: "path", description: "Where the new file goes, relative to the workspace root." },
@@ -416,10 +397,11 @@ const editFile = (view: WorkspaceView, sink: EditSink, seen: Map<string, string>
   name: "edit_file",
   acts: true,
   description:
-    `${EDIT_DESCRIPTION[sink.mode]} Copy find from read_file output, without the line numbers, with enough lines that it matches once. ` +
+    "Propose changing a file by replacing an exact piece of it. The user reviews the change as a diff in the editor and nothing is saved until they accept it. One edit at a time. Copy find from read_file output, without the line numbers, with enough lines that it matches once. " +
     "Other ways to say what changes: replace_all true changes every place find is; start_line and end_line (from read_file) with replace rewrite those lines, with no find; " +
     "edits is a list of {find, replace} for several changes to one file in one call.",
-  guidance: EDIT_GUIDANCE[sink.mode],
+  guidance:
+    "When the user asks you to change code, read the lines first, then call edit_file (or create_file for a new file). The user reviews each change before it is applied, so propose one and say briefly what it does.",
   parameters: [
     { name: "path", description: "The file to change." },
     { name: "find", description: "Text already in the file, copied exactly.", optional: true },
@@ -505,16 +487,7 @@ const editFile = (view: WorkspaceView, sink: EditSink, seen: Map<string, string>
   }
 })
 
-export interface WorkspaceTools {
-  tools: Tool[]
-  orientation: string
-  instructions?: InstructionFile
-  instructionFiles?(): string[]
-  run(call: ToolCall, context?: ToolContext): Promise<ToolResult>
-}
-
 export interface CommandSink {
-  mode: "ask" | "allow"
   run(command: string, signal?: AbortSignal): Promise<CommandOutcome>
 }
 
@@ -523,30 +496,15 @@ export interface CommandOutcome {
   output: string
   exitCode?: number
   timedOut?: "running" | "stopped"
-  stoppedByUser?: boolean
-}
-
-export interface CodeHit {
-  file: string
-  startLine: number
-  endLine: number
-  score: number
-  content: string
-}
-
-export interface CodeSearch {
-  search(query: string): Promise<CodeHit[]>
 }
 
 const MAX_COMMAND_CHARS = 1000
-const MAX_SEARCH_OUTPUT_CHARS = 6000
 
 const runCommand = (sink: CommandSink): Tool => ({
   name: "run_command",
   acts: true,
   description:
-    "Run a shell command in the workspace root and get its exit code and the end of its output: tests, builds, type checks." +
-    (sink.mode === "ask" ? " The user is asked before it runs and may skip it." : " It runs straight away."),
+    "Run a shell command in the workspace root and get its exit code and the end of its output: tests, builds, type checks. The user is asked before it runs and may skip it.",
   guidance:
     "Use run_command to check your work (tests, type checks, builds). Never run commands that delete files, rewrite history or install software unless the user asked for exactly that. Nothing can answer a prompt, and you get the output after two minutes at most: no interactive commands, servers or watch modes.",
   parameters: [{ name: "command", description: "One command line for the user's shell." }],
@@ -557,14 +515,8 @@ const runCommand = (sink: CommandSink): Tool => ({
     const outcome = await sink.run(line, context?.signal)
     if (!outcome.ran) {
       return {
-        output: "The user chose not to run this command. Carry on without it, or ask the user.",
+        output: "Stopped before the command ran.",
         summary: `\`${line}\` skipped`
-      }
-    }
-    if (outcome.stoppedByUser) {
-      return {
-        output: `$ ${line}\n(stopped by the user before it ended; this is its output so far)\n${outcome.output.trim() || "(no output)"}`,
-        summary: `\`${line}\` stopped`
       }
     }
     const status =
@@ -588,72 +540,15 @@ const runCommand = (sink: CommandSink): Tool => ({
   }
 })
 
-const searchCode = (view: WorkspaceView, index: CodeSearch): Tool => ({
-  name: "search_code",
-  readOnly: true,
-  description:
-    "Find code by what it does, described in plain words (\"where retries are scheduled\", \"how the token is refreshed\"). Searches the workspace's embeddings index; use grep instead for an exact name.",
-  guidance:
-    "Start with search_code when you do not know where something lives; it finds code by meaning.",
-  parameters: [{ name: "query", description: "What the code does, in a few words." }],
-  async run({ query }) {
-    const wanted = query?.trim()
-    if (!wanted) throw new ToolInputError("search_code needs a query.")
-    const hits = (await index.search(wanted)).filter((hit) => view.visible(hit.file))
-    const blocks: string[] = []
-    let used = 0
-    for (const hit of hits) {
-      const header = `${view.relative(hit.file)}:${hit.startLine + 1}-${hit.endLine + 1} (relevance ${hit.score.toFixed(2)})`
-      const block = `${header}\n${hit.content.trimEnd()}`
-      if (used + block.length > MAX_SEARCH_OUTPUT_CHARS) {
-        blocks.push(`${header}\n… (not shown; read_file it)`)
-        continue
-      }
-      blocks.push(block)
-      used += block.length
-    }
-    return {
-      output: blocks.length
-        ? blocks.join("\n\n")
-        : "Nothing in the index matched well. Try other words, or grep for a name.",
-      summary: `searched the index for \`${wanted}\` · ${plural(hits.length, "hit")}`
-    }
-  }
-})
-
 export interface ToolExtras {
   edits?: EditSink & Partial<FileOpsSink>
   commands?: CommandSink
-  codeSearch?: CodeSearch
   editor?: EditorSink
-  git?: boolean
-  instructions?: boolean
-  mcp?: McpSink
 }
 
-export interface McpSink {
-  tools: McpToolSpec[]
-  call(tool: McpToolSpec, args: Record<string, unknown>, context?: ToolContext): Promise<ToolResult>
-}
-
-const mcpTool = (spec: McpToolSpec, sink: McpSink): Tool => ({
-  ...spec,
-  run: (args, context) => sink.call(spec, coerceArguments(spec.schema as JsonSchema | undefined, args), context)
-})
-
-const PLACE_ARGUMENTS = ["path", "from", "to"]
-
-export const workspaceTools = (
-  root: string | WorkspaceView,
-  ignoredGlobs: string[] = [],
-  extras: ToolExtras = {}
-): WorkspaceTools => {
-  const { edits, commands, codeSearch, editor } = extras
-  const view =
-    typeof root === "string" ? new WorkspaceView(root, ignoredGlobs, edits?.read?.bind(edits)) : root
+export const workspaceTools = (view: WorkspaceView, { edits, commands, editor }: ToolExtras = {}): Tool[] => {
   const seen = new Map<string, string>()
   const tools = [
-    ...(codeSearch ? [searchCode(view, codeSearch)] : []),
     ...(editor ? [editorContext(view, editor)] : []),
     listDir(view),
     findFiles(view),
@@ -661,7 +556,7 @@ export const workspaceTools = (
     grep(view),
     findSymbol(view),
     ...(editor ? [goToDefinition(view, editor), findReferences(view, editor), diagnostics(view, editor)] : []),
-    ...(extras.git !== false && insideGitRepository(view.root) ? [git(view)] : [])
+    ...(insideGitRepository(view.root) ? [git(view)] : [])
   ]
   if (edits) tools.push(editFile(view, edits, seen), createFile(view, edits))
   if (edits && editor) tools.push(renameSymbol(view, editor))
@@ -670,39 +565,5 @@ export const workspaceTools = (
     tools.push(moveFile(view, ops), deleteFile(view, ops))
   }
   if (commands) tools.push(runCommand(commands))
-  for (const spec of extras.mcp?.tools ?? []) tools.push(mcpTool(spec, extras.mcp!))
-  const top = view.entries(view.root).map((e) => (e.dir ? `${e.name}/` : e.name))
-  const reading = extras.instructions !== false
-  const instructions = reading ? readRootInstructions(view.root) : undefined
-  const folders = reading ? new FolderInstructions(view) : undefined
-  const withFolderInstructions = (call: ToolCall, result: ToolResult): ToolResult => {
-    if (!folders || result.failed) return result
-    const found = PLACE_ARGUMENTS.flatMap((name) => (call.args[name] ? folders.for(call.args[name]) : []))
-    return found.length ? { ...result, preface: found.map(folderInstructionsNote).join("\n\n") } : result
-  }
-  return {
-    tools,
-    orientation: `The workspace root contains: ${top.slice(0, 40).join(", ")}${top.length > 40 ? ", …" : ""}`,
-    instructions,
-    instructionFiles: () => [...(instructions ? [instructions.path] : []), ...(folders?.given ?? [])],
-    async run(call, context) {
-      const tool = tools.find((t) => t.name === call.name)
-      if (!tool) {
-        return {
-          output: `There is no tool called ${call.name}. The tools are ${tools.map((t) => t.name).join(", ")}.`,
-          summary: `asked for an unknown tool \`${call.name}\``,
-          failed: true
-        }
-      }
-      try {
-        return withFolderInstructions(call, await tool.run(call.args, context))
-      } catch (error) {
-        const full = error instanceof Error ? error.message : String(error)
-        const message = full.split("\n")[0]
-        return error instanceof ToolInputError
-          ? { output: full, summary: `${call.name} failed · ${message}`, failed: true }
-          : { output: `${call.name} could not run: ${message}`, summary: `${call.name} failed · ${message}`, failed: true }
-      }
-    }
-  }
+  return tools
 }

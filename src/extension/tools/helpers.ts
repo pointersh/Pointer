@@ -32,7 +32,7 @@ export const globToRegExp = (glob: string): RegExp => {
   return new RegExp(pattern.includes("/") ? `^${source}$` : `(?:^|/)${source}$`)
 }
 
-export interface SymbolPosition {
+interface SymbolPosition {
   line: number
   character: number
 }
@@ -64,7 +64,7 @@ export const locateSymbol = (text: string, name: string, line?: number): SymbolP
   return undefined
 }
 
-export const splitArgs = (line: string): string[] => {
+const splitArgs = (line: string): string[] => {
   const args: string[] = []
   let current = ""
   let quote: string | undefined
@@ -89,7 +89,7 @@ export const splitArgs = (line: string): string[] => {
   return args
 }
 
-export const READ_ONLY_GIT = new Set(["status", "diff", "log", "show", "blame", "branch", "shortlog", "ls-files", "rev-parse"])
+const READ_ONLY_GIT = new Set(["status", "diff", "log", "show", "blame", "branch", "shortlog", "ls-files", "rev-parse"])
 
 const UNSAFE_GIT_OPTIONS = [
   "--output",
@@ -150,7 +150,7 @@ export const readOnlyGitArgs = (line: string): string[] | string => {
   return [subcommand, ...guard, ...rest, ...tail]
 }
 
-export interface GitNamedPath {
+interface GitNamedPath {
   path: string
   inRepo: boolean
 }
@@ -209,10 +209,3 @@ export const withoutHiddenDiffs = (
   })
   return { text: kept.join(""), dropped }
 }
-
-export const isProtectedPath = (relative: string): boolean =>
-  /(^|\/)\.vscode\//i.test(relative) ||
-  /(^|\/)\.gitignore$/i.test(relative) ||
-  /(^|\/)AGENTS\.md$/i.test(relative) ||
-  /\.code-workspace$/i.test(relative) ||
-  /^(CLAUDE\.md|\.github\/copilot-instructions\.md)$/i.test(relative)
