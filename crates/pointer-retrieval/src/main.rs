@@ -61,7 +61,13 @@ impl Store {
         }
         let src = String::from_utf8(bytes).ok()?;
         let hash = xxhash_rust::xxh3::xxh3_64(src.as_bytes());
-        let parsed = parse::parse(&rel, &src);
+        let parsed = match std::panic::catch_unwind(|| parse::parse(&rel, &src)) {
+            Ok(parsed) => parsed,
+            Err(_) => {
+                eprintln!("pointer-retrieval: skipped {rel}: the parser failed on it");
+                return None;
+            }
+        };
         Some((rel, FileData { hash, parsed }))
     }
 

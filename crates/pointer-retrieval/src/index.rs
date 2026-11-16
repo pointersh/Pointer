@@ -2,6 +2,7 @@ use crate::parse::{tokens_of, Def, Parsed};
 use rayon::prelude::*;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fmt::Write;
+use std::sync::Arc;
 
 const STOP: &[&str] = &[
     "the",
@@ -213,7 +214,7 @@ pub struct ChunkRef {
     pub path: String,
     pub start: u32,
     pub end: u32,
-    pub text: String,
+    pub text: Arc<str>,
     pub symbols: Vec<String>,
     pub symbol_tokens: Vec<Vec<String>>,
     pub section: Option<String>,
@@ -224,11 +225,11 @@ pub struct ChunkRef {
 
 pub struct Index {
     pub chunks: Vec<ChunkRef>,
-    postings: HashMap<String, Vec<(usize, f32)>>,
+    postings: HashMap<String, Vec<(u32, f32)>>,
     lengths: Vec<f32>,
     avg_len: f32,
-    pub defs: BTreeMap<String, Vec<(String, Def)>>,
-    pub idents: HashMap<String, Vec<(String, u32)>>,
+    pub defs: BTreeMap<String, Vec<(Arc<str>, Def)>>,
+    pub idents: HashMap<String, Vec<(Arc<str>, u32)>>,
     ref_files: HashMap<String, usize>,
     pub rank: HashMap<String, f32>,
     pub files: usize,
@@ -244,9 +245,11 @@ pub trait Signal {
     fn rank(&self, index: &Index, query: &[String]) -> Vec<(usize, f32, String)>;
 }
 
-struct Bm25;
+type Scored = [(usize, f32, Vec<String>)];
+
+struct Bm25<'a>(&'a Scored);
 struct Symbols;
-struct Paths(HashSet<String>);
+struct Paths<'a>(HashSet<String>, &'a Scored);
 
 fn name_tokens(path: &str) -> Vec<String> {
     let name = path.rsplit('/').next().unwrap_or(path);
@@ -256,8 +259,8 @@ fn name_tokens(path: &str) -> Vec<String> {
         .collect()
 }
 
-impl Signal for Paths {
-    fn rank(&self, index: &Index, query: &[String]) -> Vec<(usize, f32, String)> {
+impl Signal for Paths<'_> {
+    fn rank(&self, index: &Index, _: &[String]) -> Vec<(usize, f32, String)> {
         let wanted: HashSet<&str> = self.0.iter().map(String::as_str).collect();
         let mut names: HashMap<&str, Vec<String>> = HashMap::new();
         for chunk in &index.chunks {
@@ -273,7 +276,7 @@ impl Signal for Paths {
         }
         let n = names.len() as f32;
         let mut best: HashMap<&str, (usize, f32)> = HashMap::new();
-        for (chunk, score, _) in index.bm25(query) {
+        for &(chunk, score, _) in self.1 {
             let path = index.chunks[chunk].path.as_str();
             best.entry(path).or_insert((chunk, score));
         }
@@ -310,9 +313,10 @@ impl Signal for Paths {
         out
     }
 }
-struct Only {
+struct Only<'a> {
     label: &'static str,
     keep: fn(&str) -> bool,
+    hits: &'a Scored,
 }
 
 pub struct Precomputed(pub Vec<(usize, f32, String)>);
@@ -323,24 +327,23 @@ impl Signal for Precomputed {
     }
 }
 
-impl Signal for Only {
-    fn rank(&self, index: &Index, query: &[String]) -> Vec<(usize, f32, String)> {
-        index
-            .bm25(query)
-            .into_iter()
+impl Signal for Only<'_> {
+    fn rank(&self, index: &Index, _: &[String]) -> Vec<(usize, f32, String)> {
+        self.hits
+            .iter()
             .filter(|(chunk, _, _)| (self.keep)(&index.chunks[*chunk].path))
             .take(5)
-            .map(|(chunk, score, _)| (chunk, score, format!("best {} match", self.label)))
+            .map(|&(chunk, score, _)| (chunk, score, format!("best {} match", self.label)))
             .collect()
     }
 }
 
-impl Signal for Bm25 {
-    fn rank(&self, index: &Index, query: &[String]) -> Vec<(usize, f32, String)> {
-        index
-            .bm25(query)
-            .into_iter()
+impl Signal for Bm25<'_> {
+    fn rank(&self, _: &Index, _: &[String]) -> Vec<(usize, f32, String)> {
+        self.0
+            .iter()
             .map(|(chunk, score, terms)| {
+                let (chunk, score) = (*chunk, *score);
                 (
                     chunk,
                     score,
@@ -366,7 +369,7 @@ impl Signal for Symbols {
                     .map(|(s, parts)| {
                         let hit =
                             parts.iter().filter(|p| wanted.contains(p.as_str())).count() as f32;
-                        let exact = if wanted.contains(s.to_lowercase().as_str()) {
+                        let exact = if hit > 0.0 && wanted.contains(s.to_lowercase().as_str()) {
                             2.0
                         } else {
                             0.0
@@ -385,15 +388,16 @@ impl Signal for Symbols {
 impl Index {
     pub fn build(files: &HashMap<String, FileData>) -> Index {
         let mut chunks = Vec::new();
-        let mut defs: BTreeMap<String, Vec<(String, Def)>> = BTreeMap::new();
-        let mut idents: HashMap<String, Vec<(String, u32)>> = HashMap::new();
+        let mut defs: BTreeMap<String, Vec<(Arc<str>, Def)>> = BTreeMap::new();
+        let mut idents: HashMap<String, Vec<(Arc<str>, u32)>> = HashMap::new();
         let mut paths: Vec<&String> = files.keys().collect();
         paths.sort();
-        for path in &paths {
-            let parsed = &files[*path].parsed;
+        for key in &paths {
+            let parsed = &files[*key].parsed;
+            let path: Arc<str> = Arc::from(key.as_str());
             for chunk in &parsed.chunks {
                 chunks.push(ChunkRef {
-                    path: (*path).clone(),
+                    path: key.to_string(),
                     start: chunk.start,
                     end: chunk.end,
                     tokens: tokens_of(&chunk.text),
@@ -407,12 +411,12 @@ impl Index {
             for def in &parsed.defs {
                 defs.entry(def.name.clone())
                     .or_default()
-                    .push(((*path).clone(), def.clone()));
+                    .push((path.clone(), def.clone()));
             }
             for (word, lines) in &parsed.idents {
                 if defs_name_like(word) {
                     let entry = idents.entry(word.clone()).or_default();
-                    entry.extend(lines.iter().map(|&l| ((*path).clone(), l)));
+                    entry.extend(lines.iter().map(|&l| (path.clone(), l)));
                 }
             }
         }
@@ -427,7 +431,7 @@ impl Index {
             })
             .collect();
 
-        let mut postings: HashMap<String, Vec<(usize, f32)>> = HashMap::new();
+        let mut postings: HashMap<String, Vec<(u32, f32)>> = HashMap::new();
         let mut lengths = Vec::with_capacity(chunks.len());
         let counted: Vec<HashMap<String, f32>> = chunks
             .par_iter()
@@ -452,7 +456,7 @@ impl Index {
         for (i, counts) in counted.into_iter().enumerate() {
             lengths.push(counts.values().sum());
             for (token, tf) in counts {
-                postings.entry(token).or_default().push((i, tf));
+                postings.entry(token).or_default().push((i as u32, tf));
             }
         }
         let avg_len = if lengths.is_empty() {
@@ -484,6 +488,7 @@ impl Index {
             };
             let idf = ((n - list.len() as f32 + 0.5) / (list.len() as f32 + 0.5) + 1.0).ln();
             for &(chunk, tf) in list {
+                let chunk = chunk as usize;
                 let norm =
                     tf * 2.2 / (tf + 1.2 * (0.25 + 0.75 * self.lengths[chunk] / self.avg_len));
                 let entry = scores.entry(chunk).or_default();
@@ -522,7 +527,7 @@ impl Index {
                     .get(s)?
                     .iter()
                     .map(|(p, _)| p)
-                    .filter(|p| **p != chunk.path)
+                    .filter(|p| &***p != chunk.path.as_str())
                     .collect::<HashSet<_>>()
                     .len();
                 (files > 0).then(|| (s.clone(), files))
@@ -532,17 +537,21 @@ impl Index {
 
     pub fn search(&self, query: &str, extra: &[&dyn Signal]) -> Vec<Hit> {
         let terms = tokenize(query);
+        let scored = self.bm25(&terms);
         let docs = Only {
             label: "docs",
             keep: is_doc_path,
+            hits: &scored,
         };
         let tests = Only {
             label: "test",
             keep: is_test_path,
+            hits: &scored,
         };
         let code = Only {
             label: "code",
             keep: |p| !is_doc_path(p) && !is_test_path(p),
+            hits: &scored,
         };
         let lower: Vec<String> = query
             .split(|c: char| !c.is_alphanumeric())
@@ -555,8 +564,10 @@ impl Index {
                 .filter(|t| t.len() == 1)
                 .flatten()
                 .collect(),
+            &scored,
         );
-        let mut signals: Vec<&dyn Signal> = vec![&Bm25, &Symbols, &paths];
+        let bm25 = Bm25(&scored);
+        let mut signals: Vec<&dyn Signal> = vec![&bm25, &Symbols, &paths];
         if lower.iter().any(|w| DOC_INTENT.contains(&w.as_str())) {
             signals.push(&docs);
             signals.push(&code);
@@ -668,11 +679,11 @@ impl Index {
             return format!("No definition of {name} found.");
         };
         let mut out = String::from("Definitions:\n");
-        let def_lines: HashSet<(&String, u32)> = defs.iter().map(|(p, d)| (p, d.line)).collect();
+        let def_lines: HashSet<(&Arc<str>, u32)> = defs.iter().map(|(p, d)| (p, d.line)).collect();
         for (path, def) in defs.iter().take(20) {
             let _ = writeln!(out, "{path}:{} · {} {}", def.line, def.kind, def.name);
         }
-        let refs: Vec<&(String, u32)> = self
+        let refs: Vec<&(Arc<str>, u32)> = self
             .idents
             .get(name)
             .map(|r| {
@@ -698,17 +709,17 @@ impl Index {
             .map(|(p, r)| (p, if generic_path(p) { r * 0.2 } else { *r }))
             .collect();
         files.sort_by(|a, b| b.1.total_cmp(&a.1).then(a.0.cmp(b.0)));
-        let mut by_file: HashMap<&String, Vec<&Def>> = HashMap::new();
+        let mut by_file: HashMap<&str, Vec<&Def>> = HashMap::new();
         for entries in self.defs.values() {
             for (path, def) in entries {
-                by_file.entry(path).or_default().push(def);
+                by_file.entry(&**path).or_default().push(def);
             }
         }
         let mut out = String::new();
         let mut used = 0;
         let mut shown = 0;
         for (path, rank) in &files {
-            let Some(defs) = by_file.get_mut(path) else {
+            let Some(defs) = by_file.get_mut(path.as_str()) else {
                 continue;
             };
             defs.sort_by_key(|d| d.line);
@@ -755,11 +766,15 @@ pub fn pack<T: Copy>(items: &[T], budget: usize, cost: impl Fn(T) -> usize) -> (
 
 fn pagerank<'a>(
     paths: impl Iterator<Item = &'a String>,
-    defs: &BTreeMap<String, Vec<(String, Def)>>,
-    idents: &HashMap<String, Vec<(String, u32)>>,
+    defs: &BTreeMap<String, Vec<(Arc<str>, Def)>>,
+    idents: &HashMap<String, Vec<(Arc<str>, u32)>>,
 ) -> HashMap<String, f32> {
     let nodes: Vec<&String> = paths.collect();
-    let id: HashMap<&String, usize> = nodes.iter().enumerate().map(|(i, p)| (*p, i)).collect();
+    let id: HashMap<&str, usize> = nodes
+        .iter()
+        .enumerate()
+        .map(|(i, p)| (p.as_str(), i))
+        .collect();
     let n = nodes.len();
     if n == 0 {
         return HashMap::new();
@@ -769,7 +784,7 @@ fn pagerank<'a>(
         let Some(targets) = defs.get(name) else {
             continue;
         };
-        let referencing: HashSet<&String> = refs.iter().map(|(p, _)| p).collect();
+        let referencing: HashSet<&Arc<str>> = refs.iter().map(|(p, _)| p).collect();
         if referencing.len() * 10 > n.max(20)
             || name.len() <= 2
             || GENERIC.contains(&name.to_lowercase().as_str())
@@ -778,7 +793,7 @@ fn pagerank<'a>(
         }
         let def_files: HashSet<usize> = targets
             .iter()
-            .filter_map(|(p, _)| id.get(p).copied())
+            .filter_map(|(p, _)| id.get(&**p).copied())
             .collect();
         let idf = ((n as f32 + 1.0) / (referencing.len() as f32 + 1.0))
             .ln()
@@ -786,7 +801,7 @@ fn pagerank<'a>(
         let weight = idf / def_files.len() as f32;
         let mut counts: HashMap<usize, f32> = HashMap::new();
         for (path, _) in refs {
-            if let Some(&from) = id.get(path) {
+            if let Some(&from) = id.get(&**path) {
                 *counts.entry(from).or_default() += 1.0;
             }
         }

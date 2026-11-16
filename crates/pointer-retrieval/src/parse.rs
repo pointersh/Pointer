@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 use tree_sitter::{Language, Node, Parser};
 
 pub const MIN_TOKENS: usize = 150;
@@ -16,7 +17,7 @@ pub struct Def {
 pub struct Chunk {
     pub start: u32,
     pub end: u32,
-    pub text: String,
+    pub text: Arc<str>,
     pub symbols: Vec<String>,
     pub section: Option<String>,
 }
@@ -182,7 +183,7 @@ impl Chunker<'_> {
         self.out.push(Chunk {
             start,
             end,
-            text: body.trim_end().to_string(),
+            text: body.trim_end().into(),
             symbols,
             section: None,
         });
@@ -388,7 +389,7 @@ fn chunk_prose(src: &str) -> Vec<Chunk> {
                 out.push(Chunk {
                     start: line as u32 + 1,
                     end: stop as u32 + 1,
-                    text: body.trim_end().to_string(),
+                    text: body.trim_end().into(),
                     symbols: Vec::new(),
                     section,
                 });
