@@ -7,7 +7,7 @@ import { TextModel } from "../model"
 import { describeError, modelChain } from "./client"
 import { cancelSession, createSession, runTurn } from "./session"
 
-const NO_TOOLS = { dynamic_sub_agents: { enabled: false }, ask_user_questions: { enabled: false } }
+const NO_TOOLS = { dynamic_sub_agents: { enabled: false }, ask_user_questions: { enabled: false }, generative_ui: { enabled: false } }
 
 const streamOn = async function* (model: string, messages: ChatCompletionMessage[], signal: AbortSignal) {
   const system = messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n")

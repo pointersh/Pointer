@@ -19,7 +19,9 @@ interface EditorMcp {
   dispose(): Promise<void>
 }
 
-const DESTRUCTIVE = new Set(["edit_file", "create_file", "rename_symbol", "move_file", "delete_file", "run_command"])
+const ROOM_CHARS = 12_000
+
+const DESTRUCTIVE =new Set(["edit_file", "create_file", "rename_symbol", "move_file", "delete_file", "run_command"])
 
 const inputSchema = (tool: Tool) =>
   tool.schema ?? {
@@ -58,8 +60,12 @@ const mcpServer = (tools: Tool[]) => {
   server.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
     const tool = byName.get(request.params.name)
     if (!tool) return { content: [{ type: "text", text: `Unknown tool: ${request.params.name}` }], isError: true }
-    const result = await tool.run(asStrings(request.params.arguments), { signal: extra.signal })
-    return { content: [{ type: "text", text: result.output }], isError: !!result.failed }
+    try {
+      const result = await tool.run(asStrings(request.params.arguments), { signal: extra.signal, roomChars: ROOM_CHARS })
+      return { content: [{ type: "text", text: result.output }], isError: !!result.failed }
+    } catch (error) {
+      return { content: [{ type: "text", text: error instanceof Error ? error.message : String(error) }], isError: true }
+    }
   })
   return server
 }

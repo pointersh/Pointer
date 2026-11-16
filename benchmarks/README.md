@@ -75,8 +75,8 @@ limit at every size.
 | | | | Plain BM25, Python | 3.4 s | 35 ms | 150 MB |
 | Pointer | 152 · 696 | ~240k tokens | **Pointer, Rust** | 52 ms | 1.0 ms | 37 MB |
 
-- **Context compression:** each search returns at most ~4,500 tokens: 1/63 of
-  Flask and 1/1,600 of Django. Neither repository fits in any model's context
+- **Context compression:** each search returns ~3,000 tokens by default: 1/94 of
+  Flask and 1/2,400 of Django. Neither repository fits in any model's context
   window; the agent reads only what retrieval points at.
 - Memory is peak resident size. The baselines keep only term counts; Pointer
   also keeps chunk text, symbol tables, the reference graph and PageRank, which

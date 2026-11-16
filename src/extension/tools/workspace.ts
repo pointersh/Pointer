@@ -191,15 +191,18 @@ const grep = (view: WorkspaceView): Tool => ({
       let shown = 0
       let total = 0
       let unsearched = 0
-      const all = await view.files()
-      for (const [index, file] of all.entries()) {
+      const all = (await view.files()).filter((file) => {
         const rel = view.relative(file)
-        if (scope !== "." && rel !== scope && !rel.startsWith(`${scope}/`)) continue
+        return scope === "." || rel === scope || rel.startsWith(`${scope}/`)
+      })
+      let index = 0
+      for await (const [file, text] of view.texts(all)) {
         if (context?.signal?.aborted || Date.now() - started > SEARCH_BUDGET_MS) {
           unsearched = all.length - index
           break
         }
-        const text = await view.text(file)
+        index++
+        const rel = view.relative(file)
         if (!text) continue
         const lines = linesOf(text)
         const hits: number[] = []
@@ -301,10 +304,9 @@ const findSymbol = (view: WorkspaceView): Tool => ({
     const regex = definitionPattern(wanted)
     const found: string[] = []
     const started = Date.now()
-    for (const file of await view.files()) {
+    for await (const [file, text] of view.texts(await view.files())) {
       if (found.length >= MAX_SYMBOL_MATCHES) break
       if (context?.signal?.aborted || Date.now() - started > SEARCH_BUDGET_MS) break
-      const text = await view.text(file)
       if (!text?.includes(wanted)) continue
       linesOf(text).forEach((line, i) => {
         if (found.length < MAX_SYMBOL_MATCHES && line.length <= MAX_MATCHED_LINE_CHARS && regex.test(line)) {

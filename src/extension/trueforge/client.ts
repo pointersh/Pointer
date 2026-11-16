@@ -12,7 +12,11 @@ export const markServerLive = (name: string) => liveServers.add(name)
 
 export const agentManifest = () => ({
   ...AGENT_MANIFEST,
-  mcp_servers: AGENT_MANIFEST.mcp_servers.filter((server) => liveServers.has(server.name))
+  mcp_servers: AGENT_MANIFEST.mcp_servers
+    .filter((server) => liveServers.has(server.name))
+    .map((server) =>
+      server.name === "pointer-editor" && liveServers.has("pointer-retrieval") ? { ...server, disable_tools: ["find_symbol"] } : server
+    )
 })
 
 const settings = () => vscode.workspace.getConfiguration("pointer")

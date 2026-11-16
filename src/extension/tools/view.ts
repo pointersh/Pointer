@@ -235,6 +235,14 @@ export class WorkspaceView {
     return { files: files.sort(), dirs: dirs.sort() }
   }
 
+  async *texts(files: string[], ahead = 32): AsyncGenerator<[string, string | undefined]> {
+    const queue = files.slice(0, ahead).map((file) => this.text(file))
+    for (let i = 0; i < files.length; i++) {
+      if (i + ahead < files.length) queue.push(this.text(files[i + ahead]))
+      yield [files[i], await queue.shift()]
+    }
+  }
+
   async text(file: string): Promise<string | undefined> {
     const open = await this._read?.(file)
     if (open !== undefined) return open

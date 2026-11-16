@@ -264,6 +264,7 @@ const SYMBOL_PARAMETERS = [
 
 export const diagnostics = (view: WorkspaceView, editor: EditorSink): Tool => ({
   name: "diagnostics",
+  readOnly: true,
   description:
     "The errors and warnings the editor's language servers report for a file. Without a path: for every file the editor has checked, which is usually the open ones.",
   guidance: "After editing, call diagnostics on the files you changed to catch errors before you finish.",
@@ -346,6 +347,7 @@ export const renameSymbol = (view: WorkspaceView, editor: EditorSink): Tool => (
 
 export const editorContext = (view: WorkspaceView, editor: EditorSink): Tool => ({
   name: "editor_context",
+  readOnly: true,
   description: "What the user is looking at now: the active file, the cursor line, the selected text and the other open files.",
   parameters: [],
   async run() {

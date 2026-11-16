@@ -12,9 +12,9 @@ export { describeError }
 export const registerAgent = async (context: vscode.ExtensionContext) => {
   const root = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
   if (root) {
-    const { view, extras } = editorExtras(root)
+    const { view, extras, watcher } = editorExtras(root)
     const [editor, retrieval] = await Promise.all([startEditorMcp({ root: view, extras }), startRetrieval(context, root)])
-    context.subscriptions.push({ dispose: () => void editor.dispose() })
+    context.subscriptions.push(watcher, { dispose: () => void editor.dispose() })
     await registerMcpServer("pointer-editor", editor.url, editor.token, "Pointer's VS Code workspace: read, search, edit with review, run commands.")
     markServerLive("pointer-editor")
     if (retrieval) {

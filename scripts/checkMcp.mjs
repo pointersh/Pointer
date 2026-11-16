@@ -40,6 +40,9 @@ try {
   }
   const call = await (await rpc("tools/call", { name: "read_file", arguments: { path: "hello.py" } })).json()
   assert.match(call.result.content[0].text, /return 42/)
+  const missing = await (await rpc("tools/call", { name: "read_file", arguments: { path: "nope.py" } })).json()
+  assert.strictEqual(missing.result.isError, true)
+  assert.match(missing.result.content[0].text, /nope\.py does not exist/)
   console.log(`mcp ok: ${tools.length} tools: ${tools.map((t) => t.name).join(", ")}`)
 } finally {
   await mcp.dispose()

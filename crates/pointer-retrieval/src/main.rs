@@ -193,7 +193,7 @@ impl Retrieval {
         };
         let out = index.search_text(
             &args.query,
-            args.budget_tokens.unwrap_or(4500).min(5000),
+            args.budget_tokens.unwrap_or(3000).min(5000),
             &extra,
         );
         eprintln!(
@@ -219,7 +219,7 @@ impl Retrieval {
     fn repo_map(&self, Parameters(args): Parameters<MapArgs>) -> String {
         self.store
             .current()
-            .repo_map(args.budget_tokens.unwrap_or(2000))
+            .repo_map(args.budget_tokens.unwrap_or(2000).min(5000))
     }
 
     #[tool(
