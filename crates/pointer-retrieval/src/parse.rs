@@ -47,7 +47,11 @@ fn language(path: &str) -> Option<Language> {
 
 fn def_kind(kind: &str) -> Option<&'static str> {
     Some(match kind {
-        "function_definition" | "function_declaration" | "function_item" | "method_declaration" | "generator_function_declaration" => "function",
+        "function_definition"
+        | "function_declaration"
+        | "function_item"
+        | "method_declaration"
+        | "generator_function_declaration" => "function",
         "method_definition" => "method",
         "class_definition" | "class_declaration" | "abstract_class_declaration" => "class",
         "interface_declaration" | "trait_item" => "interface",
@@ -68,7 +72,10 @@ fn text<'a>(node: Node, src: &'a [u8]) -> &'a str {
 
 fn def_names(node: Node, src: &[u8]) -> Vec<String> {
     match node.kind() {
-        "impl_item" => node.child_by_field_name("type").map(|t| vec![text(t, src).to_string()]).unwrap_or_default(),
+        "impl_item" => node
+            .child_by_field_name("type")
+            .map(|t| vec![text(t, src).to_string()])
+            .unwrap_or_default(),
         "type_declaration" => {
             let mut cursor = node.walk();
             node.named_children(&mut cursor)
@@ -82,14 +89,21 @@ fn def_names(node: Node, src: &[u8]) -> Vec<String> {
             node.named_children(&mut cursor)
                 .filter(|c| c.kind() == "variable_declarator")
                 .filter(|c| {
-                    c.child_by_field_name("value")
-                        .is_some_and(|v| matches!(v.kind(), "arrow_function" | "function_expression" | "function" | "class"))
+                    c.child_by_field_name("value").is_some_and(|v| {
+                        matches!(
+                            v.kind(),
+                            "arrow_function" | "function_expression" | "function" | "class"
+                        )
+                    })
                 })
                 .filter_map(|c| c.child_by_field_name("name"))
                 .map(|n| text(n, src).to_string())
                 .collect()
         }
-        _ => node.child_by_field_name("name").map(|n| vec![text(n, src).to_string()]).unwrap_or_default(),
+        _ => node
+            .child_by_field_name("name")
+            .map(|n| vec![text(n, src).to_string()])
+            .unwrap_or_default(),
     }
 }
 
@@ -97,7 +111,11 @@ fn collect_defs(node: Node, src: &[u8], defs: &mut Vec<Def>) {
     if let Some(kind) = def_kind(node.kind()) {
         for name in def_names(node, src) {
             if !name.is_empty() {
-                defs.push(Def { name, kind, line: node.start_position().row as u32 + 1 });
+                defs.push(Def {
+                    name,
+                    kind,
+                    line: node.start_position().row as u32 + 1,
+                });
             }
         }
     }
@@ -128,7 +146,9 @@ struct Seg<'t> {
 }
 
 fn line_starts(src: &str) -> Vec<usize> {
-    std::iter::once(0).chain(src.match_indices('\n').map(|(i, _)| i + 1)).collect()
+    std::iter::once(0)
+        .chain(src.match_indices('\n').map(|(i, _)| i + 1))
+        .collect()
 }
 
 struct Chunker<'a> {
@@ -140,7 +160,9 @@ struct Chunker<'a> {
 
 impl Chunker<'_> {
     fn line_of(&self, byte: usize) -> usize {
-        self.starts.partition_point(|&s| s <= byte).saturating_sub(1)
+        self.starts
+            .partition_point(|&s| s <= byte)
+            .saturating_sub(1)
     }
 
     fn emit_lines(&mut self, first: usize, last: usize) {
@@ -151,8 +173,19 @@ impl Chunker<'_> {
             return;
         }
         let (start, end) = (first as u32 + 1, last as u32 + 1);
-        let symbols = self.defs.iter().filter(|d| d.line >= start && d.line <= end).map(|d| d.name.clone()).collect();
-        self.out.push(Chunk { start, end, text: body.trim_end().to_string(), symbols, section: None });
+        let symbols = self
+            .defs
+            .iter()
+            .filter(|d| d.line >= start && d.line <= end)
+            .map(|d| d.name.clone())
+            .collect();
+        self.out.push(Chunk {
+            start,
+            end,
+            text: body.trim_end().to_string(),
+            symbols,
+            section: None,
+        });
     }
 
     fn emit(&mut self, start: usize, end: usize) {
@@ -161,8 +194,16 @@ impl Chunker<'_> {
             return;
         }
         let mut first = self.line_of(start);
-        let line_end = self.starts.get(first + 1).copied().unwrap_or(self.src.len());
-        if self.src[start..line_end.min(end).max(start)].trim().is_empty() && line_end < end {
+        let line_end = self
+            .starts
+            .get(first + 1)
+            .copied()
+            .unwrap_or(self.src.len());
+        if self.src[start..line_end.min(end).max(start)]
+            .trim()
+            .is_empty()
+            && line_end < end
+        {
             first += 1;
         }
         let last = self.line_of(end.saturating_sub(1).max(start));
@@ -184,15 +225,27 @@ impl Chunker<'_> {
         let mut cursor = node.walk();
         for child in node.named_children(&mut cursor) {
             if child.start_byte() > at {
-                segs.push(Seg { start: at, end: child.start_byte(), node: None });
+                segs.push(Seg {
+                    start: at,
+                    end: child.start_byte(),
+                    node: None,
+                });
             }
             let inner = unwrap_wrapper(child);
             let is_def = def_kind(inner.kind()).is_some();
-            segs.push(Seg { start: child.start_byte(), end: child.end_byte(), node: is_def.then_some(inner) });
+            segs.push(Seg {
+                start: child.start_byte(),
+                end: child.end_byte(),
+                node: is_def.then_some(inner),
+            });
             at = child.end_byte();
         }
         if to > at {
-            segs.push(Seg { start: at, end: to, node: None });
+            segs.push(Seg {
+                start: at,
+                end: to,
+                node: None,
+            });
         }
         segs
     }
@@ -205,11 +258,22 @@ impl Chunker<'_> {
                 if let Some((s, e)) = pending.take() {
                     self.emit(s, e);
                 }
-                match seg.node.and_then(|n| n.child_by_field_name("body").map(|b| (n, b))) {
+                match seg
+                    .node
+                    .and_then(|n| n.child_by_field_name("body").map(|b| (n, b)))
+                {
                     Some((node, body)) if body.named_child_count() > 1 => {
-                        let mut inner = vec![Seg { start: seg.start, end: body.start_byte(), node: None }];
+                        let mut inner = vec![Seg {
+                            start: seg.start,
+                            end: body.start_byte(),
+                            node: None,
+                        }];
                         inner.extend(self.segments(body, body.start_byte(), body.end_byte()));
-                        inner.push(Seg { start: body.end_byte(), end: seg.end.max(node.end_byte()), node: None });
+                        inner.push(Seg {
+                            start: body.end_byte(),
+                            end: seg.end.max(node.end_byte()),
+                            node: None,
+                        });
                         self.pack(inner);
                     }
                     _ => self.emit(seg.start, seg.end),
@@ -255,7 +319,13 @@ pub fn idents(src: &str) -> HashMap<String, Vec<u32>> {
 }
 
 fn is_prose(path: &str) -> bool {
-    matches!(path.rsplit('.').next().map(str::to_ascii_lowercase).as_deref(), Some("md" | "markdown" | "rst" | "txt" | "mdx"))
+    matches!(
+        path.rsplit('.')
+            .next()
+            .map(str::to_ascii_lowercase)
+            .as_deref(),
+        Some("md" | "markdown" | "rst" | "txt" | "mdx")
+    )
 }
 
 fn is_underline(line: &str, title: &str) -> bool {
@@ -271,10 +341,16 @@ pub fn sections(src: &str) -> Vec<(usize, String)> {
     let lines: Vec<&str> = src.lines().collect();
     let mut out = Vec::new();
     for (i, line) in lines.iter().enumerate() {
-        if let Some(title) = line.strip_prefix('#').map(|t| t.trim_start_matches('#').trim()).filter(|t| !t.is_empty()) {
+        if let Some(title) = line
+            .strip_prefix('#')
+            .map(|t| t.trim_start_matches('#').trim())
+            .filter(|t| !t.is_empty())
+        {
             out.push((i, title.to_string()));
         } else if !line.trim().is_empty()
-            && lines.get(i + 1).is_some_and(|next| is_underline(next, line))
+            && lines
+                .get(i + 1)
+                .is_some_and(|next| is_underline(next, line))
             && !is_underline(line, "")
         {
             out.push((i, line.trim().to_string()));
@@ -292,17 +368,30 @@ fn chunk_prose(src: &str) -> Vec<Chunk> {
     }
     let mut out = Vec::new();
     for (k, (first, title)) in bounds.iter().enumerate() {
-        let last = bounds.get(k + 1).map(|b| b.0).unwrap_or(total).saturating_sub(1);
+        let last = bounds
+            .get(k + 1)
+            .map(|b| b.0)
+            .unwrap_or(total)
+            .saturating_sub(1);
         let mut line = *first;
         while line <= last && line < total {
             let mut stop = line;
-            while stop < last && tokens_of(&src[starts[line]..starts.get(stop + 2).copied().unwrap_or(src.len())]) <= MAX_TOKENS {
+            while stop < last
+                && tokens_of(&src[starts[line]..starts.get(stop + 2).copied().unwrap_or(src.len())])
+                    <= MAX_TOKENS
+            {
                 stop += 1;
             }
             let body = &src[starts[line]..starts.get(stop + 1).copied().unwrap_or(src.len())];
             if !body.trim().is_empty() {
                 let section = (!title.is_empty()).then(|| title.clone());
-                out.push(Chunk { start: line as u32 + 1, end: stop as u32 + 1, text: body.trim_end().to_string(), symbols: Vec::new(), section });
+                out.push(Chunk {
+                    start: line as u32 + 1,
+                    end: stop as u32 + 1,
+                    text: body.trim_end().to_string(),
+                    symbols: Vec::new(),
+                    section,
+                });
             }
             line = stop + 1;
         }
@@ -312,7 +401,11 @@ fn chunk_prose(src: &str) -> Vec<Chunk> {
 
 pub fn parse(path: &str, src: &str) -> Parsed {
     if is_prose(path) {
-        return Parsed { idents: HashMap::new(), defs: Vec::new(), chunks: chunk_prose(src) };
+        return Parsed {
+            idents: HashMap::new(),
+            defs: Vec::new(),
+            chunks: chunk_prose(src),
+        };
     }
     let mut defs = Vec::new();
     let tree = language(path).and_then(|lang| {
@@ -323,7 +416,12 @@ pub fn parse(path: &str, src: &str) -> Parsed {
     if let Some(tree) = &tree {
         collect_defs(tree.root_node(), src.as_bytes(), &mut defs);
     }
-    let mut chunker = Chunker { src, starts: line_starts(src), defs: &defs, out: Vec::new() };
+    let mut chunker = Chunker {
+        src,
+        starts: line_starts(src),
+        defs: &defs,
+        out: Vec::new(),
+    };
     match &tree {
         Some(tree) => {
             let root = tree.root_node();
@@ -333,7 +431,11 @@ pub fn parse(path: &str, src: &str) -> Parsed {
         None => chunker.emit(0, src.len()),
     }
     let chunks = chunker.out;
-    Parsed { idents: idents(src), defs, chunks }
+    Parsed {
+        idents: idents(src),
+        defs,
+        chunks,
+    }
 }
 
 #[cfg(test)]
@@ -346,17 +448,26 @@ mod tests {
         let parsed = parse("cli.py", src);
         let names: Vec<_> = parsed.defs.iter().map(|d| d.name.as_str()).collect();
         assert_eq!(names, ["AppGroup", "command", "run"]);
-        assert!(parsed.chunks.iter().any(|c| c.symbols.contains(&"AppGroup".to_string())));
+        assert!(parsed
+            .chunks
+            .iter()
+            .any(|c| c.symbols.contains(&"AppGroup".to_string())));
         assert_eq!(parsed.chunks.first().unwrap().start, 1);
     }
 
     #[test]
     fn huge_function_splits_into_windows() {
-        let body: String = (0..400).map(|i| format!("    x{i} = {i} + {i}\n")).collect();
+        let body: String = (0..400)
+            .map(|i| format!("    x{i} = {i} + {i}\n"))
+            .collect();
         let src = format!("def big():\n{body}");
         let parsed = parse("big.py", &src);
         assert!(parsed.chunks.len() > 1);
-        let sizes: Vec<_> = parsed.chunks.iter().map(|c| (c.start, c.end, tokens_of(&c.text))).collect();
+        let sizes: Vec<_> = parsed
+            .chunks
+            .iter()
+            .map(|c| (c.start, c.end, tokens_of(&c.text)))
+            .collect();
         assert!(sizes.iter().all(|s| s.2 <= MAX_TOKENS + 20), "{sizes:?}");
         assert!(sizes.windows(2).all(|w| w[0].1 < w[1].0), "{sizes:?}");
     }
@@ -372,7 +483,11 @@ mod tests {
     fn docs_chunk_by_section() {
         let src = "Title\n=====\n\nIntro.\n\nCustom Commands\n---------------\n\nUse @app.cli.command.\n\n## Plugins\n\nEntry points.\n";
         let rst = parse("cli.rst", src);
-        let titles: Vec<_> = rst.chunks.iter().map(|c| c.section.clone().unwrap_or_default()).collect();
+        let titles: Vec<_> = rst
+            .chunks
+            .iter()
+            .map(|c| c.section.clone().unwrap_or_default())
+            .collect();
         assert_eq!(titles, ["Title", "Custom Commands", "Plugins"]);
         assert_eq!(rst.chunks[1].start, 6);
         assert!(rst.chunks[1].text.contains("app.cli.command"));

@@ -34,15 +34,26 @@ fn quantize(mut v: Vec<f32>) -> Vector {
     let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-12);
     v.iter_mut().for_each(|x| *x /= norm);
     let max = v.iter().fold(0f32, |m, x| m.max(x.abs())).max(1e-12);
-    Vector { scale: max / 127.0, values: v.iter().map(|x| (x / max * 127.0).round() as i8).collect() }
+    Vector {
+        scale: max / 127.0,
+        values: v.iter().map(|x| (x / max * 127.0).round() as i8).collect(),
+    }
 }
 
 fn cosine(query: &[f32], v: &Vector) -> f32 {
-    query.iter().zip(&v.values).map(|(q, &x)| q * x as f32).sum::<f32>() * v.scale
+    query
+        .iter()
+        .zip(&v.values)
+        .map(|(q, &x)| q * x as f32)
+        .sum::<f32>()
+        * v.scale
 }
 
 fn cache_dir() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(std::env::temp_dir).join(".cache/pointer/fastembed")
+    std::env::var_os("HOME")
+        .map(PathBuf::from)
+        .unwrap_or_else(std::env::temp_dir)
+        .join(".cache/pointer/fastembed")
 }
 
 impl Semantic {
@@ -70,12 +81,17 @@ impl Semantic {
             match TextEmbedding::try_new(options) {
                 Ok(model) => *worker.model.lock().unwrap() = Some(model),
                 Err(error) => {
-                    eprintln!("pointer-retrieval: semantic disabled, model failed to load: {error}");
+                    eprintln!(
+                        "pointer-retrieval: semantic disabled, model failed to load: {error}"
+                    );
                     worker.failed.store(true, Ordering::Relaxed);
                     return;
                 }
             }
-            eprintln!("pointer-retrieval: semantic model loaded in {:?}", started.elapsed());
+            eprintln!(
+                "pointer-retrieval: semantic model loaded in {:?}",
+                started.elapsed()
+            );
             loop {
                 worker.embed_missing(&root, &index());
                 if rx.recv().is_err() {
@@ -97,14 +113,25 @@ impl Semantic {
         let started = Instant::now();
         let wanted: Vec<usize> = {
             let mut seen = std::collections::HashSet::new();
-            index.chunks.iter().enumerate().filter(|(_, c)| embeddable(c) && seen.insert(c.hash)).map(|(i, _)| i).collect()
+            index
+                .chunks
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| embeddable(c) && seen.insert(c.hash))
+                .map(|(i, _)| i)
+                .collect()
         };
         let mut missing: Vec<usize> = {
             let have = self.vectors.read().unwrap();
-            wanted.iter().copied().filter(|&i| !have.contains_key(&index.chunks[i].hash)).collect()
+            wanted
+                .iter()
+                .copied()
+                .filter(|&i| !have.contains_key(&index.chunks[i].hash))
+                .collect()
         };
         self.total.store(wanted.len(), Ordering::Relaxed);
-        self.done.store(wanted.len() - missing.len(), Ordering::Relaxed);
+        self.done
+            .store(wanted.len() - missing.len(), Ordering::Relaxed);
         if missing.is_empty() {
             return;
         }
@@ -112,20 +139,30 @@ impl Semantic {
         for &i in &missing {
             let path = index.chunks[i].path.as_str();
             mtimes.entry(path).or_insert_with(|| {
-                std::fs::metadata(root.join(path)).and_then(|m| m.modified()).unwrap_or(SystemTime::UNIX_EPOCH)
+                std::fs::metadata(root.join(path))
+                    .and_then(|m| m.modified())
+                    .unwrap_or(SystemTime::UNIX_EPOCH)
             });
         }
         let now = SystemTime::now();
         let bucket = |i: usize| {
             let path = index.chunks[i].path.as_str();
-            let old = now.duration_since(mtimes[path]).is_ok_and(|age| age > RECENT);
+            let old = now
+                .duration_since(mtimes[path])
+                .is_ok_and(|age| age > RECENT);
             (old, is_test(path))
         };
         missing.sort_by_key(|&i| (bucket(i), index.chunks[i].text.len().min(PASSAGE_CHARS), i));
         let count = missing.len();
         for (n, batch) in missing.chunks(BATCH).enumerate() {
             let texts: Vec<String> = batch.iter().map(|&i| passage(index, i)).collect();
-            let embedded = match self.model.lock().unwrap().as_mut().map(|m| m.embed(&texts, Some(BATCH))) {
+            let embedded = match self
+                .model
+                .lock()
+                .unwrap()
+                .as_mut()
+                .map(|m| m.embed(&texts, Some(BATCH)))
+            {
                 Some(Ok(vectors)) => vectors,
                 Some(Err(error)) => {
                     eprintln!("pointer-retrieval: embedding batch failed: {error}");
@@ -145,14 +182,19 @@ impl Semantic {
             }
         }
         self.save();
-        eprintln!("pointer-retrieval: embedded {count} chunks in {:?}", started.elapsed());
+        eprintln!(
+            "pointer-retrieval: embedded {count} chunks in {:?}",
+            started.elapsed()
+        );
     }
 
     fn save(&self) {
         let have = self.vectors.read().unwrap();
         let mut bytes = Vec::with_capacity(have.len() * 780 + 16);
         bytes.extend_from_slice(MAGIC);
-        bytes.extend_from_slice(&(have.values().next().map_or(0, |v| v.values.len()) as u32).to_le_bytes());
+        bytes.extend_from_slice(
+            &(have.values().next().map_or(0, |v| v.values.len()) as u32).to_le_bytes(),
+        );
         for (hash, v) in have.iter() {
             bytes.extend_from_slice(&hash.to_le_bytes());
             bytes.extend_from_slice(&v.scale.to_le_bytes());
@@ -180,25 +222,42 @@ impl Semantic {
         if self.failed.load(Ordering::Relaxed) {
             return "semantic: off (model failed to load)".into();
         }
-        let (done, total) = (self.done.load(Ordering::Relaxed), self.total.load(Ordering::Relaxed));
+        let (done, total) = (
+            self.done.load(Ordering::Relaxed),
+            self.total.load(Ordering::Relaxed),
+        );
         if total == 0 {
             "semantic: building 0% (loading model)".into()
         } else if done >= total {
             "semantic: ready".into()
         } else {
-            format!("semantic: building {}% ({done}/{total})", done * 100 / total)
+            format!(
+                "semantic: building {}% ({done}/{total})",
+                done * 100 / total
+            )
         }
     }
 
     pub fn memory_bytes(&self) -> usize {
-        self.vectors.read().unwrap().values().map(|v| v.values.len() + 12).sum()
+        self.vectors
+            .read()
+            .unwrap()
+            .values()
+            .map(|v| v.values.len() + 12)
+            .sum()
     }
 
     pub fn rank(&self, index: &Index, query: &str) -> Vec<(usize, f32, String)> {
         if self.vectors.read().unwrap().is_empty() {
             return Vec::new();
         }
-        let Some(embedded) = self.model.lock().unwrap().as_mut().and_then(|m| m.embed([query], None).ok()) else {
+        let Some(embedded) = self
+            .model
+            .lock()
+            .unwrap()
+            .as_mut()
+            .and_then(|m| m.embed([query], None).ok())
+        else {
             return Vec::new();
         };
         let Some(q) = embedded.into_iter().next().map(|v| {
@@ -208,34 +267,62 @@ impl Semantic {
             return Vec::new();
         };
         let have = self.vectors.read().unwrap();
-        let mut scored: Vec<(usize, f32)> =
-            index.chunks.iter().enumerate().filter_map(|(i, c)| have.get(&c.hash).map(|v| (i, cosine(&q, v)))).collect();
+        let mut scored: Vec<(usize, f32)> = index
+            .chunks
+            .iter()
+            .enumerate()
+            .filter_map(|(i, c)| have.get(&c.hash).map(|v| (i, cosine(&q, v))))
+            .collect();
         scored.sort_by(|a, b| b.1.total_cmp(&a.1));
-        scored.into_iter().take(POOL).map(|(i, s)| (i, s, format!("semantic {s:.2}"))).collect()
+        scored
+            .into_iter()
+            .take(POOL)
+            .map(|(i, s)| (i, s, format!("semantic {s:.2}")))
+            .collect()
     }
 }
 
 fn passage(index: &Index, i: usize) -> String {
     let c = &index.chunks[i];
-    let label = c.section.as_deref().map(String::from).unwrap_or_else(|| c.symbols.join(", "));
-    let end = c.text.char_indices().nth(PASSAGE_CHARS).map_or(c.text.len(), |(at, _)| at);
+    let label = c
+        .section
+        .as_deref()
+        .map(String::from)
+        .unwrap_or_else(|| c.symbols.join(", "));
+    let end = c
+        .text
+        .char_indices()
+        .nth(PASSAGE_CHARS)
+        .map_or(c.text.len(), |(at, _)| at);
     format!("{} {}\n{}", c.path, label, &c.text[..end])
 }
 
 fn is_test(path: &str) -> bool {
-    path.split('/').any(|part| part == "tests" || part == "test" || part.starts_with("test_") || part.ends_with("_test.py"))
+    path.split('/').any(|part| {
+        part == "tests" || part == "test" || part.starts_with("test_") || part.ends_with("_test.py")
+    })
 }
 
 fn embeddable(c: &crate::index::ChunkRef) -> bool {
     let path = c.path.as_str();
-    let data = [".json", ".csv", ".tsv", ".svg", ".lock", ".min.js", ".map"].iter().any(|ext| path.ends_with(ext));
-    let fixture = path.split('/').any(|part| matches!(part, "fixtures" | "fixture" | "testdata" | "__snapshots__" | "snapshots"));
+    let data = [".json", ".csv", ".tsv", ".svg", ".lock", ".min.js", ".map"]
+        .iter()
+        .any(|ext| path.ends_with(ext));
+    let fixture = path.split('/').any(|part| {
+        matches!(
+            part,
+            "fixtures" | "fixture" | "testdata" | "__snapshots__" | "snapshots"
+        )
+    });
     !data && !fixture && c.text.trim().len() >= MIN_CHARS
 }
 
 fn load(file: &Path) -> Option<HashMap<u64, Vector>> {
     let mut bytes = Vec::new();
-    std::fs::File::open(file).ok()?.read_to_end(&mut bytes).ok()?;
+    std::fs::File::open(file)
+        .ok()?
+        .read_to_end(&mut bytes)
+        .ok()?;
     if bytes.len() < 12 || &bytes[..8] != MAGIC {
         return None;
     }
@@ -245,7 +332,13 @@ fn load(file: &Path) -> Option<HashMap<u64, Vector>> {
     for chunk in bytes[12..].chunks_exact(record) {
         let hash = u64::from_le_bytes(chunk[..8].try_into().ok()?);
         let scale = f32::from_le_bytes(chunk[8..12].try_into().ok()?);
-        out.insert(hash, Vector { scale, values: chunk[12..].iter().map(|&b| b as i8).collect() });
+        out.insert(
+            hash,
+            Vector {
+                scale,
+                values: chunk[12..].iter().map(|&b| b as i8).collect(),
+            },
+        );
     }
     Some(out)
 }

@@ -1,0 +1,69 @@
+[
+ {
+  "q": "Add a new built-in CLI command flask config that prints the loaded application's configuration as JSON, masking the values of any key containing SECRET, PASSWORD, TOKEN or KEY as \"***\". It must appear in flask --help, be covered by a test, and be documented alongside the other built-in commands.",
+  "gold": [
+   "src/flask/cli.py",
+   "tests/test_cli.py",
+   "docs/cli.rst"
+  ],
+  "all": true
+ },
+ {
+  "q": "get_debug_flag FLASK_DEBUG environment variable",
+  "gold": [
+   "src/flask/helpers.py"
+  ]
+ },
+ {
+  "q": "session cookie signing with the secret key",
+  "gold": [
+   "src/flask/sessions.py"
+  ]
+ },
+ {
+  "q": "register blueprint routes and url prefix",
+  "gold": [
+   "src/flask/sansio/blueprints.py",
+   "src/flask/blueprints.py"
+  ]
+ },
+ {
+  "q": "json provider dumps response",
+  "gold": [
+   "src/flask/json/provider.py"
+  ]
+ },
+ {
+  "q": "test client request context",
+  "gold": [
+   "src/flask/testing.py",
+   "src/flask/ctx.py"
+  ]
+ },
+ {
+  "q": "render template jinja environment",
+  "gold": [
+   "src/flask/templating.py"
+  ]
+ },
+ {
+  "q": "load config from environment variables with prefix",
+  "gold": [
+   "src/flask/config.py"
+  ]
+ },
+ {
+  "q": "where is the 404 not found error handler registered",
+  "gold": [
+   "src/flask/sansio/scaffold.py",
+   "src/flask/sansio/app.py",
+   "src/flask/app.py"
+  ]
+ },
+ {
+  "q": "send file from directory safely",
+  "gold": [
+   "src/flask/helpers.py"
+  ]
+ }
+]

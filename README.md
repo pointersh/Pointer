@@ -91,6 +91,7 @@ src/                       VS Code extension (TypeScript)
   common/                  shared types and the extension <-> webview protocol
 agent/                     TrueForge agent definition + example model provider config
 crates/pointer-retrieval/  Rust retrieval engine, served as an MCP server
+benchmarks/                retrieval benchmark: Rust engine vs BM25 and grep
 packages/highlight/        @pointersh/highlight: zero-dependency syntax highlighter (TS now, Rust/WASM later)
 scaffold/                  upstream reference code kept only for ports (not built)
 ```

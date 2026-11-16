@@ -7,7 +7,9 @@ use index::{FileData, Index};
 use rayon::prelude::*;
 use rmcp::handler::server::wrapper::Parameters;
 use rmcp::schemars::JsonSchema;
-use rmcp::transport::streamable_http_server::{session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService};
+use rmcp::transport::streamable_http_server::{
+    session::local::LocalSessionManager, StreamableHttpServerConfig, StreamableHttpService,
+};
 use rmcp::{tool, tool_router};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -16,7 +18,17 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 const MAX_FILE_BYTES: u64 = 1_000_000;
-const LOCKFILES: &[&str] = &["package-lock.json", "yarn.lock", "pnpm-lock.yaml", "Cargo.lock", "poetry.lock", "uv.lock", "go.sum", "composer.lock", "Gemfile.lock"];
+const LOCKFILES: &[&str] = &[
+    "package-lock.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "Cargo.lock",
+    "poetry.lock",
+    "uv.lock",
+    "go.sum",
+    "composer.lock",
+    "Gemfile.lock",
+];
 
 struct Store {
     root: PathBuf,
@@ -26,13 +38,17 @@ struct Store {
 
 impl Store {
     fn relative(&self, path: &Path) -> Option<String> {
-        path.strip_prefix(&self.root).ok().map(|p| p.to_string_lossy().replace('\\', "/"))
+        path.strip_prefix(&self.root)
+            .ok()
+            .map(|p| p.to_string_lossy().replace('\\', "/"))
     }
 
     fn read(&self, path: &Path) -> Option<(String, FileData)> {
         let rel = self.relative(path)?;
         let name = path.file_name()?.to_string_lossy();
-        if LOCKFILES.contains(&name.as_ref()) || rel.split('/').any(|p| p == ".git" || p == ".pointer") {
+        if LOCKFILES.contains(&name.as_ref())
+            || rel.split('/').any(|p| p == ".git" || p == ".pointer")
+        {
             return None;
         }
         let meta = std::fs::metadata(path).ok()?;
@@ -57,7 +73,8 @@ impl Store {
             .filter(|e| e.file_type().is_some_and(|t| t.is_file()))
             .map(|e| e.into_path())
             .collect();
-        let files: HashMap<String, FileData> = paths.par_iter().filter_map(|p| self.read(p)).collect();
+        let files: HashMap<String, FileData> =
+            paths.par_iter().filter_map(|p| self.read(p)).collect();
         *self.files.lock().unwrap() = files;
         self.rebuild();
     }
@@ -67,8 +84,13 @@ impl Store {
         {
             let mut files = self.files.lock().unwrap();
             for path in changed {
-                let Some(rel) = self.relative(path) else { continue };
-                if ignored.matched_path_or_any_parents(path, path.is_dir()).is_ignore() {
+                let Some(rel) = self.relative(path) else {
+                    continue;
+                };
+                if ignored
+                    .matched_path_or_any_parents(path, path.is_dir())
+                    .is_ignore()
+                {
                     continue;
                 }
                 match self.read(path) {
@@ -123,7 +145,10 @@ struct Retrieval {
 impl Retrieval {
     #[cfg(feature = "semantic")]
     fn semantic_signal(&self, index: &Index, query: &str) -> Vec<(usize, f32, String)> {
-        self.semantic.as_ref().map(|s| s.rank(index, query)).unwrap_or_default()
+        self.semantic
+            .as_ref()
+            .map(|s| s.rank(index, query))
+            .unwrap_or_default()
     }
 
     #[cfg(not(feature = "semantic"))]
@@ -133,7 +158,10 @@ impl Retrieval {
 
     #[cfg(feature = "semantic")]
     fn semantic_status(&self) -> String {
-        self.semantic.as_ref().map_or_else(|| "semantic: off".into(), |s| format!("{}; vectors {} KB", s.status(), s.memory_bytes() / 1024))
+        self.semantic.as_ref().map_or_else(
+            || "semantic: off".into(),
+            |s| format!("{}; vectors {} KB", s.status(), s.memory_bytes() / 1024),
+        )
     }
 
     #[cfg(not(feature = "semantic"))]
@@ -152,13 +180,28 @@ impl Retrieval {
         let started = Instant::now();
         let index = self.store.current();
         let semantic = index::Precomputed(self.semantic_signal(&index, &args.query));
-        let extra: Vec<&dyn index::Signal> = if semantic.0.is_empty() { Vec::new() } else { vec![&semantic] };
-        let out = index.search_text(&args.query, args.budget_tokens.unwrap_or(4500).min(5000), &extra);
-        eprintln!("pointer-retrieval: search {:?} in {:?}", args.query, started.elapsed());
+        let extra: Vec<&dyn index::Signal> = if semantic.0.is_empty() {
+            Vec::new()
+        } else {
+            vec![&semantic]
+        };
+        let out = index.search_text(
+            &args.query,
+            args.budget_tokens.unwrap_or(4500).min(5000),
+            &extra,
+        );
+        eprintln!(
+            "pointer-retrieval: search {:?} in {:?}",
+            args.query,
+            started.elapsed()
+        );
         out
     }
 
-    #[tool(description = "Where a symbol is defined and where it is referenced (path:line).", annotations(read_only_hint = true))]
+    #[tool(
+        description = "Where a symbol is defined and where it is referenced (path:line).",
+        annotations(read_only_hint = true)
+    )]
     fn find_symbol(&self, Parameters(args): Parameters<SymbolArgs>) -> String {
         self.store.current().find_symbol(&args.name)
     }
@@ -168,22 +211,39 @@ impl Retrieval {
         annotations(read_only_hint = true)
     )]
     fn repo_map(&self, Parameters(args): Parameters<MapArgs>) -> String {
-        self.store.current().repo_map(args.budget_tokens.unwrap_or(2000))
+        self.store
+            .current()
+            .repo_map(args.budget_tokens.unwrap_or(2000))
     }
 
-    #[tool(description = "Indexing state: chunk count and whether semantic search is off, building (with progress) or ready.", annotations(read_only_hint = true))]
+    #[tool(
+        description = "Indexing state: chunk count and whether semantic search is off, building (with progress) or ready.",
+        annotations(read_only_hint = true)
+    )]
     fn index_status(&self) -> String {
         let index = self.store.current();
-        format!("{}\nchunks: {} in {} files", self.semantic_status(), index.chunks.len(), index.files)
+        format!(
+            "{}\nchunks: {} in {} files",
+            self.semantic_status(),
+            index.chunks.len(),
+            index.files
+        )
     }
 }
 
-fn watch(store: Arc<Store>, after: impl Fn() + Send + 'static) -> notify::Result<notify::RecommendedWatcher> {
+fn watch(
+    store: Arc<Store>,
+    after: impl Fn() + Send + 'static,
+) -> notify::Result<notify::RecommendedWatcher> {
     use notify::Watcher;
     let (tx, rx) = std::sync::mpsc::channel::<PathBuf>();
     let mut watcher = notify::recommended_watcher(move |event: notify::Result<notify::Event>| {
         if let Ok(event) = event {
-            for path in event.paths.into_iter().filter(|p| !p.components().any(|c| c.as_os_str() == ".pointer")) {
+            for path in event
+                .paths
+                .into_iter()
+                .filter(|p| !p.components().any(|c| c.as_os_str() == ".pointer"))
+            {
                 let _ = tx.send(path);
             }
         }
@@ -201,22 +261,33 @@ fn watch(store: Arc<Store>, after: impl Fn() + Send + 'static) -> notify::Result
             let started = Instant::now();
             store.update(&batch, &ignored);
             after();
-            eprintln!("pointer-retrieval: reindexed {} paths in {:?}", batch.len(), started.elapsed());
+            eprintln!(
+                "pointer-retrieval: reindexed {} paths in {:?}",
+                batch.len(),
+                started.elapsed()
+            );
         }
     });
     Ok(watcher)
 }
 
 fn arg(args: &[String], name: &str) -> Option<String> {
-    args.iter().position(|a| a == name).and_then(|i| args.get(i + 1).cloned())
+    args.iter()
+        .position(|a| a == name)
+        .and_then(|i| args.get(i + 1).cloned())
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
-    let root = PathBuf::from(arg(&args, "--root").ok_or_else(|| anyhow::anyhow!("usage: pointer-retrieval --root <dir> [--port 0] [--semantic]"))?);
+    let root = PathBuf::from(arg(&args, "--root").ok_or_else(|| {
+        anyhow::anyhow!("usage: pointer-retrieval --root <dir> [--port 0] [--semantic]")
+    })?);
     let root = root.canonicalize()?;
-    let port: u16 = arg(&args, "--port").map(|p| p.parse()).transpose()?.unwrap_or(0);
+    let port: u16 = arg(&args, "--port")
+        .map(|p| p.parse())
+        .transpose()?
+        .unwrap_or(0);
 
     let store = Arc::new(Store {
         root,
@@ -226,7 +297,12 @@ async fn main() -> anyhow::Result<()> {
     let started = Instant::now();
     store.index_all();
     let index = store.current();
-    eprintln!("pointer-retrieval: indexed {} files, {} chunks in {:?}", index.files, index.chunks.len(), started.elapsed());
+    eprintln!(
+        "pointer-retrieval: indexed {} files, {} chunks in {:?}",
+        index.files,
+        index.chunks.len(),
+        started.elapsed()
+    );
     #[cfg(feature = "semantic")]
     let semantic = args.iter().any(|a| a == "--semantic").then(|| {
         let source = store.clone();
@@ -264,16 +340,22 @@ async fn main() -> anyhow::Result<()> {
     let expected = format!("Bearer {token}");
     let app = axum::Router::new()
         .nest_service("/mcp", service)
-        .layer(axum::middleware::from_fn(move |req: axum::extract::Request, next: axum::middleware::Next| {
-            let ok = req.headers().get("authorization").and_then(|v| v.to_str().ok()) == Some(expected.as_str());
-            async move {
-                if ok {
-                    next.run(req).await
-                } else {
-                    axum::http::StatusCode::UNAUTHORIZED.into_response()
+        .layer(axum::middleware::from_fn(
+            move |req: axum::extract::Request, next: axum::middleware::Next| {
+                let ok = req
+                    .headers()
+                    .get("authorization")
+                    .and_then(|v| v.to_str().ok())
+                    == Some(expected.as_str());
+                async move {
+                    if ok {
+                        next.run(req).await
+                    } else {
+                        axum::http::StatusCode::UNAUTHORIZED.into_response()
+                    }
                 }
-            }
-        }));
+            },
+        ));
     let listener = tokio::net::TcpListener::bind(("127.0.0.1", port)).await?;
     let addr = listener.local_addr()?;
     println!("READY http://127.0.0.1:{}/mcp {token}", addr.port());
