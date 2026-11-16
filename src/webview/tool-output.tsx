@@ -1,6 +1,5 @@
 import React from "react"
 import { Code } from "@pointersh/highlight/react"
-import cx from "classnames"
 
 import { EVENT_NAME } from "../common/constants"
 import {
@@ -18,6 +17,7 @@ import { ToolStepView } from "../common/types"
 
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
+import { cx } from "./utils"
 
 import styles from "./styles/tool-steps.module.css"
 

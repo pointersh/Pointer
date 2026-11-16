@@ -1,6 +1,5 @@
 import React, { useState } from "react"
 import { Code } from "@pointersh/highlight/react"
-import cx from "classnames"
 
 import { EVENT_NAME } from "../common/constants"
 import { ToolStepView } from "../common/types"
@@ -9,6 +8,7 @@ import { parseTasks, TASKS_TOOL_NAME, tasksProgress } from "../extension/tools/t
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
 import { ToolOutput } from "./tool-output"
+import { cx } from "./utils"
 
 import styles from "./styles/tool-steps.module.css"
 

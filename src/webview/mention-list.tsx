@@ -8,12 +8,12 @@ import {
 } from "react"
 import { Editor } from "@tiptap/core"
 import { MentionNodeAttrs } from "@tiptap/extension-mention"
-import cx from "classnames"
 
 import { topLevelItems } from "../common/constants"
 import { CategoryType, ContextItem } from "../common/types"
 
 import { useTranslation } from "./strings"
+import { cx } from "./utils"
 
 import styles from "./styles/common.module.css"
 
@@ -172,9 +172,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
           <>
             {visibleItems.map((item, index) => (
               <button
-                className={cx(styles.dropdownItem, {
-                  [styles.dropdownSelected]: index === selectedIndex
-                })}
+                className={cx(styles.dropdownItem, index === selectedIndex && styles.dropdownSelected)}
                 key={index}
                 onClick={() => selectItem(index)}
               >
@@ -195,9 +193,7 @@ export const MentionList = forwardRef<MentionListRef, MentionListProps>(
         ) : (
           categories.map((category, index) => (
             <button
-              className={cx(styles.dropdownItem, {
-                [styles.dropdownSelected]: index === selectedIndex
-              })}
+              className={cx(styles.dropdownItem, index === selectedIndex && styles.dropdownSelected)}
               key={category}
               onClick={() => selectItem(index)}
             >

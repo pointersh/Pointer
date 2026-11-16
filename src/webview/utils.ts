@@ -101,3 +101,5 @@ export const getThinkingMessage = (content: string): { thinking: string | null; 
   const message = content.replace(/<(?:think|thinking)>[\s\S]*?(?:<\/(?:think|thinking)>|$)/g, "").trim();
   return { thinking, message };
 };
+
+export const cx = (...names: unknown[]) => names.filter(Boolean).join(" ")

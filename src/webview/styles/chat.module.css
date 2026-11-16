@@ -64,6 +64,15 @@
   min-height: 0;
   overflow: hidden;
 }
+.scroller {
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+.messages {
+  margin-top: auto;
+}
 .emptyChat {
   display: flex;
   align-items: center;
@@ -200,13 +209,6 @@
 }
 .chatBox:focus-within {
   border-color: color-mix(in srgb, var(--tw-fg) 22%, transparent);
-}
-.chatBoxDisabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-.chatBoxDisabled .tiptap {
-  pointer-events: none;
 }
 .prompt {
   flex: 0 0 auto;

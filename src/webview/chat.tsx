@@ -1,10 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { Virtuoso, VirtuosoHandle } from "react-virtuoso"
 import Mention from "@tiptap/extension-mention"
 import Placeholder from "@tiptap/extension-placeholder"
 import { Editor, EditorContent, JSONContent, useEditor } from "@tiptap/react"
 import StarterKit from "@tiptap/starter-kit"
-import cx from "classnames"
 
 import { ASSISTANT, EVENT_NAME, USER } from "../common/constants"
 import {
@@ -72,9 +70,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
   const { t } = useTranslation()
   const [isLoading, setIsLoading] = useState(false)
   const [messages, setMessages] = useState<ChatCompletionMessage[]>([])
-  const chatDisabled = false
   const [completion, setCompletion] = useState<ChatCompletionMessage | null>()
-  const virtuosoRef = useRef<VirtuosoHandle>(null)
   const { contextItems, removeContextItem } = useWorkspaceContext()
   const completionRef = useRef<ChatCompletionMessage | null | undefined>()
   completionRef.current = completion
@@ -118,6 +114,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
     }
     const onScroll = () => {
       const gap = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight
+      setIsBottom(gap <= 20)
       const byReader = dragging || Date.now() - intent < 500
       if (byReader && scroller.scrollTop < lastTopRef.current - 1 && gap > 24) setFollowing(false)
       else if (gap <= 24 && !followRef.current) setFollowing(true)
@@ -139,7 +136,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
     onResize()
     const observer = new ResizeObserver(onResize)
     observer.observe(scroller)
-    const list = scroller.querySelector("[data-testid=virtuoso-item-list]")
+    const list = scroller.firstElementChild
     if (list) observer.observe(list, { box: "border-box" })
     scroller.addEventListener("scroll", onScroll, { passive: true })
     scroller.addEventListener("wheel", onWheel, { passive: true })
@@ -417,11 +414,9 @@ export const Chat = (props: ChatProps): JSX.Element => {
 
   const scrollTranscript = useCallback((direction: -1 | 1) => {
     if (direction < 0) setFollowing(false)
-    virtuosoRef.current?.scrollBy({
-      top: direction * window.innerHeight * 0.6
-    })
+    scroller?.scrollBy({ top: direction * window.innerHeight * 0.6 })
     return true
-  }, [])
+  }, [scroller, setFollowing])
 
   useEffect(() => () => clearTimeout(hintTimerRef.current), [])
 
@@ -471,7 +466,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
 
     const text = htmlText(input || "")
 
-    if (!text || !input || chatDisabled) return
+    if (!text || !input) return
 
     const message: QueuedMessage = {
       id: crypto.randomUUID(),
@@ -488,10 +483,10 @@ export const Chat = (props: ChatProps): JSX.Element => {
       return
     }
     sendRef.current(message)
-  }, [chatDisabled])
+  }, [])
 
   const handleContinue = useCallback(() => {
-    if (generatingRef.current || chatDisabled) return
+    if (generatingRef.current) return
     generatingRef.current = true
     setIsLoading(true)
     clearToolSteps()
@@ -518,7 +513,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
       })
       return updatedMessages
     })
-  }, [conversation, chatDisabled, clearToolSteps, t])
+  }, [conversation, clearToolSteps, t])
 
   const handleNewConversation = useCallback(() => {
     setActiveConversation({
@@ -556,7 +551,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
         }
       } else if (e.key === "Escape") {
         handled = handleEscape()
-      } else if (e.key.length === 1 && e.key !== " " && !chatDisabled) {
+      } else if (e.key.length === 1 && e.key !== " ") {
         if (!target?.closest("button, vscode-button, a, summary")) {
           editorRef.current?.commands.focus("end")
         }
@@ -567,7 +562,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [
     active,
-    chatDisabled,
     handleEscape,
     handleInterrupt,
     startNewConversation
@@ -649,10 +643,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
     ]
   )
 
-  useEffect(() => {
-    editor?.setEditable(!chatDisabled)
-  }, [editor, chatDisabled])
-
   useAutosizeTextArea(chatRef, editorRef.current?.getText() || "")
 
   useEffect(() => {
@@ -724,10 +714,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
 
   const scrollToBottom = useCallback(() => {
     setFollowing(true)
-    virtuosoRef.current?.scrollTo({
-      top: Infinity,
-      behavior: "auto"
-    })
     pinToEnd()
   }, [pinToEnd, setFollowing])
 
@@ -763,7 +749,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
               removeContextItem(item.id)
             }}
             data-id={item.id}
-            className={cx("codicon codicon-close", styles.contextItemClose)}
+            className={`codicon codicon-close ${styles.contextItemClose}`}
           />
         </div>
       )
@@ -818,17 +804,11 @@ export const Chat = (props: ChatProps): JSX.Element => {
           {messages.length === 0 ? (
             <EmptyChat />
           ) : (
-            <Virtuoso
-              style={{ height: "100%" }}
-              ref={virtuosoRef}
-              scrollerRef={(element) => setScroller(element instanceof HTMLElement ? element : null)}
-              totalCount={messages.length + (pending ? 1 : 0)}
-              defaultItemHeight={800}
-              itemContent={itemContent}
-              atBottomThreshold={20}
-              atBottomStateChange={(bottom) => setIsBottom(bottom)}
-              alignToBottom
-            />
+            <div ref={setScroller} className={styles.scroller}>
+              <div className={styles.messages}>
+                {Array.from({ length: messages.length + (pending ? 1 : 0) }, (_, i) => itemContent(i))}
+              </div>
+            </div>
           )}
         </div>
         <div className={styles.chatOptions}>
@@ -893,10 +873,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
           </div>
           <form>
             <div
-              className={cx(styles.chatBox, {
-                [styles.chatBoxDisabled]: chatDisabled
-              })}
-              title={chatDisabled ? t("chat-disabled-no-provider") : undefined}
+              className={styles.chatBox}
               onMouseDown={handleComposerMouseDown}
             >
               <span className={styles.prompt} aria-hidden="true">
@@ -921,7 +898,7 @@ export const Chat = (props: ChatProps): JSX.Element => {
                   <Button
                     appearance="icon"
                     role="button"
-                    className={cx(styles.sendButton, styles.stopButton)}
+                    className={`${styles.sendButton} ${styles.stopButton}`}
                     onClick={handleStopGeneration}
                     title={t("stop-generation-esc")}
                     aria-label={t("stop-generation")}
@@ -932,7 +909,6 @@ export const Chat = (props: ChatProps): JSX.Element => {
                   <Button
                     appearance="icon"
                     role="button"
-                    disabled={chatDisabled}
                     className={styles.sendButton}
                     onClick={handleSubmitForm}
                     title={t("send")}
