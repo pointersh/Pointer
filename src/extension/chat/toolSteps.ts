@@ -43,8 +43,6 @@ export class ToolSteps {
   private _steps: ToolStepView[] = []
   private readonly _waiting = new Map<string, (run: boolean) => void>()
   private readonly _skipped = new Set<string>()
-  private readonly _stoppers = new Map<string, () => void>()
-  private readonly _stopped = new Set<string>()
   private _live: { id: string; output: string } | undefined
   private _liveTimer: ReturnType<typeof setTimeout> | undefined
   private _muted = false
@@ -56,8 +54,6 @@ export class ToolSteps {
     this._muted = false
     this._steps = []
     this._skipped.clear()
-    this._stoppers.clear()
-    this._stopped.clear()
     clearTimeout(this._liveTimer)
     this._liveTimer = undefined
     this._live = undefined
@@ -77,14 +73,11 @@ export class ToolSteps {
 
   public finish(step: ToolStep) {
     const output = shown(step.output, MAX_SHOWN_OUTPUT)
-    this._stoppers.delete(step.id)
     const status = this._skipped.has(step.id)
       ? "skipped"
-      : this._stopped.has(step.id)
-        ? "stopped"
-        : step.failed
-          ? "failed"
-          : "done"
+      : step.failed
+        ? "failed"
+        : "done"
     this.update(step.id, {
       summary: step.summary,
       output,
@@ -92,30 +85,13 @@ export class ToolSteps {
       command: undefined,
       approval: undefined,
       noAlways: undefined,
-      mcpTool: undefined,
-      stoppable: undefined
+      mcpTool: undefined
     })
   }
 
   public said(id: string, text: string) {
     this._steps = [...this._steps, { id: `said.${id}`, name: "said", summary: text, status: "done", said: true }]
     this.send()
-  }
-
-  public stoppable(stop: () => void) {
-    const step = [...this._steps].reverse().find((s) => s.status === "running")
-    if (!step) return
-    this._stoppers.set(step.id, stop)
-    this.update(step.id, { stoppable: true })
-  }
-
-  public stop(id: string) {
-    const stop = this._stoppers.get(id)
-    if (!stop) return
-    this._stoppers.delete(id)
-    this._stopped.add(id)
-    this.update(id, { stoppable: undefined })
-    stop()
   }
 
   public progress(output: string) {
@@ -170,7 +146,7 @@ export class ToolSteps {
     if (!this._steps.some((step) => step.status === "running" || step.status === "waiting")) return
     this._steps = this._steps.map((step) =>
       step.status === "running" || step.status === "waiting"
-        ? { ...step, status: "stopped" as const, command: undefined, approval: undefined, stoppable: undefined }
+        ? { ...step, status: "stopped" as const, command: undefined, approval: undefined }
         : step
     )
     this.send()

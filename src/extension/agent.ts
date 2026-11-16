@@ -7,5 +7,4 @@ export interface Agent {
   discardReply(): void
   resetConversation(): void
   answerToolApproval(id: string, run: boolean, always?: boolean): void
-  stopToolStep(id: string): void
 }

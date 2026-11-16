@@ -76,10 +76,6 @@ export class BaseProvider {
         void this.agent?.completion(messages, mentions),
       [EVENT_NAME.pointerFileListRequest]: () =>
         this._fileTreeProvider.getAllFiles(),
-      [EVENT_NAME.pointerGetConfigValue]: ({ key }) => ({
-        key,
-        value: vscode.workspace.getConfiguration("pointer").get(key)
-      }),
       [EVENT_NAME.pointerGetContextItems]: () =>
         this.broadcastContextItems(this.readContextItems()),
       [EVENT_NAME.pointerGlobalContext]: ({ key }) =>
@@ -102,14 +98,9 @@ export class BaseProvider {
         this.sendToTerminal(command),
       [EVENT_NAME.pointerInsertAtCursor]: (code) => this.insertAtCursor(code),
       [EVENT_NAME.pointerSendTheme]: () => getTheme(),
-      [EVENT_NAME.pointerSetConfigValue]: ({ key, value }) =>
-        void vscode.workspace
-          .getConfiguration("pointer")
-          .update(key, value, vscode.ConfigurationTarget.Global),
       [EVENT_NAME.pointerSidebarReady]: () => this._sidebarReadyHandler?.(),
       [EVENT_NAME.pointerStopGeneration]: () => this.destroyStream(),
       [EVENT_NAME.pointerToolApproval]: ({ id, run, always }) => this.agent?.answerToolApproval(id, run, always),
-      [EVENT_NAME.pointerToolStop]: ({ id }) => this.agent?.stopToolStep(id),
       [EVENT_NAME.pointerSymbolSearch]: ({ query }) => searchSymbols(query),
       [EVENT_NAME.pointerTextSelection]: () => getTextSelection()
     })

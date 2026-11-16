@@ -63,8 +63,6 @@
   "tool-command-to-terminal-title": "Put the command in your terminal, to look at or run again; nothing runs until you press Enter",
   "tool-command-keys-ask": "enter run · esc skip · your team asks before every command",
   "tool-change-keys": "enter apply · esc skip",
-  "tool-stop": "Stop command",
-  "tool-stop-title": "Stop this command. The model gets what it printed so far and carries on.",
   "tool-skip": "Skip",
   "tool-input": "input",
   "tool-output": "output",

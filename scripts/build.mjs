@@ -1,5 +1,3 @@
-/* eslint-disable no-undef */
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 import { execSync } from "node:child_process"
 import fs from "node:fs"
 

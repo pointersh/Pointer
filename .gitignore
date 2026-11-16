@@ -1,12 +1,23 @@
-out
-dist
-node_modules
+node_modules/
+out/
+dist/
 *.vsix
+.vscode-test/
 
-# local Claude Code settings and worktrees
-.claude/
-
-# rust
-/target
+target/
 crates/pointer-highlight/highlight.wasm
 .pointer/
+
+.vscode/*
+!.vscode/launch.json
+!.vscode/extensions.json
+.claude/
+.qoder/
+.cursor/
+.idea/
+.zed/
+
+.env
+.env.*
+*.log
+.DS_Store

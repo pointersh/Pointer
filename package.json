@@ -224,106 +224,6 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Writes what Pointer is doing to the **Pointer** output channel: one line per completion or chat request with model, timing, size and why it stopped. Set the channel's log level to *Debug* (the dropdown in the Output panel) to also see the prompts and replies. Warnings and errors are written even when this is off."
-        },
-        "pointer.chatTools": {
-          "order": 20,
-          "type": "boolean",
-          "default": false,
-          "markdownDescription": "**Experimental.** Lets the chat model work in the workspace: find, read and search files (by regular expression, and by meaning through the embeddings index), read git history, ask the language servers for errors, references and definitions, edit, create, rename, move and delete files, and run commands. Edits are applied straight away unless `#pointer.chatToolsEdits#` asks for review; each applied edit comes back with any errors the editor then reports in the file, and the reply ends with the files it changed, each of which can be compared with what it was or undone. Commands ask first unless `#pointer.chatToolsCommands#` says otherwise. The project's `AGENTS.md` (or `CLAUDE.md`) is followed, and a folder's own `AGENTS.md` once the model works there. Files ignored by a `.gitignore` are off limits, and changes to `.vscode/`, a `.gitignore` or an `AGENTS.md` are always shown for review. Each step shows in the reply at the point it ran. Needs a capable coder model such as `qwen3-coder:30b` with a context of 8k tokens or more; small models tend to call tools badly. Set in your user settings; a workspace cannot turn it on.",
-          "scope": "machine"
-        },
-        "pointer.chatToolsEdits": {
-          "order": 20,
-          "type": "string",
-          "enum": [
-            "apply",
-            "review"
-          ],
-          "enumDescriptions": [
-            "Edits go straight into the file and are saved; the model carries on until the task is done. Ctrl+Z in the file undoes an edit. Deleting a file git has no copy of still asks first.",
-            "Each edit opens as a diff to accept or reject, and the model stops until you have decided. Renames, moves and deletes ask in the chat."
-          ],
-          "default": "apply",
-          "markdownDescription": "What happens when the chat model changes a file (with `#pointer.chatTools#` on).",
-          "scope": "machine"
-        },
-        "pointer.chatToolsCommands": {
-          "order": 20,
-          "type": "string",
-          "enum": [
-            "ask",
-            "allow",
-            "off"
-          ],
-          "enumDescriptions": [
-            "Each command the model wants to run is shown in the chat with Run, Always run and Skip first.",
-            "Commands run straight away. A command cannot be undone like an edit can.",
-            "The model cannot run commands."
-          ],
-          "default": "ask",
-          "markdownDescription": "Whether the chat model may run shell commands (tests, builds), with `#pointer.chatTools#` on. It sees the exit code and the end of the output. This sets where the **auto-run** switch in the chat's composer starts; once you switch it, the switch decides (`off` still turns commands off). Reading git (status, diff, log) never asks: it cannot change anything.",
-          "scope": "machine"
-        },
-        "pointer.chatToolsMcpServers": {
-          "order": 20,
-          "type": "object",
-          "default": {},
-          "additionalProperties": {
-            "type": "object",
-            "required": [
-              "command"
-            ],
-            "properties": {
-              "command": {
-                "type": "string",
-                "description": "The program that runs the server, e.g. npx or uvx."
-              },
-              "args": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                },
-                "description": "Its arguments."
-              },
-              "env": {
-                "type": "object",
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "description": "Environment variables for it, on top of VS Code's."
-              },
-              "cwd": {
-                "type": "string",
-                "description": "The folder it runs in; the workspace root by default."
-              }
-            }
-          },
-          "markdownDescription": "Model Context Protocol servers whose tools agent mode can use (with `#pointer.chatTools#` on), by name: `{ \"github\": { \"command\": \"npx\", \"args\": [\"-y\", \"@modelcontextprotocol/server-github\"], \"env\": { \"GITHUB_TOKEN\": \"…\" } } }`. Servers run on this machine over standard input and output, start with the first agent reply and stop with the chat. Each call is shown with Run and Skip first, unless you chose Always run for that tool. Every tool goes into every agent request, so a server with many tools makes small models pick worse. Set in your user settings; a workspace cannot add one.",
-          "scope": "machine"
-        },
-        "pointer.chatToolsMaxSteps": {
-          "order": 20,
-          "type": "number",
-          "default": 30,
-          "minimum": 4,
-          "maximum": 40,
-          "markdownDescription": "How many tool steps one agent reply may take before the model is asked to answer with what it has (with `#pointer.chatTools#` on). More lets a capable model finish longer tasks in one reply; each step is another request to the model.",
-          "scope": "machine"
-        },
-        "pointer.chatToolsCommandsRunIn": {
-          "order": 20,
-          "type": "string",
-          "enum": [
-            "background",
-            "terminal"
-          ],
-          "enumDescriptions": [
-            "Each command runs in a process of its own through your shell, from the workspace root. Its output shows in the chat as it prints. Nothing can answer a prompt, and it is stopped after two minutes.",
-            "Commands run in the **pointer tools** terminal, which opens beside the editor, so you can watch and type into them. Needs VS Code's shell integration; without it they run in the background."
-          ],
-          "default": "background",
-          "markdownDescription": "Where the chat model's commands run (with `#pointer.chatToolsCommands#` not `off`).",
-          "scope": "machine"
         }
       }
     }
@@ -332,9 +232,8 @@
     "build": "node scripts/build.mjs",
     "lint": "eslint src crates/pointer-highlight/js",
     "lint:fix": "eslint src crates/pointer-highlight/js --fix",
-    "package": "node scripts/build.mjs",
     "vscode:package": "npm exec vsce package",
-    "vscode:prepublish": "npm run package",
+    "vscode:prepublish": "npm run build",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p . --noEmit",
     "check:mcp": "node scripts/checkMcp.mjs",

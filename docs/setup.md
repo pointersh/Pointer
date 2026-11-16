@@ -86,5 +86,4 @@ agent/                     TrueForge agent definition and example provider confi
 crates/pointer-retrieval/  Rust retrieval engine, served as an MCP server
 crates/pointer-highlight/  @pointersh/highlight: Rust tokenizer compiled to WebAssembly
 benchmarks/                retrieval benchmark against BM25 and grep
-scaffold/                  upstream reference code kept for ports (not built)
 ```

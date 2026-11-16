@@ -102,17 +102,6 @@ const Step = ({ step }: { step: ToolStepView }) => {
             </button>
           </>
         )}
-        {step.stoppable && step.status === "running" && (
-          <button
-            type="button"
-            className={styles.stop}
-            onClick={() => emit(EVENT_NAME.pointerToolStop, { id: step.id })}
-            title={t("tool-stop-title")}
-            aria-label={t("tool-stop")}
-          >
-            <span className="codicon codicon-debug-stop" aria-hidden="true" />
-          </button>
-        )}
       </div>
       {waiting && (
         <div className={styles.approval}>

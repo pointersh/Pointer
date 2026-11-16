@@ -166,8 +166,4 @@ export class TrueForgeAgent implements Agent {
     this._steps.answer(id, run)
   }
 
-  public stopToolStep(id: string) {
-    this._steps.stop(id)
-  }
-
 }

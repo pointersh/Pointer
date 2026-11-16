@@ -32,7 +32,6 @@ export interface ToolStepView {
   command?: string
   approval?: "command" | "change"
   at?: number
-  stoppable?: boolean
   noAlways?: boolean
   mcpTool?: string
   said?: boolean

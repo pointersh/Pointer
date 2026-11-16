@@ -26,5 +26,5 @@
     ]
   },
   "include": ["src/**/*", "crates/pointer-highlight/js/**/*"],
-  "exclude": ["scaffold", "node_modules", ".vscode-test", "out", "dist"]
+  "exclude": ["node_modules", "out", "dist"]
 }

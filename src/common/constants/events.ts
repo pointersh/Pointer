@@ -3,7 +3,6 @@ export const EVENT_NAME = {
   pointerAddMessage: "pointer-add-message",
   pointerChatMessage: "pointer-chat-message",
   pointerFileListRequest: "pointer-file-list-request",
-  pointerGetConfigValue: "pointer-get-config-value",
   pointerGetContextItems: "pointer-get-context-items",
   pointerGetWorkspaceContext: "pointer-workspace-context",
   pointerGlobalContext: "pointer-global-context",
@@ -16,7 +15,6 @@ export const EVENT_NAME = {
   pointerInsertAtCursor: "pointer-insert-at-cursor",
   pointerSendTheme: "pointer-send-theme",
   pointerSessionContext: "pointer-session-context",
-  pointerSetConfigValue: "pointer-set-config-value",
   pointerSetGlobalContext: "pointer-set-global-context",
   pointerSetSessionContext: "pointer-set-session-context",
   pointerSetWorkspaceContext: "pointer-set-workspace-context",
@@ -25,7 +23,6 @@ export const EVENT_NAME = {
   pointerSymbolSearch: "pointer-symbol-search",
   pointerTextSelection: "pointer-text-selection",
   pointerToolApproval: "pointer-tool-approval",
-  pointerToolStop: "pointer-tool-stop",
   pointerToolSteps: "pointer-tool-steps",
   pointerUpdateContextItems: "pointer-update-context-items"
 } as const

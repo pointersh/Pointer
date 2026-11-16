@@ -28,18 +28,6 @@ export interface ChatRequest {
   conversationId?: string
 }
 
-export interface ConfigValue<T = unknown> {
-  key: string
-  value: T
-}
-
-export interface ProviderTestResult {
-  success: boolean
-  error?: string
-  latencyMs?: number
-  sample?: string
-}
-
 export interface NewDocumentRequest {
   content: string
   language?: string
@@ -49,7 +37,6 @@ export interface ClientEvents {
   [EVENT_NAME.pointerAcceptSolution]: Channel<string>
   [EVENT_NAME.pointerChatMessage]: Channel<ChatRequest>
   [EVENT_NAME.pointerFileListRequest]: Channel<void, string[]>
-  [EVENT_NAME.pointerGetConfigValue]: Channel<{ key: string }, ConfigValue>
   [EVENT_NAME.pointerGetContextItems]: Channel
   [EVENT_NAME.pointerGetWorkspaceContext]: Channel<{ key: string }, ContextValue>
   [EVENT_NAME.pointerGlobalContext]: Channel<{ key: string }, ContextValue>
@@ -61,7 +48,6 @@ export interface ClientEvents {
   [EVENT_NAME.pointerInsertAtCursor]: Channel<string>
   [EVENT_NAME.pointerSendTheme]: Channel<void, ThemeType>
   [EVENT_NAME.pointerSessionContext]: Channel<{ key: string }, ContextValue>
-  [EVENT_NAME.pointerSetConfigValue]: Channel<ConfigValue>
   [EVENT_NAME.pointerSetGlobalContext]: Channel<ContextValue>
   [EVENT_NAME.pointerSetSessionContext]: Channel<ContextValue>
   [EVENT_NAME.pointerSetWorkspaceContext]: Channel<ContextValue>
@@ -70,12 +56,10 @@ export interface ClientEvents {
   [EVENT_NAME.pointerSymbolSearch]: Channel<{ query: string }, ContextItem[]>
   [EVENT_NAME.pointerTextSelection]: Channel<void, string>
   [EVENT_NAME.pointerToolApproval]: Channel<{ id: string; run: boolean; always?: boolean }>
-  [EVENT_NAME.pointerToolStop]: Channel<{ id: string }>
 }
 
 export interface ServerEvents {
   [EVENT_NAME.pointerAddMessage]: ChatCompletionMessage | undefined
-  [EVENT_NAME.pointerGetConfigValue]: ConfigValue
   [EVENT_NAME.pointerGetWorkspaceContext]: ContextValue
   [EVENT_NAME.pointerGlobalContext]: ContextValue
   [EVENT_NAME.pointerNewConversation]: void
