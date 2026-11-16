@@ -95,7 +95,7 @@ limit at every size.
 - **Fusion drowned BM25.** The engine fuses BM25, symbol names and a PageRank
   prior by reciprocal rank. With equal weights, symbol and PageRank hits
   outranked strong text matches, and Rust (MRR 0.47) lost to plain BM25 (0.55).
-- **CLI-task files went missing.** With the full the CLI task text, the old ranking
+- **CLI-task files went missing.** With the full CLI-task text, the old ranking
   never returned `tests/test_cli.py` or `docs/cli.rst`: SECRET, KEY and JSON
   pulled it toward the config files.
 - **Fix** (commit `1f0fe46`):
@@ -118,7 +118,7 @@ limit at every size.
   (0.55 vs 0.51 at equal weight). arctic-embed-s scored 0.50; all-MiniLM-L6
   scored 0.57 but fell to 0.51 on `queries.json`; the int8 variants of bge-small and
   bge-base ran slower than fp32 on this CPU.
-- **Long instructions skip embeddings.** On the full the CLI task text, semantic
+- **Long instructions skip embeddings.** On the full CLI-task text, semantic
   hits pull toward the config files and push `cli.py` down to 3rd. Queries
   over 20 terms now use lexical signals only, so the CLI task ranks as before, and
   shorter questions get semantic hits at weight 3 (tried 1 to 6).
@@ -144,12 +144,12 @@ git clone --depth 1 --branch 3.1.3 https://github.com/pallets/flask.git /tmp/fla
 cargo build --release
 node benchmarks/bench.mjs /tmp/flask target/release/pointer-retrieval
 node benchmarks/bench.mjs /tmp/flask target/release/pointer-retrieval paraphrase.json
-node benchmarks/tb.mjs target/release/pointer-retrieval /tmp/flask
+node benchmarks/placement.mjs target/release/pointer-retrieval /tmp/flask
 node benchmarks/semantic.mjs target/release/pointer-retrieval /tmp/flask queries.json paraphrase.json
 node benchmarks/scale.mjs target/release/pointer-retrieval /tmp/flask /tmp/django .
 ```
 
-`bench.mjs` prints the table. `tb.mjs` shows where the three CLI-task files land
+`bench.mjs` prints the table. `placement.mjs` shows where the three CLI-task files land
 in Pointer's response. Set `RG` to point at a different ripgrep binary.
 
 | File | What it is |
@@ -159,6 +159,6 @@ in Pointer's response. Set `RG` to point at a different ripgrep binary.
 | `bench.mjs` | Runs every method and scores it |
 | `mcp.mjs` | Starts the Rust engine and queries it over MCP |
 | `bm25.mjs`, `bm25.py` | Plain BM25 baselines over 40-line chunks |
-| `tb.mjs` | CLI-task placement check |
+| `placement.mjs` | Where the CLI task's three files land |
 | `semantic.mjs` | Scores lexical and semantic search on each query file, with build time and latency |
 | `scale.mjs` | Start-up, query time and peak memory across repositories |

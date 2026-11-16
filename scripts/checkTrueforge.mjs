@@ -34,7 +34,7 @@ export { GenerationTracker } from "./src/extension/generations"`,
 const m = await import(pathToFileURL(out).href)
 
 let inline = ""
-for await (const chunk of m.trueforgeTextModel().stream([{ role: "user", content: "Write a Python one-liner that returns 43." }], new AbortController().signal)) inline += chunk
+for await (const chunk of m.trueforgeTextModel().stream([{ role: "user", content: "Reply with the number 43 written in digits and nothing else." }], new AbortController().signal)) inline += chunk
 assert.match(inline, /43/)
 console.log("inline ok")
 

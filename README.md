@@ -20,14 +20,14 @@ the editor for you to accept it, hunk by hunk.
 
 ## Features
 
-- **[Points at the right code](docs/writeup.md#4-how-context-is-selected).**
+- **[Points at the right code](docs/architecture.md#how-context-is-selected).**
   BM25, symbols, file names and a PageRank repo map, fused in Rust. Each hit
   shows its reason. [Ranks better than BM25 or grep](benchmarks/README.md),
   in 1.6 ms.
-- **[Inline edit](docs/demo.md#010-task-a-inline-edit-about-50-s).**
+- **Inline edit.**
   Select, press <kbd>⌘I</kbd>, describe the change; the diff streams into the
   editor.
-- **[Agent mode](docs/writeup.md#3-architecture-on-trueforge).** One request,
+- **[Agent mode](docs/architecture.md#architecture-on-trueforge).** One request,
   several files, no need to say which.
 - **Per-hunk review.** Nothing touches disk until you accept it, and
   <kbd>⌘Z</kbd> undoes it.
@@ -49,9 +49,8 @@ Open the folder in VS Code and press <kbd>F5</kbd>. Full steps:
 ## Docs
 
 - [Setup and settings](docs/setup.md)
-- [How it works](docs/writeup.md)
+- [How it works](docs/architecture.md)
 - [Benchmarks](benchmarks/README.md)
-- [Demo script](docs/demo.md)
 - [`@pointersh/highlight`](crates/pointer-highlight/README.md), our Rust syntax highlighter
 
 ## Contact

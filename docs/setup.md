@@ -63,7 +63,7 @@ npm run preview
 ```
 
 Opens the real panel at `http://localhost:4173` beside a mock editor, without
-VS Code or TrueForge. Typing anything replays a recorded multi-file task on Flask: tool outputs
+VS Code or TrueForge. Typing anything replays a recorded multi-file task on Flask (add a `flask config` command with a test and docs): tool outputs
 recorded from the real engines, approvals that pause, diffs in the editor, and
 a real pytest run (60 passed). Re-record with
 `node preview/record.mjs <flask-checkout> target/release/pointer-retrieval`.

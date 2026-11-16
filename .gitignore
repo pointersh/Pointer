@@ -22,3 +22,6 @@ crates/pointer-highlight/highlight.wasm
 *.log
 .DS_Store
 preview/dist/
+
+private/
+PRD.md
