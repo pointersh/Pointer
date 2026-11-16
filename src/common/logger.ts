@@ -1,6 +1,6 @@
 import type * as VsCode from "vscode"
 
-import { SecretShield } from "./secret-shield"
+import { SecretShield } from "./secretShield"
 
 const loadVsCode = (): typeof VsCode | undefined => {
   try {

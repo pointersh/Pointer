@@ -5,8 +5,8 @@ import * as vscode from "vscode"
 
 import { EVENT_NAME } from "../../common/constants"
 import { FileLocation } from "../../common/messaging/protocol"
-import { workspacePathCandidates } from "../chat/context-files"
-import { decodeSymbolRef } from "../chat/symbol-ref"
+import { workspacePathCandidates } from "../chat/contextFiles"
+import { decodeSymbolRef } from "../chat/symbolRef"
 import { ExtensionBridge } from "../messaging/bridge"
 
 export class FileHandler {

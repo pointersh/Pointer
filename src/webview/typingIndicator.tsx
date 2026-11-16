@@ -2,9 +2,9 @@
 import { POINTER } from "../common/constants"
 import { ToolStepView } from "../common/types"
 
-import ToolSteps from "./tool-steps"
+import ToolSteps from "./toolSteps"
 
-import styles from "./styles/typing-indicator.module.css"
+import styles from "./styles/typingIndicator.module.css"
 
 interface TypingIndicatorProps {
   steps?: ToolStepView[]

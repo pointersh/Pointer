@@ -3,7 +3,7 @@ import { memo } from "react"
 import { ChatCompletionMessage, ToolStepView } from "../common/types"
 
 import Message from "./message"
-import TypingIndicator from "./typing-indicator"
+import TypingIndicator from "./typingIndicator"
 
 interface MessageListProps {
   message: ChatCompletionMessage

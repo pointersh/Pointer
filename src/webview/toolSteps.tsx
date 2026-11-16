@@ -6,10 +6,10 @@ import { ToolStepView } from "../common/types"
 
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
-import { ToolOutput } from "./tool-output"
+import { ToolOutput } from "./toolOutput"
 import { cx } from "./utils"
 
-import styles from "./styles/tool-steps.module.css"
+import styles from "./styles/toolSteps.module.css"
 
 const STATUS_ICON: Record<ToolStepView["status"], string> = {
   running: "codicon-loading codicon-modifier-spin",

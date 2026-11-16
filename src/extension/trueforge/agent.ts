@@ -2,7 +2,7 @@ import { ASSISTANT, EVENT_NAME } from "../../common/constants"
 import { logger } from "../../common/logger"
 import { ChatCompletionMessage, MentionType, ReplyMeta } from "../../common/types"
 import { Agent } from "../agent"
-import { ToolSteps } from "../chat/tool-steps"
+import { ToolSteps } from "../chat/toolSteps"
 import { GenerationRun, GenerationTracker } from "../generations"
 import { ExtensionBridge } from "../messaging/bridge"
 

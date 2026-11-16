@@ -12,14 +12,14 @@ import {
   parseReadFile,
   parseSearchHits,
   replacementDiff
-} from "../common/tool-output"
+} from "../common/toolOutput"
 import { ToolStepView } from "../common/types"
 
 import { emit } from "./messaging"
 import { useTranslation } from "./strings"
 import { cx } from "./utils"
 
-import styles from "./styles/tool-steps.module.css"
+import styles from "./styles/toolSteps.module.css"
 
 
 

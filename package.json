@@ -337,9 +337,9 @@
     "vscode:prepublish": "npm run package",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p . --noEmit",
-    "check:mcp": "node scripts/check-mcp.mjs",
+    "check:mcp": "node scripts/checkMcp.mjs",
     "check:highlight": "node packages/highlight/parity.mjs",
-    "check:trueforge": "node scripts/check-trueforge.mjs"
+    "check:trueforge": "node scripts/checkTrueforge.mjs"
   },
   "devDependencies": {
     "@types/node": "^16.18.68",

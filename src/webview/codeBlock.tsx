@@ -8,7 +8,7 @@ import { emit } from "./messaging"
 import { useTranslation } from "./strings"
 import { getLanguageMatch } from "./utils"
 
-import styles from "./styles/code-block.module.css"
+import styles from "./styles/codeBlock.module.css"
 
 interface CodeBlockProps {
   className?: string

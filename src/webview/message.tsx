@@ -10,12 +10,12 @@ ToolStepView
 } from "../common/types"
 
 import { Button } from "./button"
-import CodeBlock from "./code-block"
+import CodeBlock from "./codeBlock"
 import { emit } from "./messaging"
-import { replyParts } from "./reply-parts"
+import { replyParts } from "./replyParts"
 import { useTranslation } from "./strings"
 import { useToast } from "./toast"
-import ToolSteps from "./tool-steps"
+import ToolSteps from "./toolSteps"
 import { getThinkingMessage } from "./utils"
 
 import styles from "./styles/message.module.css"

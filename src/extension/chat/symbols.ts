@@ -9,7 +9,7 @@ workspace
 
 import { ContextItem } from "../../common/types"
 
-import { encodeSymbolRef } from "./symbol-ref"
+import { encodeSymbolRef } from "./symbolRef"
 
 const MAX_RESULTS = 30
 

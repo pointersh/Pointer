@@ -1,7 +1,7 @@
 import * as vscode from "vscode"
 
 import { logger } from "../../common/logger"
-import { SessionManager } from "../session-manager"
+import { SessionManager } from "../sessionManager"
 import { getNonce } from "../utils"
 
 import { BaseProvider } from "./base"

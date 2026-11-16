@@ -14,12 +14,12 @@ import { AnyContextItem } from "../../common/types"
 import { Agent } from "../agent"
 import { searchSymbols } from "../chat/symbols"
 import { ExtensionBridge } from "../messaging/bridge"
-import { SessionManager } from "../session-manager"
+import { SessionManager } from "../sessionManager"
 import { getLanguage, getTerminal, getTextSelection, getTheme } from "../utils"
 
-import { resolveLanguageId, stripShellPrompts } from "./code-actions"
-import { FileHandler } from "./file-handler"
-import { FileTreeProvider } from "./file-tree"
+import { resolveLanguageId, stripShellPrompts } from "./codeActions"
+import { FileHandler } from "./fileHandler"
+import { FileTreeProvider } from "./fileTree"
 
 const storageKeyFor = (scope: string, key: string) => `${scope}-${key}`
 

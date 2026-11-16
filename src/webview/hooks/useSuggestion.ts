@@ -7,7 +7,7 @@ import tippy, { Instance as TippyInstance } from "tippy.js"
 
 import { EVENT_NAME, topLevelItems } from "../../common/constants"
 import { CategoryType, ContextItem } from "../../common/types"
-import { MentionList, MentionListProps, MentionListRef } from "../mention-list"
+import { MentionList, MentionListProps, MentionListRef } from "../mentionList"
 import { bridge } from "../messaging"
 
 import { useFilePaths } from "./useFilePaths"

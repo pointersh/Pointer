@@ -1,4 +1,4 @@
-import { editorEdits, editorKnowledge, terminalCommands } from "../chat/tool-sinks"
+import { editorEdits, editorKnowledge, terminalCommands } from "../chat/toolSinks"
 import { WorkspaceView } from "../tools/view"
 import { ToolExtras } from "../tools/workspace"
 

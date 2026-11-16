@@ -42,8 +42,8 @@ OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","openrouter.ai"]' \
 `pointer-backup` for the fallback. Give each its own endpoint or key, so that
 when one breaks, the other still answers. Pointer tries `pointer/primary` first
 and switches to `pointer-backup/primary` automatically. Fill in
-[`agent/model-providers.example.json`](agent/model-providers.example.json) and
-[`agent/model-providers.backup.example.json`](agent/model-providers.backup.example.json),
+[`agent/modelProviders.example.json`](agent/modelProviders.example.json) and
+[`agent/modelProviders.backup.example.json`](agent/modelProviders.backup.example.json),
 then register each:
 
 ```sh
