@@ -1,8 +1,14 @@
 /* eslint-disable no-undef */
 // eslint-disable-next-line @typescript-eslint/no-var-requires
+import { execSync } from "node:child_process"
+import fs from "node:fs"
+
 import esbuild from "esbuild"
 
 (async () => {
+  execSync("cargo build -p pointer-highlight --profile wasm --target wasm32-unknown-unknown", { stdio: "inherit" })
+  fs.copyFileSync("target/wasm32-unknown-unknown/wasm/pointer_highlight.wasm", "packages/highlight/highlight.wasm")
+
   const extensionConfig = {
     bundle: true,
     entryPoints: ["src/index.ts"],
@@ -18,6 +24,7 @@ import esbuild from "esbuild"
     external: ["vscode"],
     entryPoints: ["src/webview/index.tsx"],
     outfile: "out/sidebar.js",
+    loader: { ".wasm": "binary" },
     sourcemap: true,
     plugins: [],
   }

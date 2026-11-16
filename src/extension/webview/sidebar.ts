@@ -87,7 +87,7 @@ export class SidebarProvider extends BaseProvider {
             content="default-src 'self' http://localhost:11434;
             img-src vscode-resource: https: data:;
             font-src vscode-webview-resource:;
-            script-src 'nonce-${nonce}';style-src vscode-resource: 'unsafe-inline' http: https: data:;"
+            script-src 'nonce-${nonce}' 'wasm-unsafe-eval';style-src vscode-resource: 'unsafe-inline' http: https: data:;"
           >
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>pointer</title>

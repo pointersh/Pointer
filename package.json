@@ -338,6 +338,7 @@
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p . --noEmit",
     "check:mcp": "node scripts/check-mcp.mjs",
+    "check:highlight": "node packages/highlight/parity.mjs",
     "check:trueforge": "node scripts/check-trueforge.mjs"
   },
   "devDependencies": {
