@@ -1,6 +1,6 @@
 import fs from "node:fs"; import { execFileSync, spawnSync } from "node:child_process"; import { rust } from "./mcp.mjs"
-const root = process.argv[2], bin = process.argv[3], RG = process.env.RG ?? "rg"
-const qs = JSON.parse(fs.readFileSync(new URL("queries.json", import.meta.url)))
+const root = process.argv[2], bin = process.argv[3], file = process.argv[4] ?? "queries.json", RG = process.env.RG ?? "rg"
+const qs = JSON.parse(fs.readFileSync(new URL(file, import.meta.url)))
 const STOP = new Set("a an the and or of to in for with is are be by on at as it this that from where how what which add".split(" "))
 const score = (files) => {
   let mrr = 0, hit5 = 0
@@ -12,7 +12,7 @@ const results = {}
 { const r = await rust(bin, root); const ms = [], files = []
   for (const { q } of qs) { await r.search(q); const s = performance.now(); const t = await r.search(q); ms.push(performance.now() - s); files.push([...new Set(t.split("\n").filter(l => / · /.test(l)).map(l => l.split(":")[0]))]) }
   results["Rust: BM25 + symbols + PageRank (MCP over HTTP)"] = { index: r.ready.toFixed(0), q: med(ms), ...score(files) }; r.kill() }
-for (const [name, cmd, args] of [["JS: plain BM25 (Node)", "node", [new URL("bm25.mjs", import.meta.url).pathname, root]], ["Python: plain BM25", "python3", [new URL("bm25.py", import.meta.url).pathname, root]]]) {
+for (const [name, cmd, args] of [["JS: plain BM25 (Node)", "node", [new URL("bm25.mjs", import.meta.url).pathname, root, file]], ["Python: plain BM25", "python3", [new URL("bm25.py", import.meta.url).pathname, root, file]]]) {
   const s = performance.now(); const o = JSON.parse(execFileSync(cmd, args, { maxBuffer: 1 << 26 })); const wall = performance.now() - s
   results[name] = { index: o.index.toFixed(0), q: med(o.out.map(x => x.ms)), ...score(o.out.map(x => x.files)), cold: wall.toFixed(0) }
 }

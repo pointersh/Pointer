@@ -1,5 +1,5 @@
 use crate::index::Index;
-use fastembed::{EmbeddingModel, TextEmbedding, TextInitOptions};
+use fastembed::{AutoDevicePolicy, EmbeddingModel, TextEmbedding, TextInitOptions};
 use std::collections::HashMap;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -7,13 +7,17 @@ use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Instant, SystemTime};
 
-const MAGIC: &[u8; 8] = b"PTRVEC01";
-const BATCH: usize = 4;
-const MAX_LENGTH: usize = 192;
-const PASSAGE_CHARS: usize = 750;
+const MAGIC: &[u8; 8] = b"PTRVEC02";
 const MIN_CHARS: usize = 80;
 const RECENT: std::time::Duration = std::time::Duration::from_secs(30 * 24 * 3600);
 const POOL: usize = 100;
+const QUERY_CACHE: usize = 256;
+const BATCH: usize = 4;
+const MAX_LENGTH: usize = 192;
+const PASSAGE_CHARS: usize = 750;
+const LONG_QUERY: usize = 20;
+const QUERY_PREFIX: &str = "Represent this sentence for searching relevant passages: ";
+const MODEL_ID: &str = "bge-small-en-v1.5 192 750";
 
 struct Vector {
     scale: f32,
@@ -22,31 +26,34 @@ struct Vector {
 
 pub struct Semantic {
     file: PathBuf,
-    model: Mutex<Option<TextEmbedding>>,
+    fingerprint: u64,
+    model: std::sync::OnceLock<Mutex<TextEmbedding>>,
     vectors: RwLock<HashMap<u64, Vector>>,
+    queries: Mutex<HashMap<String, Arc<Vector>>>,
     done: AtomicUsize,
     total: AtomicUsize,
     failed: AtomicBool,
     wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
 }
 
-fn quantize(mut v: Vec<f32>) -> Vector {
-    let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-12);
-    v.iter_mut().for_each(|x| *x /= norm);
+fn quantize(v: &[f32]) -> Vector {
     let max = v.iter().fold(0f32, |m, x| m.max(x.abs())).max(1e-12);
+    let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-12);
     Vector {
-        scale: max / 127.0,
+        scale: max / norm / 127.0,
         values: v.iter().map(|x| (x / max * 127.0).round() as i8).collect(),
     }
 }
 
-fn cosine(query: &[f32], v: &Vector) -> f32 {
-    query
-        .iter()
-        .zip(&v.values)
-        .map(|(q, &x)| q * x as f32)
-        .sum::<f32>()
-        * v.scale
+fn dot(a: &[i8], b: &[i8]) -> i32 {
+    a.iter()
+        .zip(b)
+        .map(|(&x, &y)| x as i16 as i32 * y as i16 as i32)
+        .sum()
+}
+
+fn cosine(q: &Vector, v: &Vector) -> f32 {
+    dot(&q.values, &v.values) as f32 * q.scale * v.scale
 }
 
 fn cache_dir() -> PathBuf {
@@ -59,10 +66,13 @@ fn cache_dir() -> PathBuf {
 impl Semantic {
     pub fn start(root: &Path, index: impl Fn() -> Arc<Index> + Send + 'static) -> Arc<Semantic> {
         let file = root.join(".pointer/index/vectors.bin");
+        let fingerprint = xxhash_rust::xxh3::xxh3_64(MODEL_ID.as_bytes());
         let semantic = Arc::new(Semantic {
-            vectors: RwLock::new(load(&file).unwrap_or_default()),
+            vectors: RwLock::new(load(&file, fingerprint).unwrap_or_default()),
             file,
-            model: Mutex::new(None),
+            fingerprint,
+            model: std::sync::OnceLock::new(),
+            queries: Mutex::new(HashMap::new()),
             done: AtomicUsize::new(0),
             total: AtomicUsize::new(0),
             failed: AtomicBool::new(false),
@@ -74,12 +84,15 @@ impl Semantic {
         let root = root.to_path_buf();
         std::thread::spawn(move || {
             let started = Instant::now();
-            let options = TextInitOptions::new(EmbeddingModel::JinaEmbeddingsV2BaseCode)
+            let options = TextInitOptions::new(EmbeddingModel::BGESmallENV15)
                 .with_cache_dir(cache_dir())
                 .with_max_length(MAX_LENGTH)
-                .with_show_download_progress(false);
+                .with_show_download_progress(false)
+                .with_auto_device(AutoDevicePolicy::PreferCPU);
             match TextEmbedding::try_new(options) {
-                Ok(model) => *worker.model.lock().unwrap() = Some(model),
+                Ok(model) => {
+                    let _ = worker.model.set(Mutex::new(model));
+                }
                 Err(error) => {
                     eprintln!(
                         "pointer-retrieval: semantic disabled, model failed to load: {error}"
@@ -154,30 +167,25 @@ impl Semantic {
         };
         missing.sort_by_key(|&i| (bucket(i), index.chunks[i].text.len().min(PASSAGE_CHARS), i));
         let count = missing.len();
+        let Some(model) = self.model.get() else {
+            return;
+        };
         for (n, batch) in missing.chunks(BATCH).enumerate() {
             let texts: Vec<String> = batch.iter().map(|&i| passage(index, i)).collect();
-            let embedded = match self
-                .model
-                .lock()
-                .unwrap()
-                .as_mut()
-                .map(|m| m.embed(&texts, Some(BATCH)))
-            {
-                Some(Ok(vectors)) => vectors,
-                Some(Err(error)) => {
+            let embedded = match model.lock().unwrap().embed(&texts, None) {
+                Ok(vectors) => vectors,
+                Err(error) => {
                     eprintln!("pointer-retrieval: embedding batch failed: {error}");
                     continue;
                 }
-                None => return,
             };
-            {
-                let mut have = self.vectors.write().unwrap();
-                for (&i, v) in batch.iter().zip(embedded) {
-                    have.insert(index.chunks[i].hash, quantize(v));
-                }
+            let mut have = self.vectors.write().unwrap();
+            for (&i, v) in batch.iter().zip(embedded) {
+                have.insert(index.chunks[i].hash, quantize(&v));
             }
+            drop(have);
             self.done.fetch_add(batch.len(), Ordering::Relaxed);
-            if n % 25 == 24 {
+            if n % 100 == 99 {
                 self.save();
             }
         }
@@ -190,8 +198,9 @@ impl Semantic {
 
     fn save(&self) {
         let have = self.vectors.read().unwrap();
-        let mut bytes = Vec::with_capacity(have.len() * 780 + 16);
+        let mut bytes = Vec::with_capacity(have.len() * 780 + 24);
         bytes.extend_from_slice(MAGIC);
+        bytes.extend_from_slice(&self.fingerprint.to_le_bytes());
         bytes.extend_from_slice(
             &(have.values().next().map_or(0, |v| v.values.len()) as u32).to_le_bytes(),
         );
@@ -247,23 +256,30 @@ impl Semantic {
             .sum()
     }
 
+    fn embed_query(&self, query: &str) -> Option<Arc<Vector>> {
+        if let Some(v) = self.queries.lock().unwrap().get(query) {
+            return Some(v.clone());
+        }
+        let text = format!("{QUERY_PREFIX}{query}");
+        let mut model = self.model.get()?.try_lock().ok()?;
+        let embedded = model.embed([text], None).ok()?;
+        drop(model);
+        let v = Arc::new(quantize(embedded.first()?));
+        let mut cache = self.queries.lock().unwrap();
+        if cache.len() >= QUERY_CACHE {
+            cache.clear();
+        }
+        cache.insert(query.to_string(), v.clone());
+        Some(v)
+    }
+
     pub fn rank(&self, index: &Index, query: &str) -> Vec<(usize, f32, String)> {
-        if self.vectors.read().unwrap().is_empty() {
+        if self.vectors.read().unwrap().is_empty()
+            || crate::index::tokenize(query).len() > LONG_QUERY
+        {
             return Vec::new();
         }
-        let Some(embedded) = self
-            .model
-            .lock()
-            .unwrap()
-            .as_mut()
-            .and_then(|m| m.embed([query], None).ok())
-        else {
-            return Vec::new();
-        };
-        let Some(q) = embedded.into_iter().next().map(|v| {
-            let norm = v.iter().map(|x| x * x).sum::<f32>().sqrt().max(1e-12);
-            v.into_iter().map(|x| x / norm).collect::<Vec<f32>>()
-        }) else {
+        let Some(q) = self.embed_query(query) else {
             return Vec::new();
         };
         let have = self.vectors.read().unwrap();
@@ -273,10 +289,14 @@ impl Semantic {
             .enumerate()
             .filter_map(|(i, c)| have.get(&c.hash).map(|v| (i, cosine(&q, v))))
             .collect();
+        drop(have);
+        if scored.len() > POOL {
+            scored.select_nth_unstable_by(POOL, |a, b| b.1.total_cmp(&a.1));
+            scored.truncate(POOL);
+        }
         scored.sort_by(|a, b| b.1.total_cmp(&a.1));
         scored
             .into_iter()
-            .take(POOL)
             .map(|(i, s)| (i, s, format!("semantic {s:.2}")))
             .collect()
     }
@@ -284,16 +304,16 @@ impl Semantic {
 
 fn passage(index: &Index, i: usize) -> String {
     let c = &index.chunks[i];
-    let label = c
-        .section
-        .as_deref()
-        .map(String::from)
-        .unwrap_or_else(|| c.symbols.join(", "));
     let end = c
         .text
         .char_indices()
         .nth(PASSAGE_CHARS)
         .map_or(c.text.len(), |(at, _)| at);
+    let label = c
+        .section
+        .as_deref()
+        .map(String::from)
+        .unwrap_or_else(|| c.symbols.join(", "));
     format!("{} {}\n{}", c.path, label, &c.text[..end])
 }
 
@@ -317,19 +337,22 @@ fn embeddable(c: &crate::index::ChunkRef) -> bool {
     !data && !fixture && c.text.trim().len() >= MIN_CHARS
 }
 
-fn load(file: &Path) -> Option<HashMap<u64, Vector>> {
+fn load(file: &Path, fingerprint: u64) -> Option<HashMap<u64, Vector>> {
     let mut bytes = Vec::new();
     std::fs::File::open(file)
         .ok()?
         .read_to_end(&mut bytes)
         .ok()?;
-    if bytes.len() < 12 || &bytes[..8] != MAGIC {
+    if bytes.len() < 20
+        || &bytes[..8] != MAGIC
+        || u64::from_le_bytes(bytes[8..16].try_into().ok()?) != fingerprint
+    {
         return None;
     }
-    let dim = u32::from_le_bytes(bytes[8..12].try_into().ok()?) as usize;
+    let dim = u32::from_le_bytes(bytes[16..20].try_into().ok()?) as usize;
     let record = 12 + dim;
     let mut out = HashMap::new();
-    for chunk in bytes[12..].chunks_exact(record) {
+    for chunk in bytes[20..].chunks_exact(record) {
         let hash = u64::from_le_bytes(chunk[..8].try_into().ok()?);
         let scale = f32::from_le_bytes(chunk[8..12].try_into().ok()?);
         out.insert(
@@ -353,7 +376,31 @@ mod tests {
         let b = vec![0.29, -0.52, 0.79, 0.12];
         let norm = |v: &[f32]| v.iter().map(|x| x * x).sum::<f32>().sqrt();
         let exact = a.iter().zip(&b).map(|(x, y)| x * y).sum::<f32>() / (norm(&a) * norm(&b));
-        let q: Vec<f32> = a.iter().map(|x| x / norm(&a)).collect();
-        assert!((cosine(&q, &quantize(b)) - exact).abs() < 0.01);
+        assert!((cosine(&quantize(&a), &quantize(&b)) - exact).abs() < 0.01);
+    }
+
+    #[test]
+    fn saved_vectors_reload_only_for_the_same_model() {
+        let dir = std::env::temp_dir().join(format!("pointer-vectors-{}", std::process::id()));
+        let file = dir.join(".pointer/index/vectors.bin");
+        let semantic = Semantic {
+            file: file.clone(),
+            fingerprint: 7,
+            model: std::sync::OnceLock::new(),
+            vectors: RwLock::new(HashMap::from([(42, quantize(&[0.1, -0.2, 0.3]))])),
+            queries: Mutex::new(HashMap::new()),
+            done: AtomicUsize::new(0),
+            total: AtomicUsize::new(0),
+            failed: AtomicBool::new(false),
+            wake: Mutex::new(None),
+        };
+        semantic.save();
+        let back = load(&file, 7).unwrap();
+        assert_eq!(
+            back[&42].values,
+            semantic.vectors.read().unwrap()[&42].values
+        );
+        assert!(load(&file, 8).is_none());
+        std::fs::remove_dir_all(dir).unwrap();
     }
 }

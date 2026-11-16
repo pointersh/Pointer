@@ -16,5 +16,5 @@ export async function rust(bin, root, extra = []) {
   }
   await rpc("initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "bench", version: "0" } }, 0)
   await fetch(url, { method: "POST", headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${token}`, "mcp-session-id": sid }, body: JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) })
-  return { ready, pid: p.pid, err: () => err, waitFor: (re) => new Promise(r => { const t = setInterval(() => { const m = err.match(re); if (m) { clearInterval(t); r(m) } }, 200) }), kill: () => p.kill(), search: async (q) => (await rpc("tools/call", { name: "search_codebase", arguments: { query: q } }, 2)).result.content[0].text }
+  return { ready, pid: p.pid, err: () => err, waitFor: (re) => new Promise(r => { const t = setInterval(() => { const m = err.match(re); if (m) { clearInterval(t); r(m) } }, 200) }), kill: () => p.kill(), call: async (name, args = {}) => (await rpc("tools/call", { name, arguments: args }, 2)).result.content[0].text, search: async (q) => (await rpc("tools/call", { name: "search_codebase", arguments: { query: q } }, 2)).result.content[0].text }
 }

@@ -1,5 +1,5 @@
 import fs from "node:fs"; import path from "node:path"
-const root = process.argv[2]; const qs = JSON.parse(fs.readFileSync(new URL("queries.json", import.meta.url)))
+const root = process.argv[2]; const qs = JSON.parse(fs.readFileSync(new URL(process.argv[3] ?? "queries.json", import.meta.url)))
 const EXT = /\.(py|rst|md|txt|toml|cfg|html)$/
 const STOP = new Set("a an the and or of to in for with is are be by on at as it this that from where how what which".split(" "))
 const tok = s => s.replace(/([a-z])([A-Z])/g, "$1 $2").toLowerCase().split(/[^a-z0-9]+/).filter(t => t && !STOP.has(t))

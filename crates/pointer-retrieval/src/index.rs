@@ -99,6 +99,7 @@ const STOP: &[&str] = &[
     "please",
 ];
 const RRF_K: f32 = 60.0;
+const SEMANTIC_WEIGHT: f32 = 3.0;
 const POOL: usize = 40;
 
 const GENERIC: &[&str] = &[
@@ -575,10 +576,17 @@ impl Index {
         if lower.iter().any(|w| TEST_INTENT.contains(&w.as_str())) {
             signals.push(&tests);
         }
+        let semantic = signals.len();
         signals.extend_from_slice(extra);
         let mut fused: HashMap<usize, (f32, Vec<String>)> = HashMap::new();
         for (i, signal) in signals.into_iter().enumerate() {
-            let weight = if i == 0 || i == 2 { 2.0 } else { 1.0 };
+            let weight = if i >= semantic {
+                SEMANTIC_WEIGHT
+            } else if i == 0 || i == 2 {
+                2.0
+            } else {
+                1.0
+            };
             for (rank, (chunk, _, why)) in
                 signal.rank(self, &terms).into_iter().take(100).enumerate()
             {

@@ -1,5 +1,5 @@
 import json, math, os, re, sys, time
-root = sys.argv[1]; qs = json.load(open(os.path.join(os.path.dirname(__file__), "queries.json")))
+root = sys.argv[1]; qs = json.load(open(os.path.join(os.path.dirname(__file__), sys.argv[2] if len(sys.argv) > 2 else "queries.json")))
 STOP = set("a an the and or of to in for with is are be by on at as it this that from where how what which".split())
 EXT = re.compile(r"\.(py|rst|md|txt|toml|cfg|html)$")
 def tok(s): return [t for t in re.split(r"[^a-z0-9]+", re.sub(r"([a-z])([A-Z])", r"\1 \2", s).lower()) if t and t not in STOP]

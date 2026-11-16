@@ -63,7 +63,7 @@ open the repository you want to work on. On activation, Pointer:
 | `pointer.trueforgeUrl` | `http://localhost:8790` | Where TrueForge runs |
 | `pointer.models` | `["pointer/primary", "pointer-backup/primary"]` | Model chain, tried in order |
 | `pointer.retrievalPath` | `target/release/pointer-retrieval` | Retrieval engine binary |
-| `pointer.semanticSearch` | `false` | Add local jina code embeddings to retrieval. Downloads the model once (~630 MB) and builds in the background; the index lives in `.pointer/`, which ignores itself |
+| `pointer.semanticSearch` | `false` | Add local embeddings (bge-small) to retrieval. Downloads the model once (~133 MB) and builds in the background (about 30 s for Flask); the index lives in `.pointer/`, which ignores itself |
 
 ## Checks
 

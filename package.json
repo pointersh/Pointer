@@ -211,7 +211,7 @@
         "pointer.semanticSearch": {
           "type": "boolean",
           "default": false,
-          "markdownDescription": "Add local semantic search (`jina-embeddings-v2-base-code`, run in-process; no API calls) to retrieval. The first run downloads the model (~630 MB) and embeds the workspace in the background, which takes minutes on a CPU. Search stays instant on BM25, symbols and the repo map meanwhile."
+          "markdownDescription": "Add local semantic search (`bge-small-en-v1.5`, run in-process; no API calls) to retrieval. The first run downloads the model (~133 MB) and embeds the workspace in the background (about 30 s for a Flask-sized repo). Search never waits for it: BM25, symbols and the repo map answer meanwhile."
         },
         "pointer.embeddingIgnoredGlobs": {
           "order": 14,

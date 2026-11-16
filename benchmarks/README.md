@@ -14,7 +14,8 @@ task*).
 | Method | Ready | Per query | MRR | Answer file in top 5 |
 |---|---|---|---|---|
 | **Pointer, Rust** (BM25, symbols, file names, PageRank) | 51 ms | 1.6 ms | **0.72** | 8/10 |
-| Pointer, Rust, with semantic search (jina) | 101 ms + 4.1 min embedding | 34 ms | 0.71 | 9/10 |
+| Pointer, Rust, with semantic search (bge-small) | 22 s embedding, once | 7 ms | **0.74** | 9/10 |
+| Pointer, Rust, with semantic search (jina, before) | 4.1 min embedding | 34 ms | 0.71 | 8/10 |
 | Pointer, Rust, before the ranking fix | 91 ms | 1.4 ms | 0.47 | 7/10 |
 | Plain BM25, Node | 112 ms | 0.45 ms | 0.55 | 8/10 |
 | Plain BM25, Python | 170 ms | 1.2 ms | 0.55 | 8/10 |
@@ -27,6 +28,36 @@ task*).
   HTTP; the search itself takes under 1 ms.
 - **MRR:** mean reciprocal rank of the first answer file; 1.0 means it always
   came first.
+
+## Paraphrased questions (Flask)
+
+The 10 questions above mostly name the code they want. `paraphrase.json` holds
+22 more that avoid identifiers and file names ("how are values from the
+environment turned into config"), with answer files checked against the Flask
+source. This is where embeddings earn their keep.
+
+| Method | MRR | Answer file in top 5 |
+|---|---|---|
+| **Pointer, Rust, with semantic search (bge-small)** | **0.62** | **21/22** |
+| Pointer, Rust, with semantic search (jina, before) | 0.51 | 18/22 |
+| Pointer, Rust (lexical) | 0.46 | 15/22 |
+| Plain BM25, Node and Python | 0.45 | 15/22 |
+| ripgrep | 0.28 | 13/22 |
+
+## Semantic search: before and after
+
+Flask, 1,275 embedded chunks, Apple M5, idle machine.
+
+| | Before (jina-v2-base-code) | After (bge-small-en-v1.5) |
+|---|---|---|
+| Embedding build | 244 s | 22 s |
+| Query over MCP, first time | 50–58 ms | 7 ms |
+| Query over MCP, repeated | 34–41 ms | 1.5 ms (cached) |
+| Query during the build | waits for the batch | never waits (3 ms median, 7.5 ms max) |
+| MRR / top 5, `queries.json` | 0.71 / 8 of 10 | 0.74 / 9 of 10 |
+| MRR / top 5, `paraphrase.json` | 0.51 / 18 of 22 | 0.62 / 21 of 22 |
+| `vectors.bin` | 971 KB | 493 KB |
+| Model download | 641 MB | 133 MB |
 
 ## Scale and memory
 
@@ -78,10 +109,23 @@ limit at every size.
   went to tokenizing 40,177 chunks one at a time. Tokenizing them across all
   cores cut start-up to 1.74 s and Flask from 91 ms to 51 ms, with identical
   rankings.
-- **Semantic search barely moves ranking quality here** (MRR 0.71 vs 0.72) but
-  lifts the the CLI task test and docs files from 8th and 10th to 6th and 5th. It
-  costs a one-off 4.1-minute embedding build and 34 ms per query, so it stays
-  off by default.
+- **CoreML was the slow part of the old build.** ONNX Runtime registers
+  CoreML on macOS by default; with jina it took 244 s. Pinning the CPU cut
+  that to 84 s with identical vectors. Explicit CoreML (all units or GPU,
+  MLProgram) was still running after 3 minutes, so it stays off.
+- **A smaller model won on both counts.** bge-small-en-v1.5 (33M parameters)
+  builds in 22 s and ranks paraphrased questions better than jina-code
+  (0.55 vs 0.51 at equal weight). arctic-embed-s scored 0.50; all-MiniLM-L6
+  scored 0.57 but fell to 0.51 on `queries.json`; the int8 variants of bge-small and
+  bge-base ran slower than fp32 on this CPU.
+- **Long instructions skip embeddings.** On the full the CLI task text, semantic
+  hits pull toward the config files and push `cli.py` down to 3rd. Queries
+  over 20 terms now use lexical signals only, so the CLI task ranks as before, and
+  shorter questions get semantic hits at weight 3 (tried 1 to 6).
+- **What did not help:** batches of 16 (slower than 4), more than 4 threads
+  or two parallel sessions (the CPU is already saturated), 512-token passages
+  (+0.02 MRR for 2.6× the build time), and dropping the path and symbol
+  prefix from passages (−0.11 on `queries.json`).
 - **Memory is the next cost to cut.** On Django the engine holds 685 MB,
   2.4× Node's BM25. Interning tokens and sharing chunk text between the parser
   and the index are the obvious fixes.
@@ -90,9 +134,8 @@ limit at every size.
 - **Speed is not the bottleneck.** Every indexed method answers in under 2 ms;
   an agent turn waits seconds on the model. Faster tasks come from fewer model
   round trips, which better first results make possible.
-- **Caveat:** 10 questions is a small set, so treat the weights as provisional.
-  The semantic build ran while other work loaded the CPU, so 4.1 minutes is an
-  upper bound.
+- **Caveat:** 32 questions is still a small set, and the semantic weight was
+  tuned on them, so treat it as provisional.
 
 ## Run it
 
@@ -100,8 +143,9 @@ limit at every size.
 git clone --depth 1 --branch 3.1.3 https://github.com/pallets/flask.git /tmp/flask
 cargo build --release
 node benchmarks/bench.mjs /tmp/flask target/release/pointer-retrieval
+node benchmarks/bench.mjs /tmp/flask target/release/pointer-retrieval paraphrase.json
 node benchmarks/tb.mjs target/release/pointer-retrieval /tmp/flask
-node benchmarks/semantic.mjs target/release/pointer-retrieval /tmp/flask
+node benchmarks/semantic.mjs target/release/pointer-retrieval /tmp/flask queries.json paraphrase.json
 node benchmarks/scale.mjs target/release/pointer-retrieval /tmp/flask /tmp/django .
 ```
 
@@ -111,9 +155,10 @@ in Pointer's response. Set `RG` to point at a different ripgrep binary.
 | File | What it is |
 |---|---|
 | `queries.json` | The 10 questions and their answer files |
+| `paraphrase.json` | 22 paraphrased questions and their answer files |
 | `bench.mjs` | Runs every method and scores it |
 | `mcp.mjs` | Starts the Rust engine and queries it over MCP |
 | `bm25.mjs`, `bm25.py` | Plain BM25 baselines over 40-line chunks |
 | `tb.mjs` | CLI-task placement check |
-| `semantic.mjs` | Builds jina embeddings, then scores the same questions |
+| `semantic.mjs` | Scores lexical and semantic search on each query file, with build time and latency |
 | `scale.mjs` | Start-up, query time and peak memory across repositories |
