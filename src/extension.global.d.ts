@@ -1,5 +1,3 @@
-declare module "@tiptap/extension-placeholder"
-
 declare module "*.css"
 
 declare module "*.css" {

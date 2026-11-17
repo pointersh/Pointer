@@ -1,13 +1,3 @@
-import { supportedLanguages } from "../../common/languages"
-
-const EXTENSION_TO_LANGUAGE: Record<string, string> = Object.entries(
-  supportedLanguages
-).reduce<Record<string, string>>((acc, [languageId, details]) => {
-  for (const extension of details.fileExtensions) {
-    if (!(extension in acc)) acc[extension] = languageId
-  }
-  return acc
-}, {})
 
 const normalizeWorkspacePath = (filePath: string): string => {
   const trimmed = filePath.trim()
@@ -40,10 +30,4 @@ export const workspacePathCandidates = (
     candidates.push(filePath.trim())
   }
   return [...new Set(candidates)]
-}
-
-export const languageForPath = (filePath: string): string => {
-  const dot = filePath.lastIndexOf(".")
-  if (dot === -1) return ""
-  return EXTENSION_TO_LANGUAGE[filePath.slice(dot).toLowerCase()] || ""
 }

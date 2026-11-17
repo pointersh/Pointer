@@ -25,3 +25,5 @@ preview/dist/
 
 private/
 PRD.md
+src/webview/styles/generated.css
+THIRD_PARTY_NOTICES.md

@@ -45,6 +45,7 @@
   --vscode-activityBar-background: #181818;
   --vscode-titleBar-activeBackground: #181818;
   --vscode-statusBar-background: #181818;
+  --vscode-widget-shadow: #0000005c;
   color-scheme: dark;
 }
 :root[data-theme="light"] {
@@ -88,5 +89,6 @@
   --vscode-activityBar-background: #f8f8f8;
   --vscode-titleBar-activeBackground: #f8f8f8;
   --vscode-statusBar-background: #f8f8f8;
+  --vscode-widget-shadow: #00000029;
   color-scheme: light;
 }

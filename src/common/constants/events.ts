@@ -13,6 +13,7 @@ export const EVENT_NAME = {
   pointerRemoveContextItem: "pointer-remove-context-item",
   pointerRunInTerminal: "pointer-run-in-terminal",
   pointerInsertAtCursor: "pointer-insert-at-cursor",
+  pointerModels: "pointer-models",
   pointerSendTheme: "pointer-send-theme",
   pointerSessionContext: "pointer-session-context",
   pointerSetGlobalContext: "pointer-set-global-context",

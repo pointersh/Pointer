@@ -36,6 +36,11 @@ export const modelChain = (): string[] => {
   return configured.length ? configured : [AGENT_MANIFEST.model.name, "pointer-backup/primary"]
 }
 
+export const chooseModel = async (name: string) => {
+  await settings().update("models", [name, ...modelChain().filter((model) => model !== name)], vscode.ConfigurationTarget.Global)
+  return modelChain()
+}
+
 export const trueforge = () => new TrueForge({ baseUrl: trueforgeUrl(), timeoutInSeconds: 900 })
 
 const api = async <T = unknown>(method: string, path: string, body?: unknown): Promise<T> => {

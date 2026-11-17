@@ -37,6 +37,8 @@ const transcript = (messages: ChatCompletionMessage[]) =>
 export class TrueForgeAgent implements Agent {
   private _sessionId: string | undefined
   private _model = 0
+  private _head: string | undefined
+  private _sessionModel: string | undefined
   private _run: GenerationRun | undefined
   private _discarded = false
   private readonly _steps: ToolSteps
@@ -63,12 +65,17 @@ export class TrueForgeAgent implements Agent {
     this._steps.reset()
     const started = Date.now()
     const chain = modelChain()
+    if (chain[0] !== this._head) {
+      this._head = chain[0]
+      this._model = 0
+    }
     let result: TurnResult | undefined
     let failure: string | undefined
 
     try {
       while (this._model < chain.length) {
         try {
+          if (this._sessionModel !== chain[this._model]) this._sessionId = undefined
           this._sessionId ??= await this.openSession(chain, history)
           result = await runTurn(
             this._sessionId,
@@ -124,7 +131,8 @@ export class TrueForgeAgent implements Agent {
   }
 
   private openSession(chain: string[], history: ChatCompletionMessage[]) {
-    if (this._model === 0 && chain[0] === AGENT_MANIFEST.model.name) return createSession({ name: AGENT_NAME })
+    this._sessionModel = chain[this._model]
+    if (this._model === 0 && chain[0] === AGENT_MANIFEST.model.name && !history.length) return createSession({ name: AGENT_NAME })
     const earlier = transcript(history)
     return createSession({
       spec: {

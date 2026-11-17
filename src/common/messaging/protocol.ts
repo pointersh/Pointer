@@ -6,7 +6,7 @@ ContextItem, MentionType, ThemeType,
 ToolStepView
 } from "../types"
 
-export interface Channel<Payload = void, Reply = never> {
+interface Channel<Payload = void, Reply = never> {
   payload: Payload
   reply: Reply
 }
@@ -22,7 +22,7 @@ export interface ContextValue<T = unknown> {
   value: T
 }
 
-export interface ChatRequest {
+interface ChatRequest {
   messages: ChatCompletionMessage[]
   mentions: MentionType[]
   conversationId?: string
@@ -33,7 +33,7 @@ export interface NewDocumentRequest {
   language?: string
 }
 
-export interface ClientEvents {
+interface ClientEvents {
   [EVENT_NAME.pointerAcceptSolution]: Channel<string>
   [EVENT_NAME.pointerChatMessage]: Channel<ChatRequest>
   [EVENT_NAME.pointerFileListRequest]: Channel<void, string[]>
@@ -46,6 +46,7 @@ export interface ClientEvents {
   [EVENT_NAME.pointerRemoveContextItem]: Channel<string>
   [EVENT_NAME.pointerRunInTerminal]: Channel<string>
   [EVENT_NAME.pointerInsertAtCursor]: Channel<string>
+  [EVENT_NAME.pointerModels]: Channel<{ pick?: string }, string[]>
   [EVENT_NAME.pointerSendTheme]: Channel<void, ThemeType>
   [EVENT_NAME.pointerSessionContext]: Channel<{ key: string }, ContextValue>
   [EVENT_NAME.pointerSetGlobalContext]: Channel<ContextValue>
@@ -58,7 +59,7 @@ export interface ClientEvents {
   [EVENT_NAME.pointerToolApproval]: Channel<{ id: string; run: boolean; always?: boolean }>
 }
 
-export interface ServerEvents {
+interface ServerEvents {
   [EVENT_NAME.pointerAddMessage]: ChatCompletionMessage | undefined
   [EVENT_NAME.pointerGetWorkspaceContext]: ContextValue
   [EVENT_NAME.pointerGlobalContext]: ContextValue

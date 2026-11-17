@@ -45,6 +45,7 @@ export interface ReplyMeta {
   promptTokens?: number
   contextWindow?: number
   stopped?: boolean
+  thoughtSeconds?: number
   outOfSteps?: boolean
   withheld?: { kind: string; label: string; count: number }[]
   instructions?: string[]
@@ -81,7 +82,7 @@ export interface PointerProvider {
   type: string
 }
 
-export type CategoryType =
+type CategoryType =
   | "files"
   | "workspace"
   | "problems"

@@ -38,6 +38,7 @@ const toEditor = (message: unknown) => window.parent.postMessage(message, "*")
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 let run = 0
+let models = ["pointer/primary", "pointer-backup/primary"]
 const tools = new ToolSteps((view) => send(EVENT_NAME.pointerToolSteps, view))
 
 const stream = async (prefix: string, text: string, token: number) => {
@@ -132,6 +133,12 @@ const handle = ({ type, data, id }: { type: string; data?: unknown; id?: string 
     case EVENT_NAME.pointerFileListRequest:
       reply(type, id, FILES)
       return
+    case EVENT_NAME.pointerModels: {
+      const pick = (data as { pick?: string }).pick
+      if (pick) models = [pick, ...models.filter((model) => model !== pick)]
+      reply(type, id, models)
+      return
+    }
     case EVENT_NAME.pointerSymbolSearch:
       reply(type, id, [])
       return

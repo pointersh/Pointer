@@ -15,6 +15,7 @@ import { Agent } from "../agent"
 import { searchSymbols } from "../chat/symbols"
 import { ExtensionBridge } from "../messaging/bridge"
 import { SessionManager } from "../sessionManager"
+import { chooseModel, modelChain } from "../trueforge/client"
 import { getLanguage, getTerminal, getTextSelection, getTheme } from "../utils"
 
 import { resolveLanguageId, stripShellPrompts } from "./codeActions"
@@ -97,6 +98,7 @@ export class BaseProvider {
       [EVENT_NAME.pointerRunInTerminal]: (command) =>
         this.sendToTerminal(command),
       [EVENT_NAME.pointerInsertAtCursor]: (code) => this.insertAtCursor(code),
+      [EVENT_NAME.pointerModels]: ({ pick }) => (pick ? chooseModel(pick) : modelChain()),
       [EVENT_NAME.pointerSendTheme]: () => getTheme(),
       [EVENT_NAME.pointerSidebarReady]: () => this._sidebarReadyHandler?.(),
       [EVENT_NAME.pointerStopGeneration]: () => this.destroyStream(),

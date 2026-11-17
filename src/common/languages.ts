@@ -1,4 +1,4 @@
-export type CodeLanguage =
+type CodeLanguage =
   | "bat"
   | "c"
   | "csharp"

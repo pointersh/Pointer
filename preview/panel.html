@@ -8,7 +8,7 @@
     <link href="codicon.css" rel="stylesheet">
     <link href="sidebar.css" rel="stylesheet">
     <style>html, body { margin: 0; padding: 0; height: 100%; background: var(--vscode-sideBar-background); color: var(--vscode-foreground); font-family: var(--vscode-font-family); font-size: var(--vscode-font-size) }</style>
-    <script>document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme") || "dark"</script>
+    <script>const theme = new URLSearchParams(location.search).get("theme") || "dark"; document.documentElement.dataset.theme = theme; document.documentElement.classList.add(theme === "light" ? "vscode-light" : "vscode-dark")</script>
     <script src="host.js"></script>
   </head>
   <body>

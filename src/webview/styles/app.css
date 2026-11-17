@@ -1,0 +1,219 @@
+@import "tailwindcss";
+
+@source "../";
+
+@custom-variant dark (&:where(.vscode-dark, .vscode-dark *, .vscode-high-contrast, .vscode-high-contrast *));
+
+@theme {
+  --color-page: var(--page);
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-inset: var(--inset);
+  --color-hover: var(--hover);
+  --color-hover-2: var(--hover-2);
+  --color-field: var(--field);
+
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-line-soft: var(--line-soft);
+  --color-grid-line: var(--grid-line);
+
+  --color-bui-accent: var(--bui-accent);
+  --color-bui-accent-ink: var(--bui-accent-ink);
+  --color-bui-accent-tint: var(--bui-accent-tint);
+  --color-green: var(--green);
+  --color-green-tint: var(--green-tint);
+  --color-orange: var(--orange);
+  --color-orange-tint: var(--orange-tint);
+  --color-red: var(--red);
+  --color-red-tint: var(--red-tint);
+  --color-tag-base: var(--tag-base);
+
+  --color-tooltip-bg: var(--tooltip-bg);
+  --color-tooltip-fg: var(--tooltip-fg);
+  --color-tooltip-muted: var(--tooltip-muted);
+  --color-tooltip-border: var(--tooltip-border);
+
+  --color-stripe: var(--stripe);
+  --color-stripe-bg: var(--stripe-bg);
+
+  --radius-chip: 6px;
+  --radius-control: 8px;
+  --radius-card: 10px;
+  --radius-window: 14px;
+
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-link: cubic-bezier(0.16, 1, 0.3, 1);
+
+}
+
+@theme inline {
+  --shadow-hairline: var(--shadow-hairline);
+  --shadow-btn: var(--shadow-btn);
+  --shadow-card: var(--shadow-card);
+  --shadow-raised: var(--shadow-raised);
+  --shadow-overlay: var(--shadow-overlay);
+  --inset-shadow-field: var(--shadow-inset-field);
+}
+
+@theme inline {
+  --font-sans: var(--vscode-font-family), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--vscode-editor-font-family), ui-monospace, "SF Mono", monospace;
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-accent-tint: var(--accent-tint);
+}
+
+:root {
+  --fg: var(--vscode-foreground);
+  --page: var(--vscode-sideBar-background, var(--vscode-editor-background));
+  --canvas: var(--page);
+  --surface: color-mix(in srgb, var(--fg) 4%, var(--page));
+  --inset: color-mix(in srgb, var(--fg) 2.5%, var(--page));
+  --hover: color-mix(in srgb, var(--fg) 7%, var(--page));
+  --hover-2: color-mix(in srgb, var(--fg) 11%, var(--page));
+  --field: var(--vscode-input-background, var(--surface));
+  --ink: var(--fg);
+  --ink-2: var(--vscode-descriptionForeground);
+  --ink-3: color-mix(in srgb, var(--vscode-descriptionForeground) 72%, transparent);
+  --line: color-mix(in srgb, var(--fg) 10%, transparent);
+  --line-strong: color-mix(in srgb, var(--fg) 17%, transparent);
+  --line-soft: color-mix(in srgb, var(--fg) 6%, transparent);
+  --grid-line: var(--line);
+  --accent: var(--vscode-button-background);
+  --accent-ink: var(--vscode-textLink-foreground);
+  --accent-tint: color-mix(in srgb, var(--accent) 18%, transparent);
+  --bui-accent: var(--accent);
+  --bui-accent-ink: var(--accent-ink);
+  --bui-accent-tint: var(--accent-tint);
+  --green: var(--vscode-charts-green, #3dbb72);
+  --green-tint: color-mix(in srgb, var(--green) 15%, transparent);
+  --orange: var(--vscode-editorWarning-foreground, #f68f3c);
+  --orange-tint: color-mix(in srgb, var(--orange) 15%, transparent);
+  --red: var(--vscode-errorForeground, #ee5c61);
+  --red-tint: color-mix(in srgb, var(--red) 15%, transparent);
+  --tag-base: var(--ink-3);
+  --tooltip-bg: var(--vscode-editorHoverWidget-background, var(--surface));
+  --tooltip-fg: var(--vscode-editorHoverWidget-foreground, var(--ink));
+  --tooltip-muted: var(--ink-2);
+  --tooltip-border: var(--vscode-editorHoverWidget-border, var(--line-strong));
+  --stripe: color-mix(in srgb, var(--fg) 4%, transparent);
+  --stripe-bg: var(--inset);
+  --shadow-hairline: 0 0 0 1px var(--line);
+  --shadow-btn: 0 0 0 1px var(--line-strong), 0 1px 2px rgb(0 0 0 / 0.12);
+  --shadow-card: 0 0 0 1px var(--line), 0 1px 2px rgb(0 0 0 / 0.1), 0 2px 6px rgb(0 0 0 / 0.08);
+  --shadow-raised: 0 0 0 1px var(--line), 0 2px 10px rgb(0 0 0 / 0.16);
+  --shadow-overlay: 0 0 0 1px var(--line-strong), 0 8px 28px rgb(0 0 0 / 0.28);
+  --shadow-inset-field: inset 0 1px 2px rgb(0 0 0 / 0.2);
+  --hl-fg: var(--vscode-editor-foreground, inherit);
+  --hl-comment: var(--vscode-descriptionForeground, #6a9955);
+  --hl-string: var(--vscode-debugTokenExpression-string, #ce9178);
+  --hl-number: var(--vscode-debugTokenExpression-number, #b5cea8);
+  --hl-keyword: var(--vscode-symbolIcon-keywordForeground, #569cd6);
+  --hl-fn: var(--vscode-symbolIcon-functionForeground, #dcdcaa);
+  --hl-meta: var(--vscode-textLink-foreground, #3794ff);
+  --hl-add: var(--vscode-gitDecoration-addedResourceForeground, #81b88b);
+  --hl-add-bg: var(--vscode-diffEditor-insertedLineBackground, rgba(155, 185, 85, 0.2));
+  --hl-del: var(--vscode-gitDecoration-deletedResourceForeground, #c74e39);
+  --hl-del-bg: var(--vscode-diffEditor-removedLineBackground, rgba(255, 0, 0, 0.2));
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+@utility rounded-window {
+  border-radius: var(--radius-window);
+}
+
+@keyframes bui-shimmer-text {
+  to {
+    background-position: -200% center;
+  }
+}
+
+@keyframes bui-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bui-caret {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+@keyframes bui-pixel-on {
+  0%,
+  100% {
+    opacity: 0.15;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes bui-pop-in {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [style*="bui-shimmer-text"],
+  [style*="bui-fade-up"],
+  [style*="bui-pixel-on"],
+  [style*="bui-pop-in"],
+  [style*="bui-caret"] {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+@keyframes shimmer-text{0%{background-position:150%}to{background-position:-50%}}
+@keyframes fade-up{0%{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fade-in{0%{opacity:0}to{opacity:1}}
+@keyframes stream-in{0%{opacity:0;filter:blur(4px)}to{opacity:1;filter:blur(0)}}
+@keyframes pop-in{0%{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+@keyframes spin{to{transform:rotate(1turn)}}
+@keyframes pixel-on{0%,to{opacity:.15}18%,42%{opacity:1}62%{opacity:.15}}
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

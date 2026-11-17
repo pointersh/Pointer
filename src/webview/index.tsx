@@ -1,19 +1,10 @@
 import { createRoot } from "react-dom/client"
 
-import { Main } from "./main"
+import { Panel } from "./panel"
 
 import "@pointersh/highlight/theme.css"
-import "./styles/theme.css"
+import "./styles/generated.css"
 
 const container = document.querySelector("#root")
-const panelContainer = document.querySelector("#root-panel")
 
-if (container) {
-  const root = createRoot(container)
-  root.render(<Main />)
-}
-
-if (panelContainer) {
-  const root = createRoot(panelContainer)
-  root.render(<Main fullScreen />)
-}
+if (container) createRoot(container).render(<Panel />)
