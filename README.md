@@ -55,12 +55,8 @@ Open the folder in VS Code and press <kbd>F5</kbd>. Full steps:
 
 ## Contact
 
-Built by **Ayush Yadav** · [GitHub](https://github.com/ayuxy027) ·
-[X](https://x.com/ayuxy027) · [LinkedIn](https://www.linkedin.com/in/ayushyadav27/) ·
-[thatayush.com](https://thatayush.com) · [Issues](https://github.com/pointersh/Pointer/issues)
+[@ayuxy027 on X](https://x.com/ayuxy027)
 
 ## License
 
-MIT © 2026 [Ayush Yadav](https://github.com/ayuxy027). Started from
-[pointersh/Pointer](https://github.com/pointersh/Pointer) at commit
-`48e5ee52e2c8690ff84680096625949c1fce55e3`; see [LICENSE](LICENSE).
+MIT © 2026 Ayush Yadav

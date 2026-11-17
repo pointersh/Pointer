@@ -84,7 +84,7 @@ limit at every size.
 
 ## Codebase
 
-| | At the fork (pointersh/Pointer) | Now |
+| | At the start | Now |
 |---|---|---|
 | TypeScript, non-blank lines | 95,327 | 9,030 |
 | Runtime dependencies | 40 | 17 |

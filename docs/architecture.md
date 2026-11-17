@@ -2,18 +2,14 @@
 
 ## Starting point
 
-Pointer is forked from [pointersh/Pointer](https://github.com/pointersh/Pointer) (MIT) at
-commit `48e5ee52e2c8690ff84680096625949c1fce55e3`. The upstream licence and
-attribution are preserved.
-
-**Kept from pointersh/Pointer:** the editor side. That is the inline-edit diff engine (a
+**Kept:** the editor side. That is the inline-edit diff engine (a
 streamed diff in the editor, per-hunk accept and reject), the webview panel,
 the workspace tools (read, list, grep, find, symbols, definition and
 references, diagnostics, git, edit, create, move, delete, run) and undo
 tracking.
 
 **Removed:**
-- pointersh/Pointer's model layer, provider manager and agent loop;
+- the original model layer, provider manager and agent loop;
 - the team gateway, P2P pairing and ChatGPT-plan sign-in;
 - tab completion, code review, i18n and composer suggestions;
 - about 96k lines in all.
