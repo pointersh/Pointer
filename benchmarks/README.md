@@ -14,9 +14,9 @@ files (6 checks). Task C: Task A with an unreachable primary model.
 
 | Task | Model | Runs | Result |
 |---|---|---|---|
-| A, inline edit | GPT-OSS 120B on Groq | 6 | 11/11 every run, 0.69–1.03 s, first token 0.48–0.78 s |
-| A, inline edit, in real VS Code | DeepSeek V4.1 Flash on Makora | 3 | 11/11 every run, 1.4–2.6 s |
-| B, agent mode | DeepSeek V4.1 Flash on Makora | 18 | 18/18 pass all 6 checks; median 26 s, 9–34 model calls |
+| A, inline edit | GPT-OSS 120B | 6 | 11/11 every run, 0.69–1.03 s, first token 0.48–0.78 s |
+| A, inline edit, in real VS Code | DeepSeek V4.1 Flash | 3 | 11/11 every run, 1.4–2.6 s |
+| B, agent mode | DeepSeek V4.1 Flash | 18 | 18/18 pass all 6 checks; median 26 s, 9–34 model calls |
 | B, through the real panel | DeepSeek V4.1 Flash | 1 | 6/6; the agent's own pytest run passed 59/59 |
 | B, agent mode | Gemini 3.5 Flash Lite (free tier) | 5 | 0/5: 3 out of time after 39–54 calls, 1 overloaded, 1 rate-limited |
 | C, fallback | unreachable → Groq or DeepSeek | 6 | backup's edit 11/11, 0.7–1.1 s, `git status` clean before accepting |

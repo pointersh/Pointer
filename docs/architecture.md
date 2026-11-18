@@ -142,9 +142,9 @@ takes under 1 ms.
 
 | Role | Model | Where | Price per 1M tokens (in / out) |
 |---|---|---|---|
-| Primary (`pointer/primary`) | deepseek-ai/DeepSeek-V4.1-Flash | Makora inference (OpenAI-compatible), via TrueForge `custom` provider | $0.26 / $1.17 |
-| Fallback (`pointer-backup/primary`) | zai-org/GLM-5.3-Flash | Makora, separate TrueForge provider entry | $0.14 / $0.24 |
-| Inline edits, optional (`pointer.inlineModels`) | openai/gpt-oss-120b | Groq, TrueForge `custom` provider | free tier |
+| Primary (`pointer/primary`) | DeepSeek V4.1 Flash | any OpenAI-compatible host; we used Makora | $0.26 / $1.17 |
+| Fallback (`pointer-backup/primary`) | GLM-5.3 Flash | same | $0.14 / $0.24 |
+| Inline edits, optional (`pointer.inlineModels`) | GPT-OSS 120B | Groq | free tier |
 
 DeepSeek leads because it passed Task B 18/18 in a median 26 s; GLM is cheaper
 but sometimes accepted a call and sent nothing, costing a fallback.
@@ -156,7 +156,7 @@ but sometimes accepted a call and sent nothing, costing a fallback.
   model, carrying the conversation so far, and says so in the panel. Inline edit
   falls back the same way. With an unreachable primary, the backup's edit
   appeared in 0.7–1.1 s and `git status` stayed clean.
-- **Reasoning effort:** both models reason at length by default; on Makora a
+- **Reasoning effort:** both models reason at length by default; a
   coding answer spent 2,000 tokens thinking (11–20 s) before writing anything.
   Pointer sends `reasoning_effort` per model (`none` for DeepSeek-V4.1-Flash,
   `low` for GLM-5.3-Flash and Groq, `medium` for Gemini, which through TrueForge

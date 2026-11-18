@@ -18,6 +18,8 @@ A Rust engine picks the code that matters and says why; the agent runs on
 [TrueForge](https://github.com/truefoundry/trueforge); every change waits in
 the editor for you to accept it, hunk by hunk.
 
+![How Pointer works: VS Code, the Pointer extension, TrueForge and the MCP servers](docs/architecture.png)
+
 ## Features
 
 - **[Points at the right code](docs/architecture.md#how-context-is-selected).**
@@ -41,7 +43,7 @@ the editor for you to accept it, hunk by hunk.
 
 ```sh
 # TrueForge must be allowed to reach loopback (Pointer's tools) and your model host
-OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","inference.makora.com"]' \
+OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","your.model.host"]' \
   npx @truefoundry/trueforge@latest --port 8790   # then register a model provider
 git clone https://github.com/pointersh/Pointer.git && cd Pointer
 npm ci && npm run build && cargo build --release
