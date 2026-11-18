@@ -33,7 +33,7 @@ let readiness: () => Promise<void> = async () => undefined
 export const onAgentReady = (ready: () => Promise<void>) => (readiness = ready)
 export const agentReady = () => readiness()
 
-const REASONING_DEFAULTS: Record<string, string> = { "pointer/primary": "none", "pointer-backup/primary": "low", "pointer-groq/primary": "low" }
+const REASONING_DEFAULTS: Record<string, string> = { "pointer/primary": "none", "pointer-backup/primary": "low", "pointer-groq/primary": "low", "google-gemini/primary": "medium" }
 
 export const modelSpec = (name: string) => {
   const effort = { ...REASONING_DEFAULTS, ...vscode.workspace.getConfiguration("pointer").get<Record<string, string>>("reasoningEffort") }[name]
