@@ -126,7 +126,7 @@ takes under 1 ms.
 | Fallback (`pointer-backup/primary`) | zai-org/GLM-5.3-Flash | Makora, separate TrueForge provider entry | $0.14 / $0.24 |
 | Inline edits, optional (`pointer.inlineModels`) | openai/gpt-oss-120b | Groq, TrueForge `custom` provider | free tier |
 
-DeepSeek leads because it passed Task B 16/16 in a median 25 s; GLM is cheaper
+DeepSeek leads because it passed Task B 18/18 in a median 26 s; GLM is cheaper
 but sometimes accepted a call and sent nothing, costing a fallback.
 
 - **Switching models:** register any TrueForge provider as `pointer` or
