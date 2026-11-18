@@ -17,6 +17,7 @@ const SURVEY_HINT =
   "This request touches code, tests and docs: start with create_sub_agent for the survey (where the closest existing example is implemented, tested and documented, as path:line findings)."
 const PRIMARY_RETRY_MS = 60_000
 const PREFETCH_STEP = "pointer-prefetch"
+const COMPACTION_STEP = "pointer-compaction"
 
 const plainText = (html: string) =>
   html
@@ -206,6 +207,13 @@ export class TrueForgeAgent implements Agent {
   private openSession(chain: string[], history: ChatCompletionMessage[]) {
     this._sessionModel = chain[this._model]
     const earlier = transcript(history)
+    // A new model gets the conversation (with each turn's step digest) as one message. The panel shows only
+    // that it happened, as a "compaction" step; the text itself stays between Pointer and the model.
+    if (earlier) {
+      const turns = history.filter((m) => m.role === "user").length
+      this._steps.start({ id: COMPACTION_STEP, name: "compaction", args: { carried: `${turns} earlier turn${turns === 1 ? "" : "s"} → ${chain[this._model]}` } })
+      this._steps.finish({ id: COMPACTION_STEP, index: 0, summary: "", output: "" })
+    }
     return createSession({
       spec: {
         ...agentManifest(),

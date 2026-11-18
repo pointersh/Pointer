@@ -25,7 +25,8 @@ const VERBS: Record<string, [string, ToolIcon]> = {
   delete_file: ["Deleted", "write"],
   run_command: ["Ran", "run"],
   git: ["Git", "run"],
-  create_sub_agent: ["Sub-agent surveyed", "point"]
+  create_sub_agent: ["Sub-agent surveyed", "point"],
+  compaction: ["Compacted", "point"]
 }
 
 const RUNNING: Record<string, string> = {
@@ -37,7 +38,8 @@ const RUNNING: Record<string, string> = {
   edit_file: "Editing",
   create_file: "Creating",
   run_command: "Running",
-  create_sub_agent: "Sub-agent surveying"
+  create_sub_agent: "Sub-agent surveying",
+  compaction: "Compacting"
 }
 
 // What the user declined, in their words: "Skipped edit", not "Skipped · edited".
@@ -181,4 +183,26 @@ export const changeSummary = (step: ToolStepView) => {
   const add = pairs.reduce((n, p) => n + changed(p).added.length, 0)
   const del = pairs.reduce((n, p) => n + changed(p).removed.length, 0)
   return `${step.args?.path ?? step.name} · +${add} −${del}`
+}
+
+// One line per past turn for the model that picks the conversation up (a newly chosen model or a fallback):
+// what was written or run, and whether the user approved it. Reads and searches are left out.
+const DIGEST_VERB: Record<string, string> = {
+  edit_file: "edit to",
+  create_file: "new file",
+  delete_file: "delete of",
+  move_file: "move of",
+  rename_symbol: "rename in",
+  run_command: "command"
+}
+const DIGEST_STATUS: Record<string, string> = { done: "approved", skipped: "declined by the user", failed: "failed", stopped: "stopped" }
+
+export const stepsDigest = (steps: ToolStepView[] = []): string => {
+  const parts = steps
+    .filter((s) => DIGEST_VERB[s.name] && DIGEST_STATUS[s.status])
+    .map((s) => {
+      const target = s.name === "run_command" ? `\`${(s.command ?? s.args?.command ?? "").slice(0, 80)}\`` : (s.args?.path ?? s.args?.from ?? "")
+      return `${DIGEST_VERB[s.name]} ${target} (${DIGEST_STATUS[s.status]})`
+    })
+  return parts.length ? `[Steps in this turn: ${parts.slice(0, 12).join("; ")}]` : ""
 }

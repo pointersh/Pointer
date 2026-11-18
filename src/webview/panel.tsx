@@ -19,7 +19,7 @@ import { PromptBar, PromptModel, PromptOption } from "./ui/promptBar"
 import { ThinkingState } from "./ui/thinkingState"
 import { ToolChips } from "./ui/toolChips"
 import { bridge, emit, useServerEvent } from "./messaging"
-import { changeSummary, diffsOf, pointedFiles, runningLabel, toRow } from "./turn"
+import { changeSummary, diffsOf, pointedFiles, runningLabel, stepsDigest, toRow } from "./turn"
 import { getThinkingMessage } from "./utils"
 
 // Display names for model ids, filled from TrueForge's model list; reply footers read it too.
@@ -133,7 +133,10 @@ export function Panel() {
     thoughtAt.current = {}
     pin()
     emit(EVENT_NAME.pointerChatMessage, {
-      messages: history.map(({ role, content }) => ({ role, content })),
+      messages: history.map(({ role, content, toolSteps }) => {
+        const digest = role === USER ? "" : stepsDigest(toolSteps)
+        return { role, content: digest ? `${String(content ?? "")}\n\n${digest}` : content }
+      }),
       mentions: mentionsIn(text),
       conversationId: conversation.current
     })
