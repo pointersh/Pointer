@@ -43,6 +43,7 @@ export interface ReplyMeta {
   durationMs?: number
   completionTokens?: number
   promptTokens?: number
+  modelCalls?: number
   contextWindow?: number
   stopped?: boolean
   thoughtSeconds?: number

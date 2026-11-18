@@ -84,10 +84,12 @@ export class SidebarProvider extends BaseProvider {
           <meta charset="UTF-8">
           <meta
             http-equiv="Content-Security-Policy"
-            content="default-src 'self' http://localhost:11434;
-            img-src vscode-resource: https: data:;
-            font-src vscode-webview-resource:;
-            script-src 'nonce-${nonce}' 'wasm-unsafe-eval';style-src vscode-resource: 'unsafe-inline' http: https: data:;"
+            content="default-src 'none';
+            img-src ${webview.cspSource} data:;
+            font-src ${webview.cspSource};
+            connect-src ${webview.cspSource};
+            script-src 'nonce-${nonce}' 'wasm-unsafe-eval';
+            style-src ${webview.cspSource} 'unsafe-inline';"
           >
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <title>pointer</title>

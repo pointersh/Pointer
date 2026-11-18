@@ -2,14 +2,18 @@ import { ASSISTANT, EVENT_NAME } from "../../common/constants"
 import { logger } from "../../common/logger"
 import { ChatCompletionMessage, MentionType, ReplyMeta } from "../../common/types"
 import { Agent } from "../agent"
+import { clearGrants, grantTool } from "../chat/approvals"
 import { ToolSteps } from "../chat/toolSteps"
 import { GenerationRun, GenerationTracker } from "../generations"
 import { ExtensionBridge } from "../messaging/bridge"
 
-import { AGENT_MANIFEST, AGENT_NAME, agentManifest, describeError, modelChain, modelSpec } from "./client"
-import { cancelSession, createSession, runTurn, TurnResult } from "./session"
+import { agentManifest, agentReady, describeError, modelChain, modelSpec } from "./client"
+import { prefetchContext } from "./prefetch"
+import { cancelSession, createSession, pause, RATE_LIMIT_RETRIES, RATE_LIMITED, retryDelay, runTurn, TurnResult } from "./session"
 
-const WRITE_TOOL = /^(edit_file|create_file|delete_file|move_file|rename_symbol|run_command)$/
+// ponytail: fixed 60 s before retrying the primary; a real circuit breaker with probes if this flaps.
+const PRIMARY_RETRY_MS = 60_000
+const PREFETCH_STEP = "pointer-prefetch"
 
 const plainText = (html: string) =>
   html
@@ -37,6 +41,7 @@ const transcript = (messages: ChatCompletionMessage[]) =>
 export class TrueForgeAgent implements Agent {
   private _sessionId: string | undefined
   private _model = 0
+  private _fellBackAt = 0
   private _head: string | undefined
   private _sessionModel: string | undefined
   private _run: GenerationRun | undefined
@@ -59,6 +64,12 @@ export class TrueForgeAgent implements Agent {
     if (!last) return
     const input = withMentions(plainText(String(last.content ?? "")), mentions)
     const history = messages.slice(0, messages.lastIndexOf(last))
+    // A previous reply still winding down (after Stop or New chat) must not touch this one's steps or UI,
+    // and its turn must be stopped before this one starts in the same session.
+    if (this._run) {
+      this._run.abort()
+      if (this._sessionId) await cancelSession(this._sessionId)
+    }
     const run = this._generations.start("chat")
     this._run = run
     this._discarded = false
@@ -69,17 +80,39 @@ export class TrueForgeAgent implements Agent {
       this._head = chain[0]
       this._model = 0
     }
+    if (this._model >= chain.length || (this._model > 0 && Date.now() - this._fellBackAt > PRIMARY_RETRY_MS)) this._model = 0
     let result: TurnResult | undefined
     let failure: string | undefined
+    let rateLimitRetries = 0
+
+    // Setup failure (TrueForge unreachable at activation) ends the request; a failed turn below falls back instead.
+    let unready = false
+    try {
+      await agentReady()
+    } catch (error) {
+      failure = describeError(error)
+      unready = true
+    }
+
+    // Automatic retrieval: shown as the Pointing-at cards and handed to the model with the request.
+    let turnInput = input
+    if (!unready) {
+      const context = await prefetchContext(plainText(String(last.content ?? "")), run.signal)
+      if (context && !run.signal.aborted) {
+        this._steps.start({ id: PREFETCH_STEP, name: "search_codebase", args: { query: "(automatic) this request" } })
+        this._steps.finish({ id: PREFETCH_STEP, index: 0, summary: context.split("\n")[0]?.slice(0, 120) ?? "", output: context })
+        turnInput = `${input}\n\nPointer already searched the codebase for this request (BM25, symbols, repo map; reasons per chunk). Start from these, and search again if they are not enough:\n\n${context}`
+      }
+    }
 
     try {
-      while (this._model < chain.length) {
+      while (!unready && this._model < chain.length) {
         try {
           if (this._sessionModel !== chain[this._model]) this._sessionId = undefined
           this._sessionId ??= await this.openSession(chain, history)
           result = await runTurn(
             this._sessionId,
-            input,
+            turnInput,
             {
               withThinking: true,
               onText: (text) => this._bridge.emit(EVENT_NAME.pointerOnCompletion, { role: ASSISTANT, content: text || " " }),
@@ -91,14 +124,28 @@ export class TrueForgeAgent implements Agent {
             run.signal
           )
         } catch (error) {
-          result = { status: "error", text: "", error: describeError(error) }
+          result = run.signal.aborted ? { status: "cancelled", text: "" } : { status: "error", text: "", error: describeError(error) }
         }
         if (result.status !== "error" || run.signal.aborted) break
         failure = result.error
         logger.warn(`TrueForge turn failed on ${chain[this._model]}: ${failure}`)
         if (/reach TrueForge/.test(failure ?? "")) break
-        this._model++
+        // The failed turn may still be running server-side; stop it before another model takes the task.
+        if (this._sessionId) void cancelSession(this._sessionId)
         this._sessionId = undefined
+        if (RATE_LIMITED.test(failure ?? "") && rateLimitRetries < RATE_LIMIT_RETRIES) {
+          const seconds = retryDelay(failure ?? "", rateLimitRetries++)
+          this._bridge.emit(EVENT_NAME.pointerOnCompletion, {
+            role: ASSISTANT,
+            content: `_${chain[this._model]} is rate-limited; retrying in ${seconds}s…_`
+          })
+          await pause(seconds * 1000, run.signal)
+          if (run.signal.aborted) break
+          continue
+        }
+        this._model++
+        this._fellBackAt = Date.now()
+        rateLimitRetries = 0
         if (this._model < chain.length) {
           this._bridge.emit(EVENT_NAME.pointerOnCompletion, {
             role: ASSISTANT,
@@ -107,10 +154,12 @@ export class TrueForgeAgent implements Agent {
         }
       }
     } finally {
-      this._steps.settle()
       run.finish()
-      if (this._run === run) this._run = undefined
     }
+    if (this._run !== run) return
+    this._run = undefined
+    this._steps.settle()
+    clearGrants()
 
     if (this._discarded) return
     const meta: ReplyMeta = {
@@ -119,6 +168,7 @@ export class TrueForgeAgent implements Agent {
       durationMs: Date.now() - started,
       promptTokens: result?.promptTokens,
       completionTokens: result?.completionTokens,
+      modelCalls: result?.modelCalls,
       ...(result?.status === "cancelled" ? { stopped: true } : {})
     }
     const content =
@@ -130,9 +180,9 @@ export class TrueForgeAgent implements Agent {
     if (this._model >= chain.length) this._model = 0
   }
 
+  // Always an inline spec: it names this window's MCP servers, which a shared registered agent can't.
   private openSession(chain: string[], history: ChatCompletionMessage[]) {
     this._sessionModel = chain[this._model]
-    if (this._model === 0 && chain[0] === AGENT_MANIFEST.model.name && !history.length) return createSession({ name: AGENT_NAME })
     const earlier = transcript(history)
     return createSession({
       spec: {
@@ -143,14 +193,23 @@ export class TrueForgeAgent implements Agent {
     })
   }
 
-  private approve(callId: string) {
+  private async approve(callId: string) {
     const step = this._steps.steps.find((s) => s.id === callId)
-    const kind = step && step.name === "run_command" ? "command" : "change"
-    const detail = step?.args?.command ?? step?.args?.path ?? step?.name ?? "this action"
-    return this._steps.approve(detail, step && WRITE_TOOL.test(step.name) ? kind : "command", { always: false })
+    const kind = !step || step.name === "run_command" ? "command" : "change"
+    const args = step?.args ?? {}
+    const detail =
+      step?.name === "move_file"
+        ? `${args.from} → ${args.to}`
+        : step?.name === "rename_symbol"
+          ? `${args.symbol} → ${args.new_name} in ${args.path}`
+          : (args.command ?? args.path ?? step?.name ?? "this action")
+    const allowed = await this._steps.approve(detail, kind, { always: false, id: callId })
+    if (allowed && step) grantTool(step.name)
+    return allowed
   }
 
   public abort() {
+    clearGrants()
     this._run?.abort()
     if (this._sessionId) void cancelSession(this._sessionId)
     this._steps.settle()
@@ -165,6 +224,7 @@ export class TrueForgeAgent implements Agent {
 
   public resetConversation() {
     this.abort()
+    this._run = undefined
     this._sessionId = undefined
     this._model = 0
     this._steps.reset()

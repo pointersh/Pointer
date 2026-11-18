@@ -18,33 +18,47 @@ const binaryPath = (context: vscode.ExtensionContext) => {
   return path.join(context.extensionPath, "target", "release", name)
 }
 
-export const startRetrieval = (context: vscode.ExtensionContext, root: string): Promise<RetrievalServer | undefined> => {
+export const startRetrieval = (
+  context: vscode.ExtensionContext,
+  root: string,
+  onExit: () => void
+): Promise<RetrievalServer | undefined> => {
   const binary = binaryPath(context)
   if (!fs.existsSync(binary)) {
     logger.warn(`pointer-retrieval not found at ${binary}; build it with \`cargo build --release\`. Falling back to the editor's search tools.`)
     return Promise.resolve(undefined)
   }
   const semantic = vscode.workspace.getConfiguration("pointer").get<boolean>("semanticSearch", false)
-  const child = spawn(binary, ["--root", root, ...(semantic ? ["--semantic"] : [])], { stdio: ["ignore", "pipe", "pipe"] })
+  // stdin stays open while the extension host lives; the binary exits when it closes, so it never outlives VS Code.
+  const child = spawn(binary, ["--root", root, "--exit-with-stdin", ...(semantic ? ["--semantic"] : [])], { stdio: ["pipe", "pipe", "pipe"] })
   child.stderr.on("data", (chunk) => logger.debug(`[retrieval] ${String(chunk).trimEnd()}`))
   return new Promise((resolve) => {
     let buffer = ""
+    let ready = false
+    const fail = (why: string) => {
+      clearTimeout(timer)
+      if (ready) {
+        onExit()
+        return
+      }
+      logger.warn(`pointer-retrieval ${why}`)
+      resolve(undefined)
+    }
     const timer = setTimeout(() => {
-      logger.warn("pointer-retrieval did not become ready within 120 s")
       child.kill()
-      resolve(undefined)
+      fail("did not become ready within 120 s")
     }, 120_000)
-    child.on("exit", (code) => {
-      clearTimeout(timer)
-      resolve(undefined)
-      if (code) logger.warn(`pointer-retrieval exited with code ${code}`)
-    })
+    child.on("error", (error) => fail(`could not start: ${error.message}`))
+    child.on("exit", (code, signal) => fail(`exited (${signal ?? `code ${code}`})`))
     child.stdout.on("data", (chunk) => {
+      if (ready) return
       buffer += String(chunk)
-      const ready = /^READY (\S+) (\S+)$/m.exec(buffer)
-      if (!ready) return
+      const match = /^READY (\S+) (\S+)$/m.exec(buffer)
+      if (!match) return
+      ready = true
+      buffer = ""
       clearTimeout(timer)
-      resolve({ url: ready[1], token: ready[2], dispose: () => child.kill() })
+      resolve({ url: match[1], token: match[2], dispose: () => child.kill() })
     })
   })
 }

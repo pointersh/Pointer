@@ -21,8 +21,6 @@ interface EditorMcp {
 
 const ROOM_CHARS = 12_000
 
-const DESTRUCTIVE =new Set(["edit_file", "create_file", "rename_symbol", "move_file", "delete_file", "run_command"])
-
 const inputSchema = (tool: Tool) =>
   tool.schema ?? {
     type: "object",
@@ -35,7 +33,7 @@ const inputSchema = (tool: Tool) =>
 const annotations = (tool: Tool) =>
   tool.readOnly && !tool.acts
     ? { readOnlyHint: true, destructiveHint: false, openWorldHint: false }
-    : { readOnlyHint: false, destructiveHint: DESTRUCTIVE.has(tool.name) || !!tool.acts, openWorldHint: false }
+    : { readOnlyHint: false, destructiveHint: !!tool.acts, openWorldHint: false }
 
 const asStrings = (args: Record<string, unknown> = {}) =>
   Object.fromEntries(

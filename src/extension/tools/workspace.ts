@@ -1,3 +1,5 @@
+import * as vm from "vm"
+
 import { EditRequest, planEdits, Replacement } from "./edit"
 import {
 deleteFile,
@@ -49,6 +51,26 @@ const GREP_CONTEXT_LINES = 2
 const MAX_LIST_ENTRIES = 150
 const MAX_SYMBOL_MATCHES = 15
 const SEARCH_BUDGET_MS = 8000
+
+// The model's regex runs inside vm with a timeout: a catastrophic pattern like (a+)+$ is interrupted
+// instead of freezing the extension host. Costs about 0.1 ms per file.
+const regexSandbox = vm.createContext({})
+const matchingLines = (regex: RegExp, lines: string[], timeoutMs: number): number[] => {
+  Object.assign(regexSandbox, { regex, lines, hits: [] })
+  try {
+    vm.runInContext("lines.forEach((line, i) => { if (regex.test(line)) hits.push(i) })", regexSandbox, {
+      timeout: Math.min(1000, Math.max(50, timeoutMs))
+    })
+  } catch (error) {
+    if ((error as { code?: string }).code === "ERR_SCRIPT_EXECUTION_TIMEOUT") {
+      throw new ToolInputError("grep stopped: that regular expression is too slow (nested repetition such as (a+)+). Use a simpler pattern.")
+    }
+    throw error
+  }
+  const hits = regexSandbox.hits as number[]
+  Object.assign(regexSandbox, { regex: undefined, lines: undefined, hits: undefined })
+  return hits
+}
 const MAX_MATCHED_LINE_CHARS = 2000
 
 export interface EditSink {
@@ -207,12 +229,11 @@ const grep = (view: WorkspaceView): Tool => ({
         const lines = linesOf(text)
         const hits: number[] = []
         let count = 0
-        lines.forEach((line, i) => {
-          const probe = line.length > MAX_MATCHED_LINE_CHARS ? line.slice(0, MAX_MATCHED_LINE_CHARS) : line
-          if (!regex.test(probe)) return
+        const probes = lines.map((line) => (line.length > MAX_MATCHED_LINE_CHARS ? line.slice(0, MAX_MATCHED_LINE_CHARS) : line))
+        for (const i of matchingLines(regex, probes, SEARCH_BUDGET_MS - (Date.now() - started))) {
           count++
           if (hits.length < MAX_GREP_PER_FILE && shown + hits.length < MAX_GREP_MATCHES) hits.push(i)
-        })
+        }
         if (!count) continue
         total += count
         if (!hits.length) {

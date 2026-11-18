@@ -23,6 +23,7 @@ export function activate(context: ExtensionContext) {
   const statusBar = new PointerStatusBar(window.createStatusBarItem(StatusBarAlignment.Right), context, generations)
   const sidebarProvider = new SidebarProvider(context, new SessionManager())
   const inlineEdit = new InlineEditService(context, generations)
+  discardPending = () => inlineEdit.discard()
   sidebarProvider.createAgent = (bridge) => new TrueForgeAgent(bridge, generations)
   setTextModel(trueforgeTextModel())
   void registerAgent(context).catch((error) => {
@@ -109,4 +110,8 @@ export function activate(context: ExtensionContext) {
   statusBar.refresh()
 }
 
-export function deactivate() {}
+let discardPending: (() => Promise<void>) | undefined
+
+export function deactivate() {
+  return discardPending?.()
+}

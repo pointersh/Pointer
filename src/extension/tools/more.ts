@@ -64,7 +64,9 @@ export const findFiles = (view: WorkspaceView): Tool => ({
   async run({ pattern }) {
     const glob = pattern?.trim().replace(/\/+$/, "")
     if (!glob) throw new ToolInputError("find_files needs a pattern.")
-    const regex = globToRegExp(glob)
+    // Many wildcards make the compiled regex backtrack exponentially on every path; real globs need a few.
+    if ((glob.match(/\*+|\?/g) ?? []).length > 8) throw new ToolInputError("find_files: use at most 8 wildcards.")
+    const regex = globToRegExp(glob.replace(/(?:\*\*\/)+/g, "**/"))
     const files = (await view.allFiles()).map((file) => view.relative(file)).filter((rel) => regex.test(rel))
     const dirs = (await view.allDirs()).map((dir) => view.relative(dir))
     const matches = [...dirs.filter((rel) => regex.test(rel)).map((rel) => `${rel}/`), ...files].sort()
@@ -155,6 +157,7 @@ export const git = (view: WorkspaceView): Tool => {
     const [subcommand, ...rest] = args
     const split = rest.indexOf("--")
     for (const arg of split === -1 ? rest : rest.slice(0, split)) {
+      if (/^[A-Za-z]:[\\/]/.test(arg)) return `${arg} is outside the workspace and cannot be read.`
       if (arg.startsWith("-") || /^[^:]*:/.test(arg)) continue
       const tidied = tidyGitPath(arg)
       if (path.isAbsolute(arg) || /^\.\.(\/|$)/.test(tidied)) return `${arg} is outside the workspace and cannot be read.`

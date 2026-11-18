@@ -94,6 +94,7 @@ export class FileHandler {
       const fullPath =
         candidates.find((candidate) => fs.existsSync(candidate)) ??
         path.join(vscode.workspace.workspaceFolders[0].uri.fsPath, filePath)
+      if (!vscode.workspace.getWorkspaceFolder(vscode.Uri.file(fullPath))) return
       try {
         const doc = await vscode.workspace.openTextDocument(fullPath)
         const editor = await vscode.window.showTextDocument(doc)

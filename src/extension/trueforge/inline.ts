@@ -5,7 +5,7 @@ import { ChatCompletionMessage } from "../../common/types"
 import { TextModel } from "../model"
 
 import { describeError, modelChain, modelSpec } from "./client"
-import { cancelSession, createSession, runTurn } from "./session"
+import { cancelSession, createSession, pause, RATE_LIMIT_RETRIES, RATE_LIMITED, retryDelay, runTurn } from "./session"
 
 const NO_TOOLS = { dynamic_sub_agents: { enabled: false }, ask_user_questions: { enabled: false }, generative_ui: { enabled: false } }
 
@@ -40,6 +40,11 @@ const streamOn = async function* (model: string, messages: ChatCompletionMessage
     if (result.status === "error") throw new Error(result.error ?? "The model failed.")
   } finally {
     signal.removeEventListener("abort", onAbort)
+    // The consumer stopped early (the file changed under the edit): stop the turn too.
+    if (!finished) {
+      void cancelSession(sessionId)
+      done.catch(() => undefined)
+    }
   }
 }
 
@@ -49,6 +54,7 @@ export const trueforgeTextModel = (): TextModel => ({
   },
   async *stream(messages, signal) {
     const chain = modelChain()
+    let retries = 0
     for (let i = 0; i < chain.length; i++) {
       let produced = false
       try {
@@ -58,7 +64,18 @@ export const trueforgeTextModel = (): TextModel => ({
         }
         return
       } catch (error) {
-        if (signal.aborted || produced || i === chain.length - 1) throw new Error(describeError(error))
+        const message = describeError(error)
+        if (signal.aborted || produced) throw new Error(message)
+        if (RATE_LIMITED.test(message) && retries < RATE_LIMIT_RETRIES) {
+          const seconds = retryDelay(message, retries++)
+          vscode.window.setStatusBarMessage(`Pointer: ${chain[i]} is rate-limited; retrying in ${seconds}s`, seconds * 1000)
+          await pause(seconds * 1000, signal)
+          if (signal.aborted) throw new Error(message)
+          i--
+          continue
+        }
+        retries = 0
+        if (i === chain.length - 1) throw new Error(message)
         const notice = `Pointer: ${chain[i]} failed (${describeError(error)}); retrying on ${chain[i + 1]}`
         logger.warn(notice)
         vscode.window.setStatusBarMessage(notice, 8000)

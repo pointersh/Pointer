@@ -60,19 +60,19 @@ export class InlineEditCodeLensProvider implements vscode.CodeLensProvider {
         "Delete every new line and keep every old one"
       )
     ]
-    pending.hunks.forEach((line, index) => {
+    pending.hunks.forEach((line) => {
       const at = new vscode.Range(line, 0, line, 0)
       lenses.push(
         new vscode.CodeLens(at, {
           title: "$(check) Accept",
           command: POINTER_COMMAND_NAME.acceptEdit,
-          arguments: [index],
+          arguments: [line],
           tooltip: "Keep this hunk's new lines and delete its old ones"
         }),
         new vscode.CodeLens(at, {
           title: "$(close) Reject",
           command: POINTER_COMMAND_NAME.rejectEdit,
-          arguments: [index],
+          arguments: [line],
           tooltip: "Delete this hunk's new lines and keep its old ones"
         })
       )

@@ -191,6 +191,7 @@
       "title": "pointer",
       "properties": {
         "pointer.trueforgeUrl": {
+          "scope": "machine",
           "type": "string",
           "default": "http://localhost:8790",
           "description": "Where the local TrueForge server runs (`npx @truefoundry/trueforge@latest`)."
@@ -212,6 +213,7 @@
           "markdownDescription": "Reasoning effort per model, sent to TrueForge as `reasoning_effort`. Defaults: `pointer/primary` → `low`, `pointer-backup/primary` → `none`. Values are provider-specific: on Makora, GLM-5.3-Flash reasons fully unless set to `low`, and DeepSeek-V4.1-Flash unless set to `none`. Measured with `benchmarks/models.mjs`: first answer token falls from 20 s to 1.3 s."
         },
         "pointer.retrievalPath": {
+          "scope": "machine",
           "type": "string",
           "default": "",
           "description": "Path to the pointer-retrieval binary. Empty uses target/release/pointer-retrieval inside the extension."

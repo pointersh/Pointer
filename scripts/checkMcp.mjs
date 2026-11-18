@@ -11,6 +11,7 @@ const { startEditorMcp } = await import(pathToFileURL(out).href)
 
 const root = fs.mkdtempSync(path.join(os.tmpdir(), "pointer-mcp-"))
 fs.writeFileSync(path.join(root, "hello.py"), "def hello():\n    return 42\n")
+fs.writeFileSync(path.join(root, "slow.txt"), `${"a".repeat(40)}!\n`)
 const outcome = async () => ({ ok: true, message: "proposed" })
 const mcp = await startEditorMcp({
   root,
@@ -43,6 +44,15 @@ try {
   const missing = await (await rpc("tools/call", { name: "read_file", arguments: { path: "nope.py" } })).json()
   assert.strictEqual(missing.result.isError, true)
   assert.match(missing.result.content[0].text, /nope\.py does not exist/)
+  const tool = async (name, args) => (await (await rpc("tools/call", { name, arguments: args })).json()).result
+  const started = Date.now()
+  const slow = await tool("grep", { pattern: "(a+)+$" })
+  assert.strictEqual(slow.isError, true, "a catastrophic regex is stopped, not run to completion")
+  assert.match(slow.content[0].text, /too slow/)
+  assert.ok(Date.now() - started < 3000, `grep stopped in ${Date.now() - started} ms`)
+  assert.match((await tool("grep", { pattern: "return 42" })).content[0].text, /hello\.py/)
+  const globs = await tool("find_files", { pattern: "**/".repeat(5) + "*a*b*c*d*e*f*g*h*" })
+  assert.strictEqual(globs.isError, true, "too many wildcards are refused")
   console.log(`mcp ok: ${tools.length} tools: ${tools.map((t) => t.name).join(", ")}`)
 } finally {
   await mcp.dispose()

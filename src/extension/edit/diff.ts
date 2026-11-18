@@ -122,7 +122,7 @@ export const layoutDiff = (
   streaming = false
 ): DiffLayout => {
   const oldLines = original ? original.split("\n") : []
-  const newLines = edited.split("\n")
+  const newLines = edited ? edited.split("\n") : []
   const partial = streaming ? newLines.pop() || undefined : undefined
   let tail = ""
   if (!oldLines.length && !streaming && newLines[newLines.length - 1] === "") {

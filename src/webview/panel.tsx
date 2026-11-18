@@ -17,7 +17,7 @@ import { PromptBar, PromptModel, PromptOption } from "./ui/promptBar"
 import { ThinkingState } from "./ui/thinkingState"
 import { ToolChips } from "./ui/toolChips"
 import { bridge, emit, useServerEvent } from "./messaging"
-import { changeSummary, diffsOf, pointedChunks, runningLabel, toRow } from "./turn"
+import { changeSummary, diffsOf, pointedFiles, runningLabel, toRow } from "./turn"
 import { getThinkingMessage } from "./utils"
 
 const MODEL_NAMES: Record<string, Omit<PromptModel, "id">> = {
@@ -302,7 +302,7 @@ interface TurnProps {
 function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, footer, onAnswer, onFollowUp }: TurnProps) {
   const { thinking, message } = getThinkingMessage(content)
   const visible = steps.filter((s) => !s.said)
-  const pointed = visible.map(pointedChunks).find(Boolean)
+  const pointed = pointedFiles(visible)
   const rows = visible.map(toRow)
   const diffs = diffsOf(visible, (path) => openFile(path))
   const waiting = visible.find((s) => s.status === "waiting")
@@ -377,6 +377,8 @@ function Reply({ text, live }: { text: string; live?: boolean }) {
     <div className={cn("reply text-[13px] leading-relaxed text-ink", live && "after:ml-0.5 after:inline-block after:h-3.5 after:w-0.5 after:translate-y-0.5 after:animate-pulse after:rounded-full after:bg-ink after:content-['']")}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
+        // A model-written image URL would load on render and could carry file contents out; show none.
+        disallowedElements={["img"]}
         components={{
           p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
           ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,

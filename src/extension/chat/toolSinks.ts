@@ -24,6 +24,8 @@ import { EditorDiagnostic, EditorLocation, EditorSink, FileOpsSink } from "../to
 import { WorkspaceView } from "../tools/view"
 import { CommandOutcome, CommandSink, EditOutcome, EditSink } from "../tools/workspace"
 
+import { allowTool } from "./approvals"
+
 const COMMAND_TIMEOUT_MS = 120_000
 const OUTPUT_TAIL = { maxChars: 4000, maxLines: 80 }
 const MAX_CAPTURE_CHARS = 200_000
@@ -47,6 +49,7 @@ export const editorEdits = (view: WorkspaceView): EditSink & FileOpsSink => ({
     editorCommand("Not created: the editor did not answer.", POINTER_COMMAND_NAME.chatFileCreate, file, content),
   async remove(file) {
     const relative = view.relative(file)
+    if (!(await allowTool("delete_file", `delete ${relative}`))) return { ok: false, message: `The user did not allow deleting ${relative}.` }
     const edit = new WorkspaceEdit()
     edit.deleteFile(Uri.file(file), { ignoreIfNotExists: false })
     return (await workspace.applyEdit(edit))
@@ -55,6 +58,7 @@ export const editorEdits = (view: WorkspaceView): EditSink & FileOpsSink => ({
   },
   async move(from, to) {
     const [source, target] = [view.relative(from), view.relative(to)]
+    if (!(await allowTool("move_file", `move ${source} to ${target}`))) return { ok: false, message: `The user did not allow moving ${source}.` }
     const edit = new WorkspaceEdit()
     edit.renameFile(Uri.file(from), Uri.file(to), { overwrite: false })
     return (await applyAndSave(edit))
@@ -145,6 +149,9 @@ export const editorKnowledge = (view: WorkspaceView): EditorSink => ({
     )
   },
   async rename(file, line, character, newName) {
+    if (!(await allowTool("rename_symbol", `rename a symbol in ${view.relative(file)} to ${newName}`))) {
+      return { ok: false, message: "The user did not allow the rename." }
+    }
     let edit: WorkspaceEdit | undefined
     try {
       edit = await commands.executeCommand<WorkspaceEdit>(
@@ -294,6 +301,7 @@ const runInBackground = (
 export const terminalCommands = (cwd: string): CommandSink => ({
   async run(command, signal) {
     if (signal?.aborted) return { ran: false, output: "" }
+    if (!(await allowTool("run_command", `run: ${command}`))) return { ran: false, output: "The user did not allow this command." }
     logger.info(`Chat command: ${command}`)
     return runInBackground(command, cwd, signal)
   }

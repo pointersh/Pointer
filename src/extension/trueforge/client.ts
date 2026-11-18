@@ -1,4 +1,5 @@
 import { TrueForge } from "@truefoundry/trueforge-sdk"
+import { createHash } from "crypto"
 import * as vscode from "vscode"
 
 import agentDefinition from "../../../agent/pointer.agent.json"
@@ -9,8 +10,30 @@ export const AGENT_MANIFEST = agentDefinition.manifest
 const liveServers = new Set<string>()
 
 export const markServerLive = (name: string) => liveServers.add(name)
+export const markServerDead = (name: string) => {
+  liveServers.delete(name)
+  if (name === "pointer-retrieval") retrieval = undefined
+}
 
-const REASONING_DEFAULTS: Record<string, string> = { "pointer/primary": "low", "pointer-backup/primary": "none" }
+// Pointer calls retrieval itself before every agent turn (see agent.ts), so context never depends on the model asking.
+let retrieval: { url: string; token: string } | undefined
+export const setRetrievalEndpoint = (endpoint: { url: string; token: string }) => (retrieval = endpoint)
+export const retrievalEndpoint = () => retrieval
+
+// MCP servers are registered in TrueForge by name. Suffixing the workspace keeps two VS Code windows
+// from overwriting each other's URL and token (and one window's agent editing the other's files).
+const workspaceTag = createHash("sha1")
+  .update(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? "")
+  .digest("hex")
+  .slice(0, 8)
+export const serverName = (name: string) => `${name}-${workspaceTag}`
+
+// Set by setup.ts once activation starts registering; the agent awaits it before each turn.
+let readiness: () => Promise<void> = async () => undefined
+export const onAgentReady = (ready: () => Promise<void>) => (readiness = ready)
+export const agentReady = () => readiness()
+
+const REASONING_DEFAULTS: Record<string, string> = { "pointer/primary": "low", "pointer-backup/primary": "none", "pointer-groq/primary": "low" }
 
 export const modelSpec = (name: string) => {
   const effort = { ...REASONING_DEFAULTS, ...vscode.workspace.getConfiguration("pointer").get<Record<string, string>>("reasoningEffort") }[name]
@@ -22,9 +45,11 @@ export const agentManifest = () => ({
   model: modelSpec(AGENT_MANIFEST.model.name),
   mcp_servers: AGENT_MANIFEST.mcp_servers
     .filter((server) => liveServers.has(server.name))
-    .map((server) =>
-      server.name === "pointer-editor" && liveServers.has("pointer-retrieval") ? { ...server, disable_tools: ["find_symbol"] } : server
-    )
+    .map((server) => ({
+      ...server,
+      name: serverName(server.name),
+      ...(server.name === "pointer-editor" && liveServers.has("pointer-retrieval") ? { disable_tools: ["find_symbol"] } : {})
+    }))
 })
 
 const settings = () => vscode.workspace.getConfiguration("pointer")

@@ -4,10 +4,29 @@ import { editorEdits, editorKnowledge, terminalCommands } from "../chat/toolSink
 import { WorkspaceView } from "../tools/view"
 import { ToolExtras } from "../tools/workspace"
 
+// Never shown to the model, even when committed: they hold credentials, not code.
+const SECRET_FILES = [
+  ".env",
+  ".env.*",
+  "!.env.example",
+  "!.env.sample",
+  "!.env.template",
+  "*.pem",
+  "*.key",
+  "*.p12",
+  "*.pfx",
+  "id_rsa*",
+  "id_ed25519*",
+  "id_ecdsa*",
+  ".npmrc",
+  ".pypirc",
+  ".netrc"
+]
+
 const openText = async (file: string) => workspace.textDocuments.find((d) => d.uri.scheme === "file" && d.uri.fsPath === file)?.getText()
 
 export const editorExtras = (root: string): { view: WorkspaceView; extras: ToolExtras; watcher: Disposable } => {
-  const view = new WorkspaceView(root, [], openText)
+  const view = new WorkspaceView(root, [], openText, SECRET_FILES)
   const watcher = workspace.createFileSystemWatcher("**/*", false, true, false)
   watcher.onDidCreate(() => view.forgetFiles())
   watcher.onDidDelete(() => view.forgetFiles())

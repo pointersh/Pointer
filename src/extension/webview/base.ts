@@ -231,7 +231,14 @@ export class BaseProvider {
   private sendToTerminal = async (command: string) => {
     const terminal = await getTerminal()
     if (!terminal) return
+    const text = stripShellPrompts(command)
+    // sendText runs every line but the last as soon as it arrives, so a multi-line block is copied instead.
+    if (/\r?\n/.test(text.trim())) {
+      await vscode.env.clipboard.writeText(text)
+      vscode.window.showInformationMessage("Pointer copied the commands; paste them into the terminal to run them.")
+      return
+    }
     terminal.show()
-    terminal.sendText(stripShellPrompts(command), false)
+    terminal.sendText(text.trim(), false)
   }
 }

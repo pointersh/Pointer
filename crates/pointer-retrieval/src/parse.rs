@@ -108,6 +108,30 @@ fn def_names(node: Node, src: &[u8]) -> Vec<String> {
     }
 }
 
+const MAX_DEPTH: usize = 1000;
+
+// The walks below recurse once per tree level; a deeply nested file (e.g. 50,000 parentheses) would
+// overflow the stack and kill the server. Such files are chunked as plain lines instead.
+fn shallow(node: Node) -> bool {
+    let mut cursor = node.walk();
+    let mut depth = 0usize;
+    loop {
+        if depth > MAX_DEPTH {
+            return false;
+        }
+        if cursor.goto_first_child() {
+            depth += 1;
+            continue;
+        }
+        while !cursor.goto_next_sibling() {
+            if !cursor.goto_parent() {
+                return true;
+            }
+            depth -= 1;
+        }
+    }
+}
+
 fn collect_defs(node: Node, src: &[u8], defs: &mut Vec<Def>) {
     if let Some(kind) = def_kind(node.kind()) {
         for name in def_names(node, src) {
@@ -413,7 +437,8 @@ pub fn parse(path: &str, src: &str) -> Parsed {
         let mut parser = Parser::new();
         parser.set_language(&lang).ok()?;
         parser.parse(src, None)
-    });
+    })
+    .filter(|tree| shallow(tree.root_node()));
     if let Some(tree) = &tree {
         collect_defs(tree.root_node(), src.as_bytes(), &mut defs);
     }

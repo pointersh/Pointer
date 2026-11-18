@@ -8,6 +8,7 @@ export interface PointedChunk {
   end: number
   score: number
   reason: string
+  more: number
 }
 
 interface PointingAtProps extends React.HTMLAttributes<HTMLDivElement> {
@@ -19,7 +20,7 @@ interface PointingAtProps extends React.HTMLAttributes<HTMLDivElement> {
 export function PointingAt({ chunks, dropped, onOpen, className, ...props }: PointingAtProps) {
   const [all, setAll] = React.useState(false)
   const top = Math.max(...chunks.map((c) => c.score), 0.0001)
-  const shown = all ? chunks : chunks.slice(0, 6)
+  const shown = all ? chunks : chunks.slice(0, 10)
 
   return (
     <div className={cn("flex w-full flex-col gap-1.5", className)} {...props}>
@@ -50,6 +51,7 @@ export function PointingAt({ chunks, dropped, onOpen, className, ...props }: Poi
                     :{chunk.start}
                     {chunk.end > chunk.start ? `–${chunk.end}` : ""}
                   </span>
+                  {chunk.more > 0 && <span className="text-ink-3"> +{chunk.more} more</span>}
                 </span>
                 <span className="flex shrink-0 items-center gap-1.5">
                   <span className="h-1 w-10 overflow-hidden rounded-full bg-line">

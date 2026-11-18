@@ -133,15 +133,25 @@ export const diffsOf = (steps: ToolStepView[], open: (path: string) => void): To
   return [...byFile.values()]
 }
 
-export const pointedChunks = (step: ToolStepView): { chunks: PointedChunk[]; dropped?: string } | undefined => {
-  if (step.name !== "search_codebase" || !step.output) return undefined
-  const chunks = step.output
-    .split("\n")
-    .map((line) => /^\s*-?\s*(.+?):(\d+)-(\d+)\s+·\s+([\d.]+)\s+·\s+(.+)$/.exec(line))
-    .filter((m): m is RegExpExecArray => !!m)
-    .map(([, path, start, end, score, reason]) => ({ path, start: Number(start), end: Number(end), score: Number(score), reason }))
-  if (!chunks.length) return undefined
-  return { chunks, dropped: /dropped \d+[^\n]*/.exec(step.output)?.[0] }
+const CHUNK_LINE = /^\s*-?\s*(.+?):(\d+)-(\d+)\s+·\s+([\d.]+)\s+·\s+(.+)$/
+
+// Every search_codebase call in the turn, one row per file: its best chunk, plus how many more it had.
+export const pointedFiles = (steps: ToolStepView[]): { chunks: PointedChunk[]; dropped?: string } | undefined => {
+  const searches = steps.filter((s) => s.name === "search_codebase" && s.output)
+  const byFile = new Map<string, PointedChunk>()
+  for (const step of searches) {
+    for (const line of step.output!.split("\n")) {
+      const m = CHUNK_LINE.exec(line)
+      if (!m) continue
+      const chunk = { path: m[1], start: Number(m[2]), end: Number(m[3]), score: Number(m[4]), reason: m[5], more: 0 }
+      const seen = byFile.get(chunk.path)
+      if (!seen) byFile.set(chunk.path, chunk)
+      else byFile.set(chunk.path, seen.score >= chunk.score ? { ...seen, more: seen.more + 1 } : { ...chunk, more: seen.more + 1 })
+    }
+  }
+  if (!byFile.size) return undefined
+  const dropped = searches.map((s) => /dropped \d+[^\n]*/.exec(s.output!)?.[0]).filter(Boolean).pop()
+  return { chunks: [...byFile.values()].sort((a, b) => b.score - a.score), dropped }
 }
 
 export const runningLabel = (steps: ToolStepView[]) => {

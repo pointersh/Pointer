@@ -73,6 +73,8 @@ const REVIEW_HINT = mac
 export class InlineEditService {
   private _run?: GenerationRun
   private _pending?: DiffRegion
+  // Set from the first check until _pending is assigned, so two proposals can't both pass the check across an await.
+  private _claimed = false
   private readonly _emitter = new vscode.EventEmitter<void>()
   public readonly onDidChangePending = this._emitter.event
 
@@ -90,12 +92,23 @@ export class InlineEditService {
       vscode.workspace.onDidCloseTextDocument((document) => {
         if (this._pending?.document === document) this.clearPending()
       }),
-      vscode.window.onDidChangeVisibleTextEditors(() => this.decorate())
+      vscode.window.onDidChangeVisibleTextEditors(() => this.decorate()),
+      vscode.workspace.onWillSaveTextDocument((event) => {
+        const pending = this._pending
+        if (pending?.document !== event.document) return
+        event.waitUntil(Promise.resolve(pending.rejectEdits()))
+        if (!this.running) this.clearPending()
+        vscode.window.showWarningMessage("Pointer discarded the unreviewed edit so the save writes only your code. Run the edit again to review it.")
+      })
     )
   }
 
   public get running() {
     return this._run !== undefined
+  }
+
+  private get busy() {
+    return this.running || !!this._pending || this._claimed
   }
 
   public dispose() {
@@ -132,7 +145,7 @@ export class InlineEditService {
       const instruction =
         args?.instruction?.trim() ||
         (await this.askInstruction(editor, pending.range, true))
-      if (!instruction) return
+      if (!instruction || this.running || this._pending !== pending) return
       await this.edit(editor, pending, instruction, model)
       return
     }
@@ -152,12 +165,16 @@ export class InlineEditService {
     const instruction =
       args?.instruction?.trim() || (await this.askInstruction(editor, range))
     if (!instruction) return
+    if (this.busy) {
+      vscode.window.showInformationMessage("Pointer has an edit in progress. Accept or reject it first.")
+      return
+    }
 
     await this.edit(editor, new DiffRegion(editor, range), instruction, model)
   }
 
   public async propose(code: string) {
-    if (this.running || this._pending) {
+    if (this.busy) {
       vscode.window.showInformationMessage(
         "Pointer has an edit in progress. Accept or reject it first."
       )
@@ -221,13 +238,22 @@ export class InlineEditService {
     if (outsideWorkspace(uri)) {
       return { ok: false, message: `Not changed: ${relative} is outside the workspace.` }
     }
-    if (this.running || pending) {
+    if (this.busy) {
       const where = pending ? ` in ${vscode.workspace.asRelativePath(pending.document.uri)}` : ""
       return {
         ok: false,
         message: `Not changed: an edit${where} is waiting for the user's review. Tell the user to accept or reject it, then ask again.`
       }
     }
+    this._claimed = true
+    try {
+      return await this.proposeEdit(proposal, uri, relative)
+    } finally {
+      this._claimed = false
+    }
+  }
+
+  private async proposeEdit(proposal: FileEditProposal, uri: vscode.Uri, relative: string): Promise<ChatEditOutcome> {
     const document = await vscode.workspace.openTextDocument(uri)
     const last = document.lineAt(Math.min(proposal.endLine, document.lineCount - 1))
     const range = new vscode.Range(proposal.startLine, 0, proposal.endLine, last.range.end.character)
@@ -246,7 +272,10 @@ export class InlineEditService {
     const editor = await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true })
     const region = new DiffRegion(editor, range)
     this._pending = region
-    await region.render(layoutDiff(current, proposal.text))
+    if (!(await region.render(layoutDiff(current, proposal.text)))) {
+      this.clearPending()
+      return { ok: false, message: `Not changed: the editor refused the edit to ${relative} (is it read-only?).` }
+    }
     editor.revealRange(region.range, vscode.TextEditorRevealType.InCenterIfOutsideViewport)
     this.present()
     logger.info(`Chat proposed an edit to ${relative}:${proposal.startLine + 1}`)
@@ -268,18 +297,28 @@ export class InlineEditService {
     if (fs.existsSync(file)) {
       return { ok: false, message: `Not created: ${relative} already exists. Use edit_file to change it.` }
     }
-    if (this.running || this._pending) {
+    if (this.busy) {
       return {
         ok: false,
         message: "Not created: an edit is waiting for the user's review. Tell the user to accept or reject it, then ask again."
       }
     }
-
-    const document = await vscode.workspace.openTextDocument(target.with({ scheme: "untitled" }))
-    const editor = await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true })
-    const region = new DiffRegion(editor, new vscode.Range(0, 0, 0, 0))
-    this._pending = region
-    await region.render(layoutDiff("", content.endsWith("\n") ? content : `${content}\n`))
+    this._claimed = true
+    try {
+      const document = await vscode.workspace.openTextDocument(target.with({ scheme: "untitled" }))
+      if (document.getText()) {
+        return { ok: false, message: `Not created: an unsaved ${relative} is already open in the editor. Ask the user to save or close it.` }
+      }
+      const editor = await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true })
+      const region = new DiffRegion(editor, new vscode.Range(0, 0, 0, 0))
+      this._pending = region
+      if (!(await region.render(layoutDiff("", content.endsWith("\n") ? content : `${content}\n`)))) {
+        this.clearPending()
+        return { ok: false, message: `Not created: the editor refused to show ${relative}.` }
+      }
+    } finally {
+      this._claimed = false
+    }
     this.present()
     logger.info(`Chat proposed a new file ${relative}`)
     return {
@@ -302,8 +341,7 @@ export class InlineEditService {
   private async resolve(verdict: "accept" | "reject", hunk?: number) {
     const pending = this._pending
     if (!pending || this.running) return
-    const editor = await this.editorFor(pending.document)
-    const ok = await pending.settle(editor, verdict, hunk)
+    const ok = await pending.settle(verdict, hunk)
     if (!ok) {
       this.clearPending()
       vscode.window.showWarningMessage(
@@ -336,6 +374,14 @@ export class InlineEditService {
       (editor) => editor.document === document
     )
     return visible ?? vscode.window.showTextDocument(document)
+  }
+
+  // On deactivate or reload: put the original text back so no unreviewed diff survives in the buffer.
+  public async discard() {
+    if (!this._pending) return
+    this._run?.abort()
+    await this._pending.settle("reject")
+    this.clearPending()
   }
 
   private async closeIfEmptyUntitled(document: vscode.TextDocument) {
@@ -465,6 +511,7 @@ export class InlineEditService {
     const { baseline, proposed } = region.sides()
     const snapshot = region.snapshot()
 
+    if (this._pending && this._pending !== region) return
     this._pending = region
     const run = this.begin()
     let reply = ""
@@ -585,7 +632,7 @@ export class InlineEditService {
     const undo =
       event.reason === vscode.TextDocumentChangeReason.Undo ||
       event.reason === vscode.TextDocumentChangeReason.Redo
-    if (!pending.track(event.contentChanges)) return
+    if (!pending.track(event.contentChanges, this.running)) return
     if (!pending.broken) {
       this.decorate()
       this._emitter.fire()

@@ -50,6 +50,8 @@ export class ToolSteps {
   constructor(private readonly _emit: (steps: ToolStepView[]) => void) {}
 
   public reset() {
+    clearTimeout(this._sendTimer)
+    this._sendTimer = undefined
     this.cancelWaiting()
     this._muted = false
     this._steps = []
@@ -110,9 +112,9 @@ export class ToolSteps {
   public approve(
     detail: string,
     approval: "command" | "change" = "command",
-    options: { always?: boolean; mcpTool?: string } = {}
+    options: { always?: boolean; mcpTool?: string; id?: string } = {}
   ): Promise<boolean> {
-    const step = [...this._steps].reverse().find((s) => s.status === "running")
+    const step = this._steps.find((s) => s.id === options.id) ?? [...this._steps].reverse().find((s) => s.status === "running")
     if (!step) return Promise.resolve(false)
     this.update(step.id, {
       status: "waiting",
@@ -149,12 +151,13 @@ export class ToolSteps {
         ? { ...step, status: "stopped" as const, command: undefined, approval: undefined }
         : step
     )
-    this.send()
+    this.send(true)
   }
 
   private update(id: string, change: Partial<ToolStepView>) {
     this._steps = this._steps.map((step) => (step.id === id ? { ...step, ...change } : step))
-    this.send()
+    // An approval card must not wait for the next tick.
+    this.send(change.status === "waiting")
   }
 
   public discard() {
@@ -163,7 +166,19 @@ export class ToolSteps {
     this._steps = []
   }
 
-  private send() {
-    if (!this._muted) this._emit(this._steps)
+  // Every change resends the whole step list; at most one update per 50 ms, approvals and resets at once.
+  private _sendTimer: ReturnType<typeof setTimeout> | undefined
+  private send(now = false) {
+    if (this._muted) return
+    if (now) {
+      clearTimeout(this._sendTimer)
+      this._sendTimer = undefined
+      this._emit(this._steps)
+      return
+    }
+    this._sendTimer ??= setTimeout(() => {
+      this._sendTimer = undefined
+      if (!this._muted) this._emit(this._steps)
+    }, 50)
   }
 }

@@ -21,18 +21,56 @@ export class DiffRegion {
   private _first = true
   private _applying = false
 
-  constructor(private readonly _editor: vscode.TextEditor, range: vscode.Range) {
-    this.document = _editor.document
+  constructor(editor: vscode.TextEditor, range: vscode.Range) {
+    this.document = editor.document
     this.range = range
   }
 
   public render(layout: DiffLayout): Promise<boolean> {
-    this._queue = this._queue.then(() => this.replace(layout))
+    return this.enqueue(() => this.replace(layout))
+  }
+
+  public settle(verdict: "accept" | "reject", hunkLine?: number): Promise<boolean> {
+    return this.enqueue(() => this.settleNow(verdict, hunkLine))
+  }
+
+  // The edits that drop every proposed line, for a save that must not write the diff to disk.
+  public rejectEdits(): vscode.TextEdit[] {
+    const edits = lineRuns(this.document, this.added).map((range) => vscode.TextEdit.delete(range))
+    this.broken = true
+    return edits
+  }
+
+  private enqueue(step: () => Promise<boolean>): Promise<boolean> {
+    this._queue = this._queue.catch(() => false).then(async () => {
+      try {
+        return await step()
+      } catch {
+        this.broken = true
+        return false
+      }
+    })
     return this._queue
   }
 
+  // The editor this region was opened in is disposed once hidden; edit through a visible one, else the workspace.
+  private async edit(apply: (edit: { replace(range: vscode.Range, text: string): void; delete(range: vscode.Range): void }) => void, undoStopBefore: boolean, undoStopAfter: boolean) {
+    const editor = vscode.window.visibleTextEditors.find((e) => e.document === this.document)
+    if (editor) return editor.edit(apply, { undoStopBefore, undoStopAfter })
+    const edit = new vscode.WorkspaceEdit()
+    apply({
+      replace: (range, text) => edit.replace(this.document.uri, range, text),
+      delete: (range) => edit.delete(this.document.uri, range)
+    })
+    return vscode.workspace.applyEdit(edit)
+  }
+
+  private text(range: vscode.Range) {
+    return this.document.getText(range).replace(/\r\n/g, "\n")
+  }
+
   public sides(): { baseline: string; proposed: string } {
-    const lines = this.document.getText(this.range).split("\n")
+    const lines = this.text(this.range).split("\n")
     const base = this.range.start.line
     const removed = new Set(this.removed.map((line) => line - base))
     const added = new Set(this.added.map((line) => line - base))
@@ -46,7 +84,7 @@ export class DiffRegion {
     const base = this.range.start.line
     const local = (span: Span) => ({ ...span, line: span.line - base })
     return {
-      text: this.document.getText(this.range),
+      text: this.text(this.range),
       removed: this.removed.map((line) => line - base),
       added: this.added.map((line) => line - base),
       removedWords: this.removedWords.map(local),
@@ -54,15 +92,11 @@ export class DiffRegion {
     }
   }
 
-  public async settle(
-    editor: vscode.TextEditor,
-    verdict: "accept" | "reject",
-    hunk?: number
-  ): Promise<boolean> {
-    await this._queue
+  private async settleNow(verdict: "accept" | "reject", hunkLine?: number): Promise<boolean> {
     if (this.broken) return false
     const hunks = this.hunks
-    const targets = hunk === undefined ? hunks : [hunks[hunk]].filter(Boolean)
+    const targets = hunkLine === undefined ? hunks : hunks.filter((h) => h.line === hunkLine)
+    if (!targets.length) return true
     const doomed = targets.flatMap((h) => (verdict === "accept" ? h.removed : h.added))
     const settled = new Set(targets.flatMap((h) => [...h.removed, ...h.added]))
     const last = settled.size === this.removed.length + this.added.length
@@ -71,13 +105,14 @@ export class DiffRegion {
     if (doomed.length) {
       this._applying = true
       try {
-        ok = await editor.edit(
+        ok = await this.edit(
           (builder) => {
             for (const range of lineRuns(this.document, doomed)) {
               builder.delete(range)
             }
           },
-          { undoStopBefore: false, undoStopAfter: last }
+          false,
+          last
         )
       } finally {
         this._applying = false
@@ -134,8 +169,10 @@ export class DiffRegion {
     return hunks
   }
 
+  // streaming: any user edit touching the region would be overwritten by the next render, so it breaks the review.
   public track(
-    changes: readonly vscode.TextDocumentContentChangeEvent[]
+    changes: readonly vscode.TextDocumentContentChangeEvent[],
+    streaming = false
   ): boolean {
     if (this._applying) return false
     if (this.broken) return true
@@ -144,6 +181,10 @@ export class DiffRegion {
       const last = change.range.end.line
       const delta = change.text.split("\n").length - 1 - (last - first)
       if (first > this.range.end.line) continue
+      if (streaming && last >= this.range.start.line) {
+        this.broken = true
+        return true
+      }
       const gone = (line: number) => line > first && line <= last
       if (this.removed.some(gone) || this.added.some(gone)) {
         this.broken = true
@@ -174,14 +215,11 @@ export class DiffRegion {
   private async replace(layout: DiffLayout): Promise<boolean> {
     if (this.broken) return false
     const start = this.range.start
-    if (layout.text !== this.document.getText(this.range)) {
+    if (layout.text !== this.text(this.range)) {
       this._applying = true
       let ok: boolean
       try {
-        ok = await this._editor.edit(
-          (builder) => builder.replace(this.range, layout.text),
-          { undoStopBefore: this._first, undoStopAfter: false }
-        )
+        ok = await this.edit((builder) => builder.replace(this.range, layout.text), this._first, false)
       } finally {
         this._applying = false
       }

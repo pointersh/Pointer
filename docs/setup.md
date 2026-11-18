@@ -86,6 +86,8 @@ a real pytest run (60 passed). Re-record with
 | `npm run check:highlight` | The highlighter against the original tokenizer's saved output |
 | `npm run check:trueforge` | One full live turn (read, then an approved edit) against your TrueForge |
 | `cargo test --release` | Retrieval engine and highlighter |
+| `benchmarks/editor.sh` | The review engine inside a real VS Code (opens a throwaway window): pending diffs never reach disk, one proposal at a time, per-hunk accept and reject, CRLF, undo |
+| `benchmarks/tasks.sh setup\|a\|b\|c\|reset [flask-dir]` | The three fixed tasks on Flask 3.1.3: `setup` clones it with a venv, `a`/`b`/`c` verify a task after you run it in the editor, `reset` discards changes between takes |
 
 ## Repository layout
 

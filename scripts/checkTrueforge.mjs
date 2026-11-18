@@ -9,7 +9,7 @@ const out = path.join(process.env.CHECK_OUT ?? os.tmpdir(), "check-trueforge.cjs
 await esbuild.build({
   stdin: {
     contents: `export { startEditorMcp } from "./src/extension/mcp/server"
-export { markServerLive, registerMcpServer, upsertAgent } from "./src/extension/trueforge/client"
+export { markServerLive, registerMcpServer, serverName, upsertAgent } from "./src/extension/trueforge/client"
 export { TrueForgeAgent } from "./src/extension/trueforge/agent"
 export { trueforgeTextModel } from "./src/extension/trueforge/inline"
 export { GenerationTracker } from "./src/extension/generations"`,
@@ -26,7 +26,7 @@ export { GenerationTracker } from "./src/extension/generations"`,
     setup: (b) => {
       b.onResolve({ filter: /^vscode$/ }, () => ({ path: "vscode", namespace: "stub" }))
       b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
-        contents: "module.exports={workspace:{getConfiguration:()=>({get:()=>undefined})},window:{setStatusBarMessage(){},createOutputChannel:()=>({info(){},warn(){},error(){},debug(){},trace(){},appendLine(){},show(){},dispose(){}})}}"
+        contents: "module.exports={workspace:{getConfiguration:()=>({get:()=>undefined})},window:{setStatusBarMessage(){},showWarningMessage:async()=>undefined,createOutputChannel:()=>({info(){},warn(){},error(){},debug(){},trace(){},appendLine(){},show(){},dispose(){}})}}"
       }))
     }
   }]
@@ -43,7 +43,7 @@ fs.writeFileSync(path.join(root, "hello.py"), "def hello():\n    return 42\n")
 const edit = async () => ({ ok: true, message: "Proposed for review." })
 const mcp = await m.startEditorMcp({ root, extras: { edits: { edit, create: edit } } })
 try {
-  await m.registerMcpServer("pointer-editor", mcp.url, mcp.token, "Check workspace.")
+  await m.registerMcpServer(m.serverName("pointer-editor"), mcp.url, mcp.token, "Check workspace.")
   m.markServerLive("pointer-editor")
   await m.upsertAgent()
   const events = []
