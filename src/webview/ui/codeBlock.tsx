@@ -10,6 +10,20 @@ interface CodeBlockProps extends React.HTMLAttributes<HTMLDivElement> {
   showLineNumbers?: boolean;
 }
 
+// While a reply streams, a code block re-renders every frame but only its last line changes: tokenize each
+// distinct line once. Bounded, oldest first out.
+const TOKENS = new Map<string, ReturnType<typeof tokenize>>();
+const tokens = (line: string, language?: string) => {
+  const key = `${language ?? ""}\u0000${line}`;
+  let hit = TOKENS.get(key);
+  if (!hit) {
+    hit = tokenize(line, language);
+    if (TOKENS.size >= 4000) TOKENS.delete(TOKENS.keys().next().value!);
+    TOKENS.set(key, hit);
+  }
+  return hit;
+};
+
 export function CodeBlock({
   code,
   language,
@@ -94,7 +108,7 @@ export function CodeBlock({
                 </span>
               ) : null}
               {line
-                ? tokenize(line, language).map(([kind, text], j) =>
+                ? tokens(line, language).map(([kind, text], j) =>
                     kind === "text" ? text : <span key={j} className={`hl-${kind}`}>{text}</span>
                   )
                 : " "}

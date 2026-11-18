@@ -7,6 +7,7 @@ import { ChatCompletionMessage, MentionType, ToolStepView } from "../common/type
 
 import { useFilePaths } from "./hooks/useFilePaths"
 import { useSelection } from "./hooks/useSelection"
+import { useFollowScroll, useSmoothText } from "./hooks/useSmooth"
 import { useWorkspaceContext } from "./hooks/useWorkspaceContext"
 import { cn } from "./ui/cn"
 import { CodeBlock } from "./ui/codeBlock"
@@ -65,8 +66,8 @@ export function Panel() {
   const [models, setModels] = React.useState<PromptModel[]>([])
   const conversation = React.useRef<string>(crypto.randomUUID())
   const thoughtAt = React.useRef<{ start?: number; end?: number }>({})
-  const scroller = React.useRef<HTMLDivElement>(null)
-  const pinned = React.useRef(true)
+  const { scroller, content: scrolled, pin } = useFollowScroll()
+  const stopTimer = React.useRef<ReturnType<typeof setTimeout>>()
   const selection = useSelection()
   const { filePaths } = useFilePaths()
   const { contextItems, removeContextItem } = useWorkspaceContext()
@@ -78,11 +79,6 @@ export function Panel() {
     void bridge.request(EVENT_NAME.pointerModels, {}).then(applyModels, () => undefined)
     emit(EVENT_NAME.pointerSidebarReady)
   }, [])
-
-  React.useLayoutEffect(() => {
-    const el = scroller.current
-    if (el && pinned.current) el.scrollTop = el.scrollHeight
-  }, [messages, streaming, steps])
 
   useServerEvent(EVENT_NAME.pointerOnCompletion, (incoming) => {
     const content = String(incoming?.content ?? "")
@@ -98,17 +94,22 @@ export function Panel() {
     if (!incoming) return
     const { start, end } = thoughtAt.current
     const thought = start ? Math.max(1, Math.round(((end ?? Date.now()) - start) / 1000)) : undefined
+    clearTimeout(stopTimer.current)
     setMessages((current) => [...current, { ...incoming, meta: { ...incoming.meta, ...(thought ? { thoughtSeconds: thought } : {}) } }])
     setStreaming(null)
     setSteps([])
   })
 
+  // After Stop the stopped reply arrives as a message a moment later and takes over the live turn in place.
+  // Clearing the live turn first would blink it out and fade it back in; only clear it if nothing arrives.
   useServerEvent(EVENT_NAME.pointerStopGeneration, () => {
     setBusy(false)
-    setStreaming(null)
+    clearTimeout(stopTimer.current)
+    stopTimer.current = setTimeout(() => setStreaming(null), 1500)
   })
 
   useServerEvent(EVENT_NAME.pointerNewConversation, () => {
+    clearTimeout(stopTimer.current)
     conversation.current = crypto.randomUUID()
     setMessages([])
     setStreaming(null)
@@ -119,12 +120,13 @@ export function Panel() {
   const send = (text: string) => {
     const user: ChatCompletionMessage = { role: USER, content: text }
     const history = [...messages, user]
+    clearTimeout(stopTimer.current)
     setMessages(history)
     setBusy(true)
     setSteps([])
     setStreaming("")
     thoughtAt.current = {}
-    pinned.current = true
+    pin()
     emit(EVENT_NAME.pointerChatMessage, {
       messages: history.map(({ role, content }) => ({ role, content })),
       mentions: mentionsIn(text),
@@ -178,35 +180,37 @@ export function Panel() {
     <div className="flex h-full flex-col bg-page text-ink">
       <div
         ref={scroller}
-        onScroll={(e) => {
-          const el = e.currentTarget
-          pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40
-        }}
         className="min-h-0 flex-1 overflow-y-auto px-3 pt-3 pb-4"
       >
-        {empty ? (
-          <EmptyState onPick={(text) => setDraft(text)} />
-        ) : (
-          <div className="flex flex-col gap-4">
-            {messages.map((message, i) =>
-              message.role === USER ? (
-                <UserMessage key={i} text={String(message.content)} />
-              ) : (
-                <AssistantTurn
-                  key={i}
-                  content={String(message.content)}
-                  steps={message.toolSteps ?? []}
-                  thoughtSeconds={message.meta?.thoughtSeconds}
-                  footer={message.meta}
-                  onFollowUp={setDraft}
-                />
-              )
-            )}
-            {streaming !== null && (
-              <AssistantTurn live content={streaming} steps={steps} thinkingSince={thoughtAt.current.start} />
-            )}
-          </div>
-        )}
+        <div ref={scrolled} className={empty ? "h-full" : undefined}>
+          {empty ? (
+            <EmptyState onPick={(text) => setDraft(text)} />
+          ) : (
+            <div className="flex flex-col gap-4">
+              {/* One keyed list: the live reply and the message that replaces it share a key, so the same turn
+                  carries on when the reply ends instead of remounting and replaying its entrance animations. */}
+              {[
+                ...messages.map((message, i) =>
+                  message.role === USER ? (
+                    <UserMessage key={i} text={String(message.content)} />
+                  ) : (
+                    <AssistantTurn
+                      key={i}
+                      content={String(message.content)}
+                      steps={message.toolSteps ?? []}
+                      thoughtSeconds={message.meta?.thoughtSeconds}
+                      footer={message.meta}
+                      onFollowUp={setDraft}
+                    />
+                  )
+                ),
+                streaming !== null && (
+                  <AssistantTurn key={messages.length} live content={streaming} steps={steps} thinkingSince={thoughtAt.current.start} />
+                )
+              ]}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="flex shrink-0 flex-col gap-1.5 px-3 pb-3">
@@ -311,7 +315,8 @@ interface TurnProps {
   onFollowUp?: (text: string) => void
 }
 
-function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, footer, onFollowUp }: TurnProps) {
+function AssistantTurn({ content: full, steps, live, thinkingSince, thoughtSeconds, footer, onFollowUp }: TurnProps) {
+  const content = useSmoothText(full, !!live)
   const { thinking, message } = getThinkingMessage(content)
   const visible = steps.filter((s) => !s.said)
   const pointed = pointedFiles(visible)

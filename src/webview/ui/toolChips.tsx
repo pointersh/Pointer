@@ -120,7 +120,7 @@ export function ToolChips({ rows, diffs = [], header, maxDiffs = 4, defaultOpen 
               const rowOpen = openRows.has(row.id)
               const expandable = !!(row.detail?.length || row.body)
               return (
-                <div key={row.id} style={{ animation: "fade-up 300ms var(--ease-out-strong) both" }}>
+                <div key={row.id} style={{ animation: "row-in 280ms var(--ease-out-strong) backwards", overflow: "clip", overflowClipMargin: 6 }}>
                   <button
                     type="button"
                     aria-expanded={expandable ? rowOpen : undefined}
