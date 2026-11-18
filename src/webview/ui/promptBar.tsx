@@ -71,6 +71,24 @@ export function PromptBar({
   const [active, setActive] = React.useState(0)
   const [dismissed, setDismissed] = React.useState(false)
   const [modelOpen, setModelOpen] = React.useState(false)
+  const modelMenu = React.useRef<HTMLDivElement>(null)
+  // The menu sits over the prompt: Escape or a click anywhere else closes it without picking.
+  React.useEffect(() => {
+    if (!modelOpen) return
+    const close = (e: Event) => {
+      if (e instanceof KeyboardEvent) {
+        if (e.key !== "Escape") return
+        e.stopPropagation() // Escape closes the menu only; it must not also stop a running request
+        setModelOpen(false)
+      } else if (!modelMenu.current?.contains(e.target as Node)) setModelOpen(false)
+    }
+    document.addEventListener("keydown", close, true)
+    document.addEventListener("mousedown", close, true)
+    return () => {
+      document.removeEventListener("keydown", close, true)
+      document.removeEventListener("mousedown", close, true)
+    }
+  }, [modelOpen])
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
   const glimmRef = React.useRef<HTMLCanvasElement>(null)
   const shaderRef = React.useRef<ReturnType<typeof createShader> | null>(null)
@@ -276,7 +294,7 @@ export function PromptBar({
             <Icon path="M12 5v14M5 12h14" />
           </button>
 
-          <div className="relative ml-auto">
+          <div ref={modelMenu} className="relative ml-auto">
             {current && (
               <button
                 type="button"

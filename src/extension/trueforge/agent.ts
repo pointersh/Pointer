@@ -100,7 +100,10 @@ export class TrueForgeAgent implements Agent {
     // Automatic retrieval: shown as the Pointing-at cards and handed to the model with the request.
     let turnInput = input
     if (!unready) {
-      const context = await prefetchContext(plainText(String(last.content ?? "")), run.signal)
+      // A follow-up ("which files would that touch?") means little alone: search with the request before it too.
+      const previous = [...history].reverse().find((m) => m.role === "user")
+      const query = [previous, last].filter(Boolean).map((m) => plainText(String(m!.content ?? ""))).join("\n")
+      const context = await prefetchContext(query, run.signal)
       if (context && !run.signal.aborted) {
         this._steps.start({ id: PREFETCH_STEP, name: "search_codebase", args: { query: "(automatic) this request" } })
         this._steps.finish({ id: PREFETCH_STEP, index: 0, summary: context.split("\n")[0]?.slice(0, 120) ?? "", output: context })

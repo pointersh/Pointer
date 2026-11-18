@@ -163,7 +163,7 @@ export function Panel() {
         .filter(({ path }) => !q || path.toLowerCase().includes(q))
         .sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q)) || a.path.length - b.path.length)
         .slice(0, 8)
-        .map(({ path, name }) => ({ key: path, name, desc: path, icon: FILE_ICON, insert: `@${path} ` }))
+        .map(({ path, name }) => ({ key: path, name, desc: path.replace(/^\//, ""), icon: FILE_ICON, insert: `@${path} ` }))
     },
     [filePaths]
   )

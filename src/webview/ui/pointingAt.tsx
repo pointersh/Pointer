@@ -51,8 +51,8 @@ export function PointingAt({ chunks, dropped, onOpen, className, ...props }: Poi
                     :{chunk.start}
                     {chunk.end > chunk.start ? `–${chunk.end}` : ""}
                   </span>
-                  {chunk.more > 0 && <span className="text-ink-3"> +{chunk.more} more</span>}
                 </span>
+                {chunk.more > 0 && <span className="shrink-0 text-[11px] text-ink-3">+{chunk.more}</span>}
                 <span className="flex shrink-0 items-center gap-1.5">
                   <span className="h-1 w-10 overflow-hidden rounded-full bg-line">
                     <span className="block h-full rounded-full bg-accent" style={{ width: `${Math.max(8, (chunk.score / top) * 100)}%` }} />

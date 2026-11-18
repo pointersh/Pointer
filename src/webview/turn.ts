@@ -40,6 +40,16 @@ const RUNNING: Record<string, string> = {
   create_sub_agent: "Sub-agent surveying"
 }
 
+// What the user declined, in their words: "Skipped edit", not "Skipped · edited".
+const SKIPPED: Record<string, string> = {
+  edit_file: "Skipped edit",
+  create_file: "Skipped new file",
+  run_command: "Skipped command",
+  delete_file: "Skipped delete",
+  move_file: "Skipped move",
+  rename_symbol: "Skipped rename"
+}
+
 const status = (step: ToolStepView): ToolRowStatus =>
   step.status === "running" ? "running" : step.status === "waiting" ? "waiting" : step.status === "done" ? "done" : "error"
 
@@ -68,7 +78,7 @@ const chipOf = (step: ToolStepView) => {
     case "move_file":
       return a.from && a.to ? `${a.from} → ${a.to}` : a.path
     case "create_sub_agent":
-      return short(String(a.task ?? a.prompt ?? a.description ?? a.name ?? Object.values(a)[0] ?? ""), 60)
+      return short(String(a.input ?? a.task ?? a.name ?? ""), 60)
     default:
       return a.path ?? Object.values(a)[0]
   }
@@ -112,7 +122,7 @@ const diffLines = (pairs: EditPair[]): ToolDetailLine[] =>
 export const toRow = (step: ToolStepView): ToolRow => {
   const [verb, icon] = VERBS[step.name] ?? [step.name.replace(/_/g, " "), "run" as ToolIcon]
   const running = step.status === "running" || step.status === "waiting"
-  const label = running ? (RUNNING[step.name] ?? verb) : step.status === "skipped" ? `Skipped · ${verb.toLowerCase()}` : verb
+  const label = running ? (RUNNING[step.name] ?? verb) : step.status === "skipped" ? (SKIPPED[step.name] ?? "Skipped") : verb
   const chip = chipOf(step)
   if (WRITES.has(step.name) && step.status !== "skipped") {
     return { id: step.id, icon, label, chip, mono: true, status: status(step), detail: diffLines(editPairs(step)).slice(0, 40), detailMono: true }
