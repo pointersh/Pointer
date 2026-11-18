@@ -15,21 +15,23 @@ import { PointerStatusBar } from "./extension/statusBar"
 import { terminalHistory } from "./extension/terminal"
 import { TrueForgeAgent } from "./extension/trueforge/agent"
 import { trueforgeTextModel } from "./extension/trueforge/inline"
-import { describeError, registerAgent } from "./extension/trueforge/setup"
+import { connectToTrueForge } from "./extension/trueforge/setup"
 import { SidebarProvider } from "./extension/webview/sidebar"
 
 export function activate(context: ExtensionContext) {
   const generations = new GenerationTracker()
-  const statusBar = new PointerStatusBar(window.createStatusBarItem(StatusBarAlignment.Right), context, generations)
+  const statusBar = new PointerStatusBar(window.createStatusBarItem(StatusBarAlignment.Right), generations)
   const sidebarProvider = new SidebarProvider(context, new SessionManager())
   const inlineEdit = new InlineEditService(context, generations)
   discardPending = () => inlineEdit.discard()
   sidebarProvider.createAgent = (bridge) => new TrueForgeAgent(bridge, generations)
   setTextModel(trueforgeTextModel())
-  void registerAgent(context).catch((error) => {
-    logger.error(`TrueForge setup failed: ${describeError(error)}`)
-    void window.showWarningMessage(describeError(error))
-  })
+  connectToTrueForge(context)
+  // The panel sits in the secondary side bar, where another chat view may be in front: show it once on first run.
+  if (!context.globalState.get<boolean>("pointer.panelShown")) {
+    void context.globalState.update("pointer.panelShown", true)
+    void commands.executeCommand(POINTER_COMMAND_NAME.focusSidebar)
+  }
   const addContextItem = (item: ContextItem | SelectionContextItem) => sidebarProvider.addContextItem(item)
 
   context.subscriptions.push(

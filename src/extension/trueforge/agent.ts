@@ -35,9 +35,13 @@ const withMentions = (text: string, mentions: MentionType[] = []) => {
   return paths.length ? `${text}\n\nThe user referenced: ${paths.map((p) => `@${p}`).join(", ")}. Read them first.` : text
 }
 
+const FAILED = "**Pointer could not finish.**"
+
+// Earlier failures ("can't reach TrueForge") are not conversation: replaying them makes the model insist the
+// problem is still there after it is fixed.
 const transcript = (messages: ChatCompletionMessage[]) =>
   messages
-    .filter((m) => m.role === "user" || m.role === "assistant")
+    .filter((m) => m.role === "user" || (m.role === "assistant" && !String(m.content ?? "").startsWith(FAILED)))
     .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${plainText(String(m.content ?? ""))}`)
     .join("\n\n")
 
@@ -94,6 +98,12 @@ export class TrueForgeAgent implements Agent {
       await agentReady()
     } catch (error) {
       failure = describeError(error)
+      unready = true
+    }
+    // Without Pointer's tool servers (no folder open, or they failed to start) the agent could only chat
+    // about code it cannot see: say so instead.
+    if (!unready && agentManifest().mcp_servers.length === 0) {
+      failure = "Pointer has no workspace to work in. Open a folder (File → Open Folder…) and ask again."
       unready = true
     }
 
@@ -181,7 +191,7 @@ export class TrueForgeAgent implements Agent {
     }
     const content =
       result?.status === "error" || !result
-        ? `**Pointer could not finish.** ${failure ?? result?.error ?? "Unknown error."}`
+        ? `${FAILED} ${failure ?? result?.error ?? "Unknown error."}`
         : result.text.trim()
     this._bridge.emit(EVENT_NAME.pointerAddMessage, { role: ASSISTANT, content, meta, toolSteps: this._steps.steps })
     this._bridge.emit(EVENT_NAME.pointerStopGeneration)

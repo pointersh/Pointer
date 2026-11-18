@@ -114,8 +114,8 @@
       },
       {
         "command": "pointer.sidebar.focus",
-        "shortTitle": "Enable pointer sidebar",
-        "title": "Enable pointer sidebar"
+        "shortTitle": "Open Pointer",
+        "title": "Pointer: Open the panel"
       },
       {
         "command": "pointer.settings",
@@ -171,7 +171,7 @@
       "secondarySidebar": [
         {
           "id": "pointer-sidebar-view",
-          "title": "pointer",
+          "title": "Pointer",
           "icon": "assets/pointer-sidebar.png"
         }
       ]
@@ -181,9 +181,9 @@
         {
           "type": "webview",
           "id": "pointer.sidebar",
-          "name": "pointer",
+          "name": "Pointer",
           "icon": "assets/pointer-sidebar.png",
-          "contextualTitle": "pointer"
+          "contextualTitle": "Pointer"
         }
       ]
     },
@@ -195,6 +195,12 @@
           "type": "string",
           "default": "http://localhost:8790",
           "description": "Where the local TrueForge server runs (`npx @truefoundry/trueforge@latest`)."
+        },
+        "pointer.trueforgeStartCommand": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "markdownDescription": "Command the **Start TrueForge** button runs in the background (stopped when the window closes). Empty runs `npx @truefoundry/trueforge@latest --port 8790` allowing only loopback; add your model provider's host to `OUTBOUND_URL_ALLOWED_HOSTS` here."
         },
         "pointer.models": {
           "type": "array",
@@ -250,7 +256,7 @@
     "build": "node scripts/build.mjs",
     "lint": "eslint src crates/pointer-highlight/js",
     "lint:fix": "eslint src crates/pointer-highlight/js --fix",
-    "vscode:package": "npm exec vsce package",
+    "vscode:package": "npm exec vsce package -- --no-rewrite-relative-links",
     "vscode:prepublish": "npm run build",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p . --noEmit",

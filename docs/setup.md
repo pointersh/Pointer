@@ -64,6 +64,7 @@ open the repository you want to work on. On activation, Pointer:
 | Setting | Default | |
 |---|---|---|
 | `pointer.trueforgeUrl` | `http://localhost:8790` | Where TrueForge runs |
+| `pointer.trueforgeStartCommand` | `""` (loopback only) | What the **Start TrueForge** button runs, in the background, when TrueForge is not running; add your model host to `OUTBOUND_URL_ALLOWED_HOSTS` |
 | `pointer.models` | `["pointer/primary", "pointer-backup/primary"]` | Model chain, tried in order |
 | `pointer.inlineModels` | `[]` (uses `pointer.models`) | Model chain for inline edits; a fast model here (e.g. Groq) speeds up Ctrl+I |
 | `pointer.reasoningEffort` | `{}` | Per-model `reasoning_effort`, e.g. `{"pointer/primary": "none"}`. Built-in defaults: DeepSeek (`pointer`) `none`, GLM (`pointer-backup`) `low`, Groq `low`, Gemini `medium` (through TrueForge Gemini otherwise does no reasoning) |

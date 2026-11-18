@@ -1,7 +1,6 @@
-import { ExtensionContext, StatusBarItem } from "vscode"
+import { StatusBarItem } from "vscode"
 
-import { ACTIVE_CHAT_PROVIDER_STORAGE_KEY, POINTER_COMMAND_NAME } from "../common/constants"
-import { PointerProvider } from "../common/types"
+import { POINTER_COMMAND_NAME } from "../common/constants"
 
 import { GenerationTracker } from "./generations"
 
@@ -10,7 +9,6 @@ export class PointerStatusBar {
 
   constructor(
     private readonly _item: StatusBarItem,
-    private readonly _context: ExtensionContext,
     private readonly _generations: GenerationTracker
   ) {
     this._item.name = "Pointer"
@@ -20,12 +18,11 @@ export class PointerStatusBar {
   public refresh() {
     if (this._generations.state.busy) {
       this._item.text = "$(loading~spin)"
-      this._item.tooltip = "Pointer is generating — click to stop"
+      this._item.tooltip = "Pointer is working. Click to stop."
       this._item.command = POINTER_COMMAND_NAME.stopGeneration
     } else {
-      const provider = this._context.globalState.get<PointerProvider>(ACTIVE_CHAT_PROVIDER_STORAGE_KEY)
       this._item.text = "$(code)"
-      this._item.tooltip = provider ? `Pointer · ${provider.modelName} (${provider.label})` : "Pointer · no model selected"
+      this._item.tooltip = "Pointer: open the panel"
       this._item.command = POINTER_COMMAND_NAME.focusSidebar
     }
     this._item.show()
