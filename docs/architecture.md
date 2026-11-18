@@ -22,6 +22,8 @@ tracking.
 
 ## Architecture on TrueForge
 
+![Pointer on TrueForge](architecture.png)
+
 ```
 VS Code ── panel / Ctrl+I ──► Agent / TextModel seams ──► TrueForge (local, :8790)
                                                             sessions · turns · SSE
