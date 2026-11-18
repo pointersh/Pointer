@@ -4,6 +4,7 @@ import * as vscode from "vscode"
 import { EXTENSION_CONTEXT_NAME } from "../../common/constants"
 import { logger } from "../../common/logger"
 import { ChatCompletionMessage } from "../../common/types"
+import { cancelled } from "../chat/tickets"
 import { GenerationRun, GenerationTracker } from "../generations"
 import { TextModel, textModel } from "../model"
 
@@ -45,6 +46,7 @@ export interface FileEditProposal {
   endLine: number
   original: string
   text: string
+  ticket?: string
 }
 
 const outsideWorkspace = (uri: vscode.Uri) =>
@@ -65,6 +67,9 @@ interface Generation {
   describe: string
 }
 
+// Under TrueForge's 120 s MCP request timeout (MCP_REQUEST_TIMEOUT_MS) and Pointer's 150 s stall watchdog.
+const SLOT_WAIT_MS = 100_000
+
 const mac = process.platform === "darwin"
 const REVIEW_HINT = mac
   ? "Pointer: review the edit — ⌘⇧↩ accepts, ⌘⇧⌫ rejects"
@@ -75,6 +80,8 @@ export class InlineEditService {
   private _pending?: DiffRegion
   // Set from the first check until _pending is assigned, so two proposals can't both pass the check across an await.
   private _claimed = false
+  // Bumped whenever no generation is live (Stop, New chat, a finished reply): queued proposals give up.
+  private _epoch = 0
   private readonly _emitter = new vscode.EventEmitter<void>()
   public readonly onDidChangePending = this._emitter.event
 
@@ -93,6 +100,11 @@ export class InlineEditService {
         if (this._pending?.document === document) this.clearPending()
       }),
       vscode.window.onDidChangeVisibleTextEditors(() => this.decorate()),
+      this._generations.onDidChange(({ busy }) => {
+        if (busy) return
+        this._epoch++
+        this._emitter.fire()
+      }),
       vscode.workspace.onWillSaveTextDocument((event) => {
         const pending = this._pending
         if (pending?.document !== event.document) return
@@ -109,6 +121,30 @@ export class InlineEditService {
 
   private get busy() {
     return this.running || !!this._pending || this._claimed
+  }
+
+  // The agent often proposes edits to several files in one parallel step. They queue: each opens for review
+  // once the previous one is accepted or rejected. The slot is claimed in the same tick it is found free, so
+  // two waiting proposals can't both take it.
+  private async claimSlot(ticket?: string): Promise<"ok" | "timeout" | "stopped"> {
+    const until = Date.now() + SLOT_WAIT_MS
+    const epoch = this._epoch
+    while (this.busy) {
+      if (cancelled(ticket) || this._epoch !== epoch) return "stopped"
+      if (Date.now() > until) return "timeout"
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(done, 1000)
+        const sub = this.onDidChangePending(done)
+        function done() {
+          clearTimeout(timer)
+          sub.dispose()
+          resolve()
+        }
+      })
+    }
+    if (cancelled(ticket)) return "stopped"
+    this._claimed = true
+    return "ok"
   }
 
   public dispose() {
@@ -238,14 +274,15 @@ export class InlineEditService {
     if (outsideWorkspace(uri)) {
       return { ok: false, message: `Not changed: ${relative} is outside the workspace.` }
     }
-    if (this.busy) {
+    const slot = await this.claimSlot(proposal.ticket)
+    if (slot === "stopped") return { ok: false, message: "Not changed: the request was stopped." }
+    if (slot === "timeout") {
       const where = pending ? ` in ${vscode.workspace.asRelativePath(pending.document.uri)}` : ""
       return {
         ok: false,
-        message: `Not changed: an edit${where} is waiting for the user's review. Tell the user to accept or reject it, then ask again.`
+        message: `Not changed: an edit${where} has been waiting for the user's review for ${SLOT_WAIT_MS / 1000} s. Tell the user to accept or reject it, then ask again.`
       }
     }
-    this._claimed = true
     try {
       return await this.proposeEdit(proposal, uri, relative)
     } finally {
@@ -288,7 +325,7 @@ export class InlineEditService {
     }
   }
 
-  public async chatCreate(file: string, content: string): Promise<ChatEditOutcome> {
+  public async chatCreate(file: string, content: string, ticket?: string): Promise<ChatEditOutcome> {
     const target = vscode.Uri.file(file)
     const relative = vscode.workspace.asRelativePath(target)
     if (outsideWorkspace(target)) {
@@ -297,13 +334,14 @@ export class InlineEditService {
     if (fs.existsSync(file)) {
       return { ok: false, message: `Not created: ${relative} already exists. Use edit_file to change it.` }
     }
-    if (this.busy) {
+    const slot = await this.claimSlot(ticket)
+    if (slot === "stopped") return { ok: false, message: "Not created: the request was stopped." }
+    if (slot === "timeout") {
       return {
         ok: false,
-        message: "Not created: an edit is waiting for the user's review. Tell the user to accept or reject it, then ask again."
+        message: `Not created: an edit has been waiting for the user's review for ${SLOT_WAIT_MS / 1000} s. Tell the user to accept or reject it, then ask again.`
       }
     }
-    this._claimed = true
     try {
       const document = await vscode.workspace.openTextDocument(target.with({ scheme: "untitled" }))
       if (document.getText()) {

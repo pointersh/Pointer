@@ -75,8 +75,8 @@ const MAX_MATCHED_LINE_CHARS = 2000
 
 export interface EditSink {
   read?(file: string): Promise<string | undefined>
-  edit(file: string, replacement: Replacement): Promise<EditOutcome>
-  create(file: string, content: string): Promise<EditOutcome>
+  edit(file: string, replacement: Replacement, signal?: AbortSignal): Promise<EditOutcome>
+  create(file: string, content: string, signal?: AbortSignal): Promise<EditOutcome>
 }
 
 export interface EditOutcome {
@@ -356,12 +356,12 @@ const createFile = (view: WorkspaceView, sink: EditSink): Tool => ({
     { name: "path", description: "Where the new file goes, relative to the workspace root." },
     { name: "content", description: "The whole file." }
   ],
-  async run({ path: file, content }) {
+  async run({ path: file, content }, context) {
     if (content === undefined) throw new ToolInputError("create_file needs content.")
     if (content.length > MAX_NEW_FILE_CHARS) throw new ToolInputError("That file is too large to create in one go.")
     const absolute = view.resolveNew(file)
     const rel = view.relative(absolute)
-    const outcome = await sink.create(absolute, content)
+    const outcome = await sink.create(absolute, content, context?.signal)
     if (!outcome.ok) {
       return { output: outcome.message, summary: `\`${rel}\` not created · ${outcome.message}`, failed: true }
     }
@@ -446,7 +446,7 @@ const editFile = (view: WorkspaceView, sink: EditSink, seen: Map<string, string>
       }
     }
   ],
-  async run({ path: file, find, replace, replace_all, start_line, end_line, edits }) {
+  async run({ path: file, find, replace, replace_all, start_line, end_line, edits }, context) {
     if (!file) throw new ToolInputError("edit_file needs a path.")
     const start = lineNumber(start_line)
     const byLines = start !== undefined && find === undefined
@@ -493,7 +493,7 @@ const editFile = (view: WorkspaceView, sink: EditSink, seen: Map<string, string>
     }
     const lines =
       plan.startLine === plan.endLine ? `${plan.startLine + 1}` : `${plan.startLine + 1}–${plan.endLine + 1}`
-    const outcome = await sink.edit(absolute, plan)
+    const outcome = await sink.edit(absolute, plan, context?.signal)
     if (!outcome.ok) {
       return { output: outcome.message, summary: `\`${rel}\` not changed · ${outcome.message}`, failed: true }
     }

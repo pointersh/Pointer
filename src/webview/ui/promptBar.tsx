@@ -202,7 +202,7 @@ export function PromptBar({
         </div>
       )}
 
-      <div className="relative isolate flex flex-col gap-1.5 overflow-hidden rounded-[14px] border border-line bg-surface p-1.5 shadow-card transition-[border-color] duration-150 focus-within:border-line-strong">
+      <div className="relative isolate flex flex-col gap-1.5 rounded-[14px] border border-line bg-surface p-1.5 shadow-card transition-[border-color] duration-150 focus-within:border-line-strong">
         <canvas
           ref={glimmRef}
           aria-hidden="true"

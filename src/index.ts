@@ -55,8 +55,8 @@ export function activate(context: ExtensionContext) {
     commands.registerCommand(POINTER_COMMAND_NAME.chatFileEdit, (proposal: FileEditProposal) =>
       inlineEdit.chatEdit(proposal)
     ),
-    commands.registerCommand(POINTER_COMMAND_NAME.chatFileCreate, (file: string, content: string) =>
-      inlineEdit.chatCreate(file, content)
+    commands.registerCommand(POINTER_COMMAND_NAME.chatFileCreate, (file: string, content: string, ticket?: string) =>
+      inlineEdit.chatCreate(file, content, ticket)
     ),
     commands.registerCommand(POINTER_COMMAND_NAME.stopGeneration, () => generations.stopAll()),
     commands.registerCommand(POINTER_COMMAND_NAME.settings, () =>

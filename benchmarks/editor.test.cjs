@@ -45,14 +45,22 @@ const tests = {
     await reject()
   },
 
-  async "two proposals at once: exactly one is shown"() {
+  async "two proposals at once queue: the second opens after the first is accepted"() {
     const f = file("c1.py", "c1\n")
     const g = file("c2.py", "c2\n")
-    const [one, two] = await Promise.all([propose(f, 0, 0, "c1", "C1"), propose(g, 0, 0, "c2", "C2")])
-    assert.strictEqual([one, two].filter((o) => o.ok).length, 1, JSON.stringify([one, two]))
-    await reject()
-    assert.strictEqual(await buffer(f), "c1\n")
-    assert.strictEqual(await buffer(g), "c2\n")
+    const first = propose(f, 0, 0, "c1", "C1")
+    const second = propose(g, 0, 0, "c2", "C2")
+    let secondDone = false
+    second.then(() => (secondDone = true))
+    assert.strictEqual((await first).ok, true)
+    await settle()
+    assert.strictEqual(secondDone, false, "the second waits while the first is under review")
+    assert.strictEqual(await buffer(g), "c2\n", "nothing shown for the second yet")
+    await accept()
+    assert.strictEqual((await second).ok, true, "the second opens once the first is settled")
+    await accept()
+    assert.strictEqual(await buffer(f), "C1\n")
+    assert.strictEqual(await buffer(g), "C2\n")
   },
 
   async "per-hunk accept and reject by line, and a stale line is a no-op"() {
@@ -136,6 +144,6 @@ exports.run = async () => {
     }
     await vscode.commands.executeCommand("workbench.action.closeAllEditors")
   }
-  fs.writeFileSync(path.join(root(), "..", "editor-results.txt"), results.join("\n"))
+  fs.writeFileSync(process.env.POINTER_RESULTS, results.join("\n"))
   if (results.some((r) => r.startsWith("FAIL"))) throw new Error("editor checks failed")
 }

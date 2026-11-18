@@ -25,10 +25,23 @@ import { WorkspaceView } from "../tools/view"
 import { CommandOutcome, CommandSink, EditOutcome, EditSink } from "../tools/workspace"
 
 import { allowTool } from "./approvals"
+import { release, ticketFor } from "./tickets"
 
 const COMMAND_TIMEOUT_MS = 120_000
 const OUTPUT_TAIL = { maxChars: 4000, maxLines: 80 }
 const MAX_CAPTURE_CHARS = 200_000
+
+// Language-server calls can hang on a slow or broken server; the agent's tool must not wait forever.
+const LSP_DEADLINE_MS = 10_000
+const RENAME_DEADLINE_MS = 20_000
+const withDeadline = <T>(work: Thenable<T>, ms: number, what: string): Promise<T> =>
+  new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`${what} took longer than ${ms / 1000} s; the language server may be busy`)), ms)
+    Promise.resolve(work).then(
+      (value) => (clearTimeout(timer), resolve(value)),
+      (error) => (clearTimeout(timer), reject(error))
+    )
+  })
 
 const applyAndSave = async (edit: WorkspaceEdit): Promise<boolean> => {
   if (!(await workspace.applyEdit(edit))) return false
@@ -43,10 +56,22 @@ const editorCommand = async (fallback: string, command: string, ...args: unknown
   (await commands.executeCommand<ChatEditOutcome>(command, ...args)) ?? { ok: false, message: fallback }
 
 export const editorEdits = (view: WorkspaceView): EditSink & FileOpsSink => ({
-  edit: (file, replacement) =>
-    editorCommand("Not changed: the editor did not answer.", POINTER_COMMAND_NAME.chatFileEdit, { file, ...replacement }),
-  create: (file, content) =>
-    editorCommand("Not created: the editor did not answer.", POINTER_COMMAND_NAME.chatFileCreate, file, content),
+  async edit(file, replacement, signal) {
+    const ticket = ticketFor(signal)
+    try {
+      return await editorCommand("Not changed: the editor did not answer.", POINTER_COMMAND_NAME.chatFileEdit, { file, ...replacement, ticket })
+    } finally {
+      release(ticket)
+    }
+  },
+  async create(file, content, signal) {
+    const ticket = ticketFor(signal)
+    try {
+      return await editorCommand("Not created: the editor did not answer.", POINTER_COMMAND_NAME.chatFileCreate, file, content, ticket)
+    } finally {
+      release(ticket)
+    }
+  },
   async remove(file) {
     const relative = view.relative(file)
     if (!(await allowTool("delete_file", `delete ${relative}`))) return { ok: false, message: `The user did not allow deleting ${relative}.` }
@@ -132,19 +157,19 @@ export const editorKnowledge = (view: WorkspaceView): EditorSink => ({
   },
   async references(file, line, character) {
     return toLocations(
-      await commands.executeCommand<Location[]>(
-        "vscode.executeReferenceProvider",
-        Uri.file(file),
-        new Position(line, character)
+      await withDeadline(
+        commands.executeCommand<Location[]>("vscode.executeReferenceProvider", Uri.file(file), new Position(line, character)),
+        LSP_DEADLINE_MS,
+        "Finding references"
       )
     )
   },
   async definition(file, line, character) {
     return toLocations(
-      await commands.executeCommand<Array<Location | LocationLink>>(
-        "vscode.executeDefinitionProvider",
-        Uri.file(file),
-        new Position(line, character)
+      await withDeadline(
+        commands.executeCommand<Array<Location | LocationLink>>("vscode.executeDefinitionProvider", Uri.file(file), new Position(line, character)),
+        LSP_DEADLINE_MS,
+        "Finding the definition"
       )
     )
   },
@@ -154,11 +179,10 @@ export const editorKnowledge = (view: WorkspaceView): EditorSink => ({
     }
     let edit: WorkspaceEdit | undefined
     try {
-      edit = await commands.executeCommand<WorkspaceEdit>(
-        "vscode.executeDocumentRenameProvider",
-        Uri.file(file),
-        new Position(line, character),
-        newName
+      edit = await withDeadline(
+        commands.executeCommand<WorkspaceEdit>("vscode.executeDocumentRenameProvider", Uri.file(file), new Position(line, character), newName),
+        RENAME_DEADLINE_MS,
+        "The rename"
       )
     } catch (error) {
       return {
