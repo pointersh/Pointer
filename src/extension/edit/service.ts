@@ -80,6 +80,8 @@ export class InlineEditService {
   private _pending?: DiffRegion
   // Set from the first check until _pending is assigned, so two proposals can't both pass the check across an await.
   private _claimed = false
+  // Files the agent proposed edits to: saved before the agent runs a command, so tests see accepted changes.
+  private _agentDocs = new Set<vscode.TextDocument>()
   // Bumped whenever no generation is live (Stop, New chat, a finished reply): queued proposals give up.
   private _epoch = 0
   private readonly _emitter = new vscode.EventEmitter<void>()
@@ -315,13 +317,14 @@ export class InlineEditService {
     }
     editor.revealRange(region.range, vscode.TextEditorRevealType.InCenterIfOutsideViewport)
     this.present()
+    this._agentDocs.add(document)
     logger.info(`Chat proposed an edit to ${relative}:${proposal.startLine + 1}`)
     return {
       ok: true,
       pending: true,
       message:
         `Proposed: the change to ${relative} ${lines} is shown in the editor for the user to accept or reject. ` +
-        "It is not applied yet. Tell the user in a sentence what you changed."
+        "It is not applied yet; once accepted, it is saved before any command you run. Tell the user in a sentence what you changed."
     }
   }
 
@@ -365,6 +368,16 @@ export class InlineEditService {
       message:
         `Proposed: ${relative} is open, unsaved, for the user to accept and save or reject. ` +
         "It does not exist on disk yet. Tell the user in a sentence what the file is for."
+    }
+  }
+
+  // Accepted agent edits live in the editor until saved; a command the agent runs (tests) reads the disk.
+  // A file still under review is skipped: saving it would discard the review. Untitled (created) files are
+  // skipped too, since saving one asks where to put it.
+  public async saveAgentEdits() {
+    for (const document of [...this._agentDocs]) {
+      if (document.isClosed) this._agentDocs.delete(document)
+      else if (document !== this._pending?.document && !document.isUntitled && document.isDirty) await document.save()
     }
   }
 

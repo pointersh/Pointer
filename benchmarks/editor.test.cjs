@@ -33,6 +33,19 @@ const tests = {
     assert.strictEqual(await buffer(f), "one\ntwo\nthree\n", "undo restores the original")
   },
 
+  async "before an agent command, accepted edits are saved and one under review is left alone"() {
+    const f = file("s1.py", "s1\n")
+    const g = file("s2.py", "s2\n")
+    assert.strictEqual((await propose(f, 0, 0, "s1", "S1")).ok, true)
+    await accept()
+    assert.strictEqual((await propose(g, 0, 0, "s2", "S2")).ok, true)
+    await vscode.commands.executeCommand("pointer.saveAgentEdits")
+    assert.strictEqual(disk(f), "S1\n", "the accepted edit is on disk for the command")
+    assert.strictEqual(disk(g), "s2\n", "the edit under review is not written")
+    assert.strictEqual(await buffer(g), "s2\nS2\n", "and its review is still open")
+    await reject()
+  },
+
   async "saving while a review is pending writes only the original to disk"() {
     const f = file("b.py", "alpha\nbeta\n")
     assert.strictEqual((await propose(f, 0, 0, "alpha", "ALPHA")).ok, true)

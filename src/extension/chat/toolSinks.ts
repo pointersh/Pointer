@@ -340,6 +340,7 @@ export const terminalCommands = (cwd: string): CommandSink => ({
     if (signal?.aborted) return { ran: false, output: "" }
     if (!(await allowTool("run_command", `run: ${command}`))) return { ran: false, output: "The user did not allow this command." }
     logger.info(`Chat command: ${command}`)
+    await commands.executeCommand(POINTER_COMMAND_NAME.saveAgentEdits)
     return runInBackground(command, cwd, signal)
   }
 })

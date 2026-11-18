@@ -21,8 +21,9 @@ import { changeSummary, diffsOf, pointedFiles, runningLabel, toRow } from "./tur
 import { getThinkingMessage } from "./utils"
 
 const MODEL_NAMES: Record<string, Omit<PromptModel, "id">> = {
-  "pointer/primary": { name: "GLM-5.3 Flash", tag: "Flagship" },
-  "pointer-backup/primary": { name: "DeepSeek V4.1 Flash", tag: "Backup" }
+  "pointer/primary": { name: "DeepSeek V4.1 Flash", tag: "Flagship" },
+  "pointer-backup/primary": { name: "GLM-5.3 Flash", tag: "Backup" },
+  "pointer-groq/primary": { name: "GPT-OSS 120B (Groq)", tag: "Fast" }
 }
 const FLAGSHIP = "pointer/primary"
 

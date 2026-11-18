@@ -5,6 +5,7 @@ export const POINTER_COMMAND_NAME = {
   applyCode: "pointer.applyCode",
   chatFileEdit: "pointer.chatFileEdit",
   chatFileCreate: "pointer.chatFileCreate",
+  saveAgentEdits: "pointer.saveAgentEdits",
   focusSidebar: "pointer.sidebar.focus",
   newConversation: "pointer.newConversation",
   settings: "pointer.settings",
