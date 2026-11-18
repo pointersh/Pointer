@@ -35,6 +35,9 @@ curl -X PUT localhost:8790/api/v1/settings/model-providers \
 ```
 
 Any OpenAI-compatible endpoint works, as do TrueForge's built-in providers.
+For Gemini, use the built-in `"type": "google-gemini"` provider (no `name`; its models are
+`google-gemini/<model name>`). Through the OpenAI-compatible `custom` type, Gemini 3 rejects the
+second call of any turn that uses tools, because the thought signatures are not passed back.
 Keys stay in TrueForge and are never stored in this repository.
 
 ## 3. Build
