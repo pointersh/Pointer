@@ -22,14 +22,14 @@ the editor for you to accept it, hunk by hunk.
 
 ## Features
 
-- **[Points at the right code](docs/architecture.md#how-context-is-selected).**
+- **Points at the right code.**
   BM25, symbols, file names and a PageRank repo map, fused in Rust. Each hit
   shows its reason. [Puts the right file first 8 times in 10, against 3 for BM25](benchmarks/README.md),
   in 1.5 ms.
 - **Inline edit.**
   Select, press <kbd>⌘I</kbd>, describe the change; the diff streams into the
   editor.
-- **[Agent mode](docs/architecture.md#architecture-on-trueforge).** One request,
+- **Agent mode.** One request,
   several files, no need to say which. Passed the fixed multi-file task on
   Flask 18 times out of 18, in a median 26 s.
 - **Per-hunk review.** Nothing touches disk until you accept it, and
@@ -62,7 +62,6 @@ agent loop with TrueForge.
 ## Docs
 
 - [Setup and settings](docs/setup.md)
-- [How it works](docs/architecture.md)
 - [Benchmarks](benchmarks/README.md)
 - [`@pointersh/highlight`](crates/pointer-highlight/README.md), our Rust syntax highlighter
 
