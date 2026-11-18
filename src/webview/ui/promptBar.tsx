@@ -294,7 +294,7 @@ export function PromptBar({
             {modelOpen && models.length > 0 && (
               <div
                 role="menu"
-                className="absolute right-0 bottom-full z-30 mb-1.5 w-56 rounded-[10px] bg-surface p-1 shadow-raised"
+                className="absolute right-0 bottom-full z-30 mb-1.5 w-max max-w-[min(20rem,calc(100vw-2rem))] min-w-56 rounded-[10px] bg-surface p-1 shadow-raised"
                 style={{ animation: "bui-pop-in 180ms var(--ease-out-strong) both", transformOrigin: "bottom right" }}
               >
                 {models.map((m) => (

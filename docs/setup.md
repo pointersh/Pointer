@@ -3,7 +3,7 @@
 ## Requirements
 
 - Node 22.14 or newer
-- VS Code 1.93 or newer
+- VS Code 1.106 or newer (Pointer opens in the secondary side bar, on the right)
 - Rust (stable), with the `wasm32-unknown-unknown` target
   (`rustup target add wasm32-unknown-unknown`)
 

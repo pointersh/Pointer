@@ -20,7 +20,7 @@ interface PointingAtProps extends React.HTMLAttributes<HTMLDivElement> {
 export function PointingAt({ chunks, dropped, onOpen, className, ...props }: PointingAtProps) {
   const [all, setAll] = React.useState(false)
   const top = Math.max(...chunks.map((c) => c.score), 0.0001)
-  const shown = all ? chunks : chunks.slice(0, 10)
+  const shown = all ? chunks : chunks.slice(0, 5)
 
   return (
     <div className={cn("flex w-full flex-col gap-1.5", className)} {...props}>
@@ -60,7 +60,7 @@ export function PointingAt({ chunks, dropped, onOpen, className, ...props }: Poi
                   <span className="w-9 text-right font-mono text-[10.5px] text-ink-3 tabular-nums">{chunk.score.toFixed(3)}</span>
                 </span>
               </span>
-              <span className="line-clamp-2 text-[11.5px] leading-[1.45] text-ink-2">{chunk.reason}</span>
+              <span title={chunk.reason} className="line-clamp-1 text-[11.5px] leading-[1.45] text-ink-2">{chunk.reason}</span>
             </button>
           )
         })}

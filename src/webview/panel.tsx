@@ -202,13 +202,25 @@ export function Panel() {
               )
             )}
             {streaming !== null && (
-              <AssistantTurn live content={streaming} steps={steps} onAnswer={answer} thinkingSince={thoughtAt.current.start} />
+              <AssistantTurn live content={streaming} steps={steps} thinkingSince={thoughtAt.current.start} />
             )}
           </div>
         )}
       </div>
 
       <div className="flex shrink-0 flex-col gap-1.5 px-3 pb-3">
+        {/* Outside the scrolling list: replies keep streaming while a step waits, and must never push the card out of view. */}
+        {waiting && streaming !== null && (
+          <ConfirmCard
+            key={waiting.id}
+            question={waiting.approval === "change" ? `Apply this change to ${(waiting.args?.path ?? "the file").split("/").pop()}?` : "Run this command?"}
+            target={waiting.approval === "change" ? changeSummary(waiting) : (waiting.command ?? waiting.args?.command ?? waiting.name)}
+            confirmLabel={waiting.approval === "change" ? "Apply" : "Run"}
+            onConfirm={() => answer(true)}
+            onSkip={() => answer(false)}
+            onAlways={waiting.approval !== "change" && !waiting.noAlways ? () => answer(true, true) : undefined}
+          />
+        )}
         {selection && !busy && (
           <SelectionBar chars={selection.length} onPick={(text) => setDraft(text)} />
         )}
@@ -295,11 +307,10 @@ interface TurnProps {
   thinkingSince?: number
   thoughtSeconds?: number
   footer?: ChatCompletionMessage["meta"]
-  onAnswer?: (run: boolean, always?: boolean) => void
   onFollowUp?: (text: string) => void
 }
 
-function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, footer, onAnswer, onFollowUp }: TurnProps) {
+function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, footer, onFollowUp }: TurnProps) {
   const { thinking, message } = getThinkingMessage(content)
   const visible = steps.filter((s) => !s.said)
   const pointed = pointedFiles(visible)
@@ -331,17 +342,6 @@ function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, fo
           rows={rows}
           diffs={diffs}
           header={`${rows.length} step${rows.length === 1 ? "" : "s"}${diffs.length ? ` · ${diffs.length} file${diffs.length === 1 ? "" : "s"} changed` : ""}`}
-        />
-      )}
-      {waiting && onAnswer && (
-        <ConfirmCard
-          key={waiting.id}
-          question={waiting.approval === "change" ? `Apply this change to ${(waiting.args?.path ?? "the file").split("/").pop()}?` : "Run this command?"}
-          target={waiting.approval === "change" ? changeSummary(waiting) : (waiting.command ?? waiting.args?.command ?? waiting.name)}
-          confirmLabel={waiting.approval === "change" ? "Apply" : "Run"}
-          onConfirm={() => onAnswer(true)}
-          onSkip={() => onAnswer(false)}
-          onAlways={waiting.approval !== "change" && !waiting.noAlways ? () => onAnswer(true, true) : undefined}
         />
       )}
       {working && <LoadingState label={runningLabel(visible) ?? (rows.length ? "Working" : "Pointing")} />}

@@ -20,7 +20,7 @@
   "license": "MIT",
   "publisher": "pointer",
   "engines": {
-    "vscode": "^1.93.0"
+    "vscode": "^1.106.0"
   },
   "bugs": {
     "url": "https://github.com/pointersh/Pointer/issues"
@@ -168,11 +168,11 @@
       }
     ],
     "viewsContainers": {
-      "activitybar": [
+      "secondarySidebar": [
         {
           "id": "pointer-sidebar-view",
           "title": "pointer",
-          "icon": "assets/pointer.svg"
+          "icon": "assets/pointer-sidebar.png"
         }
       ]
     },
@@ -182,7 +182,7 @@
           "type": "webview",
           "id": "pointer.sidebar",
           "name": "pointer",
-          "icon": "assets/pointer.svg",
+          "icon": "assets/pointer-sidebar.png",
           "contextualTitle": "pointer"
         }
       ]

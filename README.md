@@ -6,7 +6,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="MIT"></a>
-  <img src="https://img.shields.io/badge/VS_Code-1.93+-007ACC?logo=visualstudiocode&logoColor=white" alt="VS Code 1.93+">
+  <img src="https://img.shields.io/badge/VS_Code-1.106+-007ACC?logo=visualstudiocode&logoColor=white" alt="VS Code 1.106+">
   <img src="https://img.shields.io/badge/retrieval-Rust-CE422B?logo=rust&logoColor=white" alt="Rust retrieval">
   <img src="https://img.shields.io/badge/agent_loop-TrueForge-111" alt="TrueForge">
 </p>
