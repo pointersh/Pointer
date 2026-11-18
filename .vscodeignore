@@ -1,4 +1,4 @@
-# Allowlist: ship only what the extension runs. Everything else (private notes, sources, previews) stays out.
+# Allowlist: ship only what the extension runs. Everything else (private notes, sources) stays out.
 **
 !package.json
 !README.md
