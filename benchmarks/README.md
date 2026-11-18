@@ -13,8 +13,9 @@ task*).
 
 | Method | Ready | Per query | MRR | Answer file in top 5 |
 |---|---|---|---|---|
-| **Pointer, Rust** (BM25, symbols, file names, PageRank) | 51 ms | 1.6 ms | **0.72** | 8/10 |
-| Pointer, Rust, with semantic search (bge-small) | 22 s embedding, once | 7 ms | **0.74** | 9/10 |
+| **Pointer, Rust** (BM25, symbols, file names, PageRank, tests ranked below code unless asked for) | 51 ms | 1.5 ms | **0.84** | 8/10 |
+| Pointer, Rust, before tests were ranked below code | 51 ms | 1.6 ms | 0.72 | 8/10 |
+| **Pointer, Rust, with semantic search (bge-small)** | 25 s embedding, once | 7 ms | **0.86** | **9/10** |
 | Pointer, Rust, with semantic search (jina, before) | 4.1 min embedding | 34 ms | 0.71 | 8/10 |
 | Pointer, Rust, before the ranking fix | 91 ms | 1.4 ms | 0.47 | 7/10 |
 | Plain BM25, Node | 112 ms | 0.45 ms | 0.55 | 8/10 |
@@ -38,9 +39,10 @@ source. This is where embeddings earn their keep.
 
 | Method | MRR | Answer file in top 5 |
 |---|---|---|
-| **Pointer, Rust, with semantic search (bge-small)** | **0.62** | **21/22** |
+| **Pointer, Rust, with semantic search (bge-small)** | **0.71** | **21/22** |
 | Pointer, Rust, with semantic search (jina, before) | 0.51 | 18/22 |
-| Pointer, Rust (lexical) | 0.46 | 15/22 |
+| **Pointer, Rust (lexical, tests ranked below code)** | **0.61** | **19/22** |
+| Pointer, Rust (lexical, before) | 0.46 | 15/22 |
 | Plain BM25, Node and Python | 0.45 | 15/22 |
 | ripgrep | 0.28 | 13/22 |
 
@@ -54,8 +56,8 @@ Flask, 1,275 embedded chunks, Apple M5, idle machine.
 | Query over MCP, first time | 50–58 ms | 7 ms |
 | Query over MCP, repeated | 34–41 ms | 1.5 ms (cached) |
 | Query during the build | waits for the batch | never waits (3 ms median, 7.5 ms max) |
-| MRR / top 5, `queries.json` | 0.71 / 8 of 10 | 0.74 / 9 of 10 |
-| MRR / top 5, `paraphrase.json` | 0.51 / 18 of 22 | 0.62 / 21 of 22 |
+| MRR / top 5, `queries.json` | 0.71 / 8 of 10 | 0.74 / 9 of 10 (0.86 with tests ranked below code) |
+| MRR / top 5, `paraphrase.json` | 0.51 / 18 of 22 | 0.62 / 21 of 22 (0.71 with tests ranked below code) |
 | `vectors.bin` | 971 KB | 493 KB |
 | Model download | 641 MB | 133 MB |
 

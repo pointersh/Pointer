@@ -102,13 +102,15 @@ VS Code ── panel / Ctrl+I ──► Agent / TextModel seams ──► TrueFo
 **Benchmark** ([`benchmarks/`](../benchmarks/README.md), 10 Flask questions with known
 answer files):
 
-| Method | Ready | Query | MRR | Answer in top 5 |
-|---|---|---|---|---|
-| Pointer (Rust: BM25, symbols, file names, PageRank) | 91 ms | 1.6 ms | **0.72** | 8/10 |
-| Plain BM25, Node | 112 ms | 0.45 ms | 0.55 | 8/10 |
-| Plain BM25, Python | 170 ms | 1.2 ms | 0.55 | 8/10 |
-| ripgrep, query words ranked by hits | — | 19 ms | 0.43 | 7/10 |
-| git grep, same | — | 115 ms | 0.43 | 7/10 |
+| Method | Ready | Query | MRR | Answer first | Answer in top 5 |
+|---|---|---|---|---|---|
+| Pointer (Rust: BM25, symbols, file names, PageRank) | 51 ms | 1.5 ms | **0.84** | **8/10** | 8/10 |
+| Plain BM25, Node | 112 ms | 0.45 ms | 0.55 | 3/10 | 8/10 |
+| Plain BM25, Python | 170 ms | 1.2 ms | 0.55 | 3/10 | 8/10 |
+| ripgrep, query words ranked by hits | — | 18 ms | 0.43 | 2/10 | 7/10 |
+
+On 22 paraphrased questions that avoid identifiers, Pointer scores MRR 0.61 and
+19/22 in the top 5, against 0.45 and 15/22 for plain BM25.
 
 Pointer's query time includes the MCP round trip over HTTP; the search itself
 takes under 1 ms.
@@ -117,8 +119,12 @@ takes under 1 ms.
 
 | Role | Model | Where | Price per 1M tokens (in / out) |
 |---|---|---|---|
-| Primary (`pointer/primary`) | zai-org/GLM-5.3-Flash | Makora inference (OpenAI-compatible), via TrueForge `custom` provider | $0.14 / $0.24 |
-| Fallback (`pointer-backup/primary`) | deepseek-ai/DeepSeek-V4.1-Flash | Makora, separate TrueForge provider entry | $0.26 / $1.17 |
+| Primary (`pointer/primary`) | deepseek-ai/DeepSeek-V4.1-Flash | Makora inference (OpenAI-compatible), via TrueForge `custom` provider | $0.26 / $1.17 |
+| Fallback (`pointer-backup/primary`) | zai-org/GLM-5.3-Flash | Makora, separate TrueForge provider entry | $0.14 / $0.24 |
+| Inline edits, optional (`pointer.inlineModels`) | openai/gpt-oss-120b | Groq, TrueForge `custom` provider | free tier |
+
+DeepSeek leads because it passed Task B 8/8 in a median 26 s; GLM is cheaper
+but sometimes accepted a call and sent nothing, costing a fallback.
 
 - **Switching models:** register any TrueForge provider as `pointer` or
   `pointer-backup`, or set `pointer.models` to any chain of `provider/model`
@@ -129,7 +135,7 @@ takes under 1 ms.
   backup answered in about 1.4 s.
 - **Reasoning effort:** both models reason at length by default; on Makora a
   coding answer spent 2,000 tokens thinking (11–20 s) before writing anything.
-  Pointer sends `reasoning_effort` per model (`low` for GLM-5.3-Flash, `none`
-  for DeepSeek-V4.1-Flash), which brings the first answer token to 0.5–1.3 s
+  Pointer sends `reasoning_effort` per model (`none` for DeepSeek-V4.1-Flash,
+  `low` for GLM-5.3-Flash), which brings the first answer token to 0.5–1.3 s
   and a full agent turn (read, approved edit) to about 3 s. Override with
   `pointer.reasoningEffort`; measure with `benchmarks/models.mjs`.

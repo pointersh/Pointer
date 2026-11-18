@@ -94,7 +94,10 @@ impl Store {
     fn ignored(&self, path: &Path) -> bool {
         let is_dir = path.is_dir();
         let (exclude, _) = ignore::gitignore::Gitignore::new(self.root.join(".git/info/exclude"));
-        if exclude.matched_path_or_any_parents(path, is_dir).is_ignore() {
+        if exclude
+            .matched_path_or_any_parents(path, is_dir)
+            .is_ignore()
+        {
             return true;
         }
         path.ancestors()
@@ -368,7 +371,8 @@ async fn main() -> anyhow::Result<()> {
         started.elapsed()
     );
     // .pointer must be a real directory (or absent): a symlink planted by the repo would redirect our writes.
-    let dot_ok = std::fs::symlink_metadata(store.root.join(".pointer")).map_or(true, |m| m.is_dir());
+    let dot_ok =
+        std::fs::symlink_metadata(store.root.join(".pointer")).map_or(true, |m| m.is_dir());
     if !dot_ok {
         eprintln!("pointer-retrieval: .pointer is not a plain directory; semantic search is off");
     }

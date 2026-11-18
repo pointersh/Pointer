@@ -33,7 +33,7 @@ let readiness: () => Promise<void> = async () => undefined
 export const onAgentReady = (ready: () => Promise<void>) => (readiness = ready)
 export const agentReady = () => readiness()
 
-const REASONING_DEFAULTS: Record<string, string> = { "pointer/primary": "low", "pointer-backup/primary": "none", "pointer-groq/primary": "low" }
+const REASONING_DEFAULTS: Record<string, string> = { "pointer/primary": "none", "pointer-backup/primary": "low", "pointer-groq/primary": "low" }
 
 export const modelSpec = (name: string) => {
   const effort = { ...REASONING_DEFAULTS, ...vscode.workspace.getConfiguration("pointer").get<Record<string, string>>("reasoningEffort") }[name]
@@ -59,6 +59,12 @@ export const trueforgeUrl = () => (settings().get<string>("trueforgeUrl") || "ht
 export const modelChain = (): string[] => {
   const configured = settings().get<string[]>("models") ?? []
   return configured.length ? configured : [AGENT_MANIFEST.model.name, "pointer-backup/primary"]
+}
+
+// Inline edits are one short call: a fast model can serve them while agent mode keeps a stronger chain.
+export const inlineModelChain = (): string[] => {
+  const configured = settings().get<string[]>("inlineModels") ?? []
+  return configured.length ? configured : modelChain()
 }
 
 export const chooseModel = async (name: string) => {

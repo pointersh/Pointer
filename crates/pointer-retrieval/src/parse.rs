@@ -433,12 +433,13 @@ pub fn parse(path: &str, src: &str) -> Parsed {
         };
     }
     let mut defs = Vec::new();
-    let tree = language(path).and_then(|lang| {
-        let mut parser = Parser::new();
-        parser.set_language(&lang).ok()?;
-        parser.parse(src, None)
-    })
-    .filter(|tree| shallow(tree.root_node()));
+    let tree = language(path)
+        .and_then(|lang| {
+            let mut parser = Parser::new();
+            parser.set_language(&lang).ok()?;
+            parser.parse(src, None)
+        })
+        .filter(|tree| shallow(tree.root_node()));
     if let Some(tree) = &tree {
         collect_defs(tree.root_node(), src.as_bytes(), &mut defs);
     }

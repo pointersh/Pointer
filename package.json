@@ -204,6 +204,14 @@
           "default": [],
           "markdownDescription": "Models to use, in order, as `provider/model` names configured in TrueForge. If a turn fails on one, Pointer retries on the next. Empty uses `pointer/primary`, then `pointer-backup/primary`."
         },
+        "pointer.inlineModels": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "markdownDescription": "Models for inline edits (Ctrl+I), in order, like `pointer.models`. Empty uses `pointer.models`. A fast model here makes inline edits quicker without changing agent mode."
+        },
         "pointer.reasoningEffort": {
           "type": "object",
           "additionalProperties": {

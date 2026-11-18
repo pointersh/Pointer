@@ -1,6 +1,8 @@
 // Live Tasks A, B and C on Flask 3.1.3 through Pointer's own TrueForge client, inline-edit prompt and agent,
 // without the VS Code UI (edits are accepted as proposed). Each result is checked with benchmarks/tasks.sh.
 //   node benchmarks/abc.mjs <flask-dir> [runs=1]
+//   TASKS=ac node benchmarks/abc.mjs …   only those tasks (e.g. a fast inline model that cannot run agent mode).
+//   CANCEL=1 node benchmarks/abc.mjs <flask-dir> [trials=5]   Stop Task B at a random point instead.
 // Needs: TrueForge on pointer.trueforgeUrl (default :8790) with pointer/primary and pointer-backup/primary,
 // OUTBOUND_URL_ALLOWED_HOSTS including 127.0.0.1, `benchmarks/tasks.sh setup <flask-dir>`, `cargo build --release`.
 import { execFileSync, spawn, spawnSync } from "node:child_process"
@@ -16,6 +18,9 @@ const flask = path.resolve(flaskArg)
 const runs = Number(runsArg ?? 1)
 // MODELS=a/primary,b/primary sets the chain for A and B; C always puts an unreachable model in front of it.
 const chain = process.env.MODELS?.split(",").filter(Boolean)
+// INLINE_MODELS=… sets pointer.inlineModels for Tasks A and C (for example a fast model for inline edits).
+const inline = process.env.INLINE_MODELS?.split(",").filter(Boolean)
+const only = process.env.TASKS ?? "abc"
 const repo = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
 const tasksSh = path.join(repo, "benchmarks/tasks.sh")
 
@@ -48,7 +53,7 @@ export { buildEditMessages, clampContext, EDIT_CONTEXT_LINES, finalizeEdit } fro
       b.onLoad({ filter: /.*/, namespace: "stub" }, () => ({
         contents: `const notices = (globalThis.__notices = [])
 module.exports = {
-  workspace: { getConfiguration: () => ({ get: (key) => (key === "models" ? globalThis.__models : undefined) }) },
+  workspace: { getConfiguration: () => ({ get: (key) => (key === "models" ? globalThis.__models : key === "inlineModels" ? globalThis.__inline : undefined) }) },
   window: {
     setStatusBarMessage: (m) => notices.push(m),
     showWarningMessage: async () => undefined,
@@ -122,12 +127,14 @@ const editor = await m.startEditorMcp({
   extras: {
     edits: {
       edit: async (file, r) => {
+        write()
         const lines = fs.readFileSync(file, "utf8").split("\n")
         lines.splice(r.startLine, r.endLine - r.startLine + 1, ...(r.text === "" ? [] : r.text.split("\n")))
         fs.writeFileSync(file, lines.join("\n"))
         return { ok: true, message: `Applied to ${path.relative(flask, file)}.` }
       },
       create: async (file, content) => {
+        write()
         fs.mkdirSync(path.dirname(file), { recursive: true })
         fs.writeFileSync(file, content)
         return { ok: true, message: `Created ${path.relative(flask, file)}.` }
@@ -135,6 +142,7 @@ const editor = await m.startEditorMcp({
     },
     commands: {
       run: async (command) => {
+        write()
         const r = spawnSync("/bin/bash", ["-c", command], { cwd: flask, encoding: "utf8", timeout: 120_000, env: { ...process.env, PATH: `${venv}:${process.env.PATH}` } })
         return { ran: true, output: `${r.stdout ?? ""}${r.stderr ?? ""}`.slice(-4000), exitCode: r.status ?? 1 }
       }
@@ -147,13 +155,21 @@ await m.registerMcpServer(m.serverName("pointer-retrieval"), engine.url, engine.
 m.markServerLive("pointer-retrieval")
 m.setRetrievalEndpoint(engine)
 
+// Writes the agent's tools make after Stop was pressed: must stay 0.
+let stoppedAt = 0
+let writesAfterStop = 0
+const write = () => { if (stoppedAt) writesAfterStop++ }
+
 const TASK_LIMIT_MS = 8 * 60_000
-const agentTask = async (prompt) => {
+const agentTask = async (prompt, cancelAfterMs) => {
   // Only the final message is kept: streamed updates carry the whole reply each time.
   const events = []
   let streamed = 0
   let streamedAt = Date.now()
   let longestQuiet = 0
+  // Longest wait between tool-step updates: what the stall watchdog must allow on a healthy run.
+  let stepAt = Date.now()
+  let longestStepGap = 0
   let agent
   const bridge = {
     emit: (name, payload) => {
@@ -165,13 +181,20 @@ const agentTask = async (prompt) => {
           streamedAt = Date.now()
         }
       } else events.push([name, payload])
+      if (name === "pointer-tool-steps") {
+        longestStepGap = Math.max(longestStepGap, Date.now() - stepAt)
+        stepAt = Date.now()
+      }
       if (name === "pointer-tool-steps") for (const step of payload) if (step.status === "waiting") setTimeout(() => agent.answerToolApproval(step.id, true))
     }
   }
   agent = new m.TrueForgeAgent(bridge, new m.GenerationTracker())
   const limit = setTimeout(() => agent.abort(), TASK_LIMIT_MS)
+  const cancel = cancelAfterMs === undefined ? undefined : setTimeout(() => { stoppedAt = Date.now(); agent.abort() }, cancelAfterMs)
   await agent.completion([{ role: "user", content: `<p>${prompt}</p>` }])
   clearTimeout(limit)
+  clearTimeout(cancel)
+  const stopMs = stoppedAt ? Date.now() - stoppedAt : undefined
   const final = events.filter(([name]) => name === "pointer-add-message").at(-1)?.[1]
   const steps = final?.toolSteps ?? []
   const searched = steps.filter((s) => s.name === "search_codebase").map((s) => s.output ?? "").join("\n")
@@ -185,10 +208,15 @@ const agentTask = async (prompt) => {
     calls: final?.meta?.modelCalls,
     streamedChars: streamed,
     longestQuiet: Math.round(longestQuiet / 1000),
+    longestStepGap: Math.round(Math.max(longestStepGap, Date.now() - stepAt) / 1000),
     steps: steps.length,
     searches: steps.filter((s) => s.name === "search_codebase").length,
     tools: Object.entries(steps.reduce((n, s) => ({ ...n, [s.name]: (n[s.name] ?? 0) + 1 }), {})).map(([k, v]) => `${k}×${v}`).join(" "),
-    pointedAt: target.filter((f) => searched.includes(f)).length
+    pointedAt: target.filter((f) => searched.includes(f)).length,
+    stopMs,
+    stepsAtStop: steps.length,
+    // One line per edit_file call: which file, and whether it applied (each call is one review in the editor).
+    edits: steps.filter((s) => s.name === "edit_file").map((s) => `${s.args?.path ?? "?"}: ${String(s.output ?? "").split("\n")[0].slice(0, 90)}`)
   }
 }
 
@@ -204,15 +232,46 @@ const registerBroken = async () => {
   if (!response.ok) throw new Error(`could not register the broken provider: ${response.status} ${await response.text()}`)
 }
 
+const cancelTrials = async () => {
+  // Stratified cut points across a typical 20–70 s run: before the first tool, mid-search, mid-edit, late.
+  const cuts = [0.5, 2, 5, 9, 14, 20, 30].map((s) => (s + Math.random() * 2) * 1000).slice(0, runs)
+  globalThis.__models = chain
+  for (const [i, cut] of cuts.entries()) {
+    reset()
+    stoppedAt = 0
+    writesAfterStop = 0
+    const b = await agentTask(PROMPT_B, cut)
+    const changedAtReturn = execFileSync("git", ["status", "--porcelain"], { cwd: flask, encoding: "utf8" })
+    await new Promise((r) => setTimeout(r, 5000))
+    const changedLater = execFileSync("git", ["status", "--porcelain"], { cwd: flask, encoding: "utf8" })
+    const row = {
+      trial: i + 1,
+      "stop at": `${(cut / 1000).toFixed(1)} s`,
+      "tool steps before stop": b.stepsAtStop,
+      "stop → idle": b.stopMs === undefined ? "finished first" : `${b.stopMs} ms`,
+      "writes after stop": writesAfterStop,
+      "files still changing 5 s later": changedAtReturn === changedLater ? "no" : "YES"
+    }
+    rows.push(row)
+    console.log(row)
+  }
+}
+
 const rows = []
 try {
+  if (process.env.CANCEL) {
+    await cancelTrials()
+    throw "done"
+  }
   await registerBroken()
   for (let run = 1; run <= runs; run++) {
     const row = { run }
     reset()
     globalThis.__models = chain
-    const a = await inlineEdit().catch((error) => ({ error }))
-    if (a.error) row.A = `error: ${String(a.error.message).slice(0, 100)}`
+    globalThis.__inline = inline
+    const a = only.includes("a") ? await inlineEdit().catch((error) => ({ error })) : { skip: true }
+    if (a.skip) {
+    } else if (a.error) row.A = `error: ${String(a.error.message).slice(0, 100)}`
     else {
       a.apply()
       const checkA = tasks("a")
@@ -220,7 +279,8 @@ try {
     }
 
     reset()
-    const b = await agentTask(PROMPT_B)
+    const b = only.includes("b") ? await agentTask(PROMPT_B) : undefined
+    if (b) {
     const checkB = tasks("b")
     Object.assign(row, {
       B: b.failed ? `error: ${b.error}` : `${checkB.pass}/${checkB.pass + checkB.fail.length}`,
@@ -232,12 +292,17 @@ try {
       "B model": b.model,
       "B reply chars (with reasoning)": b.streamedChars,
       "B longest quiet": `${b.longestQuiet} s`,
+      "B longest gap between tool steps": `${b.longestStepGap} s`,
       "B tokens": b.tokens
     })
     if (checkB.fail.length) row["B failed"] = checkB.fail.join("; ")
+    if (process.env.EDITS) row["B edits"] = b.edits
+    }
 
+    if (!only.includes("c")) { rows.push(row); console.log(row); continue }
     reset()
     globalThis.__models = ["pointer-broken/primary", ...(chain ?? ["pointer-backup/primary"])]
+    globalThis.__inline = inline && ["pointer-broken/primary", ...inline]
     globalThis.__notices.length = 0
     const c = await inlineEdit().catch((error) => ({ error }))
     const clean = tasks("c").ok
@@ -256,6 +321,8 @@ try {
     rows.push(row)
     console.log(row)
   }
+} catch (e) {
+  if (e !== "done") throw e
 } finally {
   reset()
   await editor.dispose()

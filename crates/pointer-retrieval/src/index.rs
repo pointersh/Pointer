@@ -122,6 +122,7 @@ const TEST_INTENT: &[&str] = &[
     "test", "tests", "tested", "testing", "covered", "coverage", "spec",
 ];
 const GENERIC_SHARE: f32 = 0.25;
+const TEST_DEMOTE: f32 = 0.5;
 
 fn stem(word: String) -> String {
     if word.len() > 4
@@ -573,7 +574,8 @@ impl Index {
             signals.push(&docs);
             signals.push(&code);
         }
-        if lower.iter().any(|w| TEST_INTENT.contains(&w.as_str())) {
+        let test_intent = lower.iter().any(|w| TEST_INTENT.contains(&w.as_str()));
+        if test_intent {
             signals.push(&tests);
         }
         let semantic = signals.len();
@@ -593,6 +595,14 @@ impl Index {
                 let entry = fused.entry(chunk).or_default();
                 entry.0 += weight / (RRF_K + rank as f32 + 1.0);
                 entry.1.push(why);
+            }
+        }
+        // Tests mention everything they test; unless the request is about tests, prefer the code itself.
+        if !test_intent {
+            for (&chunk, entry) in fused.iter_mut() {
+                if is_test_path(&self.chunks[chunk].path) {
+                    entry.0 *= TEST_DEMOTE;
+                }
             }
         }
         let mut central: Vec<usize> = fused.keys().copied().collect();
@@ -922,6 +932,23 @@ mod tests {
         let cli = idx.chunks.iter().find(|c| c.path == "src/cli.py").unwrap();
         assert_eq!(idx.referenced_by(cli), Some(("AppGroup".to_string(), 1)));
         assert!(idx.is_generic("command"));
+    }
+
+    #[test]
+    fn tests_rank_below_code_unless_asked_for() {
+        let idx = index(&[
+            ("src/handlers.py", "def register_error_handler(code, f):\n    handlers[code] = f\n"),
+            ("tests/test_handlers.py", "def test_error_handler():\n    register_error_handler(404, f)\n    assert error handler 404 registered\n"),
+        ]);
+        let first = |q: &str| idx.chunks[idx.search(q, &[])[0].chunk].path.clone();
+        assert_eq!(
+            first("where is the 404 error handler registered"),
+            "src/handlers.py"
+        );
+        assert_eq!(
+            first("test for the 404 error handler"),
+            "tests/test_handlers.py"
+        );
     }
 
     #[test]

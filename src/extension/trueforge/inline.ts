@@ -4,7 +4,7 @@ import { logger } from "../../common/logger"
 import { ChatCompletionMessage } from "../../common/types"
 import { TextModel } from "../model"
 
-import { describeError, modelChain, modelSpec } from "./client"
+import { describeError, inlineModelChain, modelSpec } from "./client"
 import { cancelSession, createSession, pause, RATE_LIMIT_RETRIES, RATE_LIMITED, retryDelay, runTurn } from "./session"
 
 const NO_TOOLS = { dynamic_sub_agents: { enabled: false }, ask_user_questions: { enabled: false }, generative_ui: { enabled: false } }
@@ -50,10 +50,10 @@ const streamOn = async function* (model: string, messages: ChatCompletionMessage
 
 export const trueforgeTextModel = (): TextModel => ({
   get name() {
-    return modelChain()[0]
+    return inlineModelChain()[0]
   },
   async *stream(messages, signal) {
-    const chain = modelChain()
+    const chain = inlineModelChain()
     let retries = 0
     for (let i = 0; i < chain.length; i++) {
       let produced = false

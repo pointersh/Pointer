@@ -67,8 +67,10 @@ const TEXT_EVERY_MS = 50
 // Seen live on Makora: a call that sends nothing for minutes, and a reply that keeps streaming reasoning
 // for minutes without finishing. Both count as a failed turn after this long without progress (a new
 // message, a finished reply, a tool result), so the agent falls back to the next model. Streamed deltas
-// alone are not progress. Longer than the 120 s command timeout; waiting on the user's approval doesn't count.
-const STALL_MS = 150_000
+// alone are not progress. Healthy runs never went 20 s without progress, so a silent model gets 60 s; while
+// a tool runs the limit covers the 120 s command timeout. Waiting on the user's approval doesn't count.
+const STALL_MS = 60_000
+const TOOL_STALL_MS = 150_000
 const MAX_RECONNECTS = 3
 
 export const RATE_LIMITED = /\b429\b|rate.?limit|too many requests/i
@@ -88,6 +90,8 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
   const messages = new Map<string, Event>()
   const calls = new Map<string, TrueForgeApi.ToolCall>()
   const announced = new Set<string>()
+  // Tool calls announced but not yet answered: while one runs, silence is the tool working, not a stall.
+  const running = new Set<string>()
   const usage = new Map<string, NonNullable<TrueForgeApi.ModelMessageEvent["usage"]>>()
   let mainThread: string | null = null
   let turnId: string | undefined
@@ -144,6 +148,7 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
         calls.set(call.id, call)
         if (!announced.has(call.id) && message?.finishReason) {
           announced.add(call.id)
+          running.add(call.id)
           const args = parseArgs(call.function.arguments)
           handlers.onToolCall?.({ id: call.id, name: toolName(call, args), args })
         }
@@ -158,6 +163,7 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
       return "next"
     }
     if (event.type === "tool.response") {
+      running.delete(event.toolCallId)
       handlers.onToolResult?.(event.toolCallId, event.content)
       return "next"
     }
@@ -168,6 +174,7 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
         const call = calls.get(ref.id)
         if (!announced.has(ref.id)) {
           announced.add(ref.id)
+          running.add(ref.id)
           // A call we never saw streamed still gets a step, so its approval card has somewhere to live.
           const args = call ? parseArgs(call.function.arguments) : {}
           handlers.onToolCall?.({ id: ref.id, name: call ? toolName(call, args) : "tool", args })
@@ -211,13 +218,15 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
   let stalled = false
   let reconnects = 0
   let idle: ReturnType<typeof setTimeout> | undefined
+  let limit = STALL_MS
   const quiet = () => clearTimeout(idle)
   const arm = () => {
     quiet()
+    limit = running.size ? TOOL_STALL_MS : STALL_MS
     idle = setTimeout(() => {
       stalled = true
       watch?.abort()
-    }, STALL_MS)
+    }, limit)
   }
   let stream = await client.sessions.createTurnStream(sessionId, { input: [{ type: "user.message", content: input }] }, { abortSignal: watch.signal })
   let settled: Awaited<ReturnType<typeof settledTurn>>
@@ -243,7 +252,7 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
       quiet()
       if (stalled) {
         flushText()
-        return { ...result, status: "error", error: `The model made no progress for ${STALL_MS / 1000} s.`, text: mainText() }
+        return { ...result, status: "error", error: `The model made no progress for ${limit / 1000} s.`, text: mainText() }
       }
       if (signal.aborted) {
         flushText()

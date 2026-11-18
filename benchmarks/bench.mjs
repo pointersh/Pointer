@@ -3,9 +3,9 @@ const root = process.argv[2], bin = process.argv[3], file = process.argv[4] ?? "
 const qs = JSON.parse(fs.readFileSync(new URL(file, import.meta.url)))
 const STOP = new Set("a an the and or of to in for with is are be by on at as it this that from where how what which add".split(" "))
 const score = (files) => {
-  let mrr = 0, hit5 = 0
-  const rows = qs.map((q, i) => { const r = files[i].findIndex(f => q.gold.includes(f)); mrr += r < 0 ? 0 : 1 / (r + 1); const top5 = files[i].slice(0, 5); const ok = q.all ? q.gold.every(g => top5.includes(g)) : q.gold.some(g => top5.includes(g)); hit5 += ok; return r })
-  return { ranks: rows.join(" "), mrr: (mrr / qs.length).toFixed(2), hit5: `${hit5}/${qs.length}`, taskB: files[0].slice(0, 5).filter(f => qs[0].gold.includes(f)).length + "/3" }
+  let mrr = 0, hit5 = 0, hit1 = 0
+  const rows = qs.map((q, i) => { const r = files[i].findIndex(f => q.gold.includes(f)); mrr += r < 0 ? 0 : 1 / (r + 1); hit1 += r === 0; const top5 = files[i].slice(0, 5); const ok = q.all ? q.gold.every(g => top5.includes(g)) : q.gold.some(g => top5.includes(g)); hit5 += ok; return r })
+  return { ranks: rows.join(" "), mrr: (mrr / qs.length).toFixed(2), hit1: `${hit1}/${qs.length}`, hit5: `${hit5}/${qs.length}`, taskB: files[0].slice(0, 5).filter(f => qs[0].gold.includes(f)).length + "/3" }
 }
 const med = a => [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)].toFixed(2)
 const results = {}
