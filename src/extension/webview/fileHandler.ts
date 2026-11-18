@@ -19,9 +19,10 @@ export class FileHandler {
     const rootPath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
 
     if (rootPath) {
-      const gitIgnorePath = path.join(rootPath, ".gitignore")
-      if (fs.existsSync(gitIgnorePath)) {
-        ig.add(fs.readFileSync(gitIgnorePath).toString())
+      try {
+        ig.add(fs.readFileSync(path.join(rootPath, ".gitignore")).toString())
+      } catch {
+        // no .gitignore
       }
     }
 
@@ -37,7 +38,16 @@ export class FileHandler {
       return undefined
     }
 
-    const files = await vscode.workspace.findFiles("**/*")
+    // Deadline and cap: a missing-link click must not stall the extension host in a big repo.
+    const cancel = new vscode.CancellationTokenSource()
+    const timer = setTimeout(() => cancel.cancel(), 3_000)
+    let files: vscode.Uri[]
+    try {
+      files = await vscode.workspace.findFiles("**/*", "**/{node_modules,.git}/**", 20_000, cancel.token)
+    } finally {
+      clearTimeout(timer)
+      cancel.dispose()
+    }
     const ig = this.getIgnoreHandler()
 
     const filePaths = files
@@ -116,10 +126,17 @@ export class FileHandler {
 
         const similarFile = await this.getClosestFilePathMatch(filePath)
         if (similarFile) {
-          const similarFullPath = path.join(
-            vscode.workspace.workspaceFolders[0].uri.fsPath,
-            similarFile
-          )
+          // asRelativePath carries the folder name in multi-root workspaces, so resolve it like the primary path.
+          const similarFullPath =
+            workspacePathCandidates(
+              similarFile,
+              vscode.workspace.workspaceFolders.map((folder) => ({
+                name: folder.name,
+                fsPath: folder.uri.fsPath
+              }))
+            )
+              .map((candidate) => path.normalize(candidate))
+              .find((candidate) => fs.existsSync(candidate)) ?? similarFile
           try {
             const doc = await vscode.workspace.openTextDocument(similarFullPath)
             await vscode.window.showTextDocument(doc)
@@ -131,6 +148,7 @@ export class FileHandler {
               `Error opening similar file ${similarFile}:`,
               innerError
             )
+            vscode.window.showWarningMessage(`Could not open similar file "${similarFile}".`)
           }
         } else {
           vscode.window.showInformationMessage(

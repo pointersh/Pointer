@@ -20,7 +20,18 @@ const SECRET_FILES = [
   "id_ecdsa*",
   ".npmrc",
   ".pypirc",
-  ".netrc"
+  ".netrc",
+  ".git-credentials",
+  ".pgpass",
+  ".htpasswd",
+  "id_dsa*",
+  "*.p8",
+  "*.jks",
+  "*.keystore",
+  "*.ppk",
+  "*.kdbx",
+  ".aws/credentials",
+  ".docker/config.json"
 ]
 
 const openText = async (file: string) => workspace.textDocuments.find((d) => d.uri.scheme === "file" && d.uri.fsPath === file)?.getText()

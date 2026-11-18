@@ -237,7 +237,7 @@ export class BaseProvider {
     if (!terminal) return
     const text = stripShellPrompts(command)
     // sendText runs every line but the last as soon as it arrives, so a multi-line block is copied instead.
-    if (/\r?\n/.test(text.trim())) {
+    if (/[\r\n]/.test(text.trim())) {
       await vscode.env.clipboard.writeText(text)
       vscode.window.showInformationMessage("Pointer copied the commands; paste them into the terminal to run them.")
       return

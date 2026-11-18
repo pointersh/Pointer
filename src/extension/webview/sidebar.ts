@@ -55,6 +55,8 @@ export class SidebarProvider extends BaseProvider {
     logger.info("Sidebar webview view resolved")
 
     this.registerWebView(webviewView.webview)
+    // A closed view must stop its turn and drop listeners that post to it.
+    webviewView.onDidDispose(() => this.dispose())
   }
 
   private getHtmlForWebview(webview: vscode.Webview) {

@@ -103,7 +103,11 @@ const UNSAFE_GIT_OPTIONS = [
   "--dst-prefix",
   "--line-prefix",
   "--relative",
-  "--ignored"
+  "--ignored",
+  // ANSI codes break the line-start match that hides secret-file diffs
+  "--color",
+  "--color-words",
+  "--color-moved"
 ]
 
 const UNSAFE_GIT_SHORT: Record<string, RegExp> = {

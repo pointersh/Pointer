@@ -130,16 +130,24 @@ export class TrueForgeAgent implements Agent {
       while (!unready && !run.signal.aborted && this._model < chain.length) {
         try {
           if (this._sessionModel !== chain[this._model]) this._sessionId = undefined
-          this._sessionId ??= await this.openSession(chain, history)
+          // Assign only if this run is still current: a superseded run's late session must not overwrite the live one.
+          if (!this._sessionId) {
+            const opened = await this.openSession(chain, history)
+            if (this._run !== run || run.signal.aborted) {
+              void cancelSession(opened)
+              break
+            }
+            this._sessionId = opened
+          }
           result = await runTurn(
             this._sessionId,
             turnInput,
             {
               withThinking: true,
-              onText: (text) => this._bridge.emit(EVENT_NAME.pointerOnCompletion, { role: ASSISTANT, content: text || " " }),
-              onToolCall: ({ id, name, args }) => this._steps.start({ id, name, args }),
+              onText: (text) => this._current(run) && this._bridge.emit(EVENT_NAME.pointerOnCompletion, { role: ASSISTANT, content: text || " " }),
+              onToolCall: ({ id, name, args }) => this._current(run) && this._steps.start({ id, name, args }),
               onToolResult: (id, output) =>
-                this._steps.finish({ id, index: 0, summary: output.split("\n")[0]?.slice(0, 120) ?? "", output }),
+                this._current(run) && this._steps.finish({ id, index: 0, summary: output.split("\n")[0]?.slice(0, 120) ?? "", output }),
               onApproval: (id) => this.approve(id)
             },
             run.signal
@@ -234,8 +242,13 @@ export class TrueForgeAgent implements Agent {
           ? `${args.symbol} → ${args.new_name} in ${args.path}`
           : (args.command ?? args.path ?? step?.name ?? "this action")
     const allowed = await this._steps.approve(detail, kind, { always: false, id: callId })
-    if (allowed && step) grantTool(step.name)
+    // A command grant is for that exact command; other tools are granted per call.
+    if (allowed && step) grantTool(step.name, step.name === "run_command" ? String(args.command ?? "").trim() : undefined)
     return allowed
+  }
+
+  private _current(run: GenerationRun) {
+    return this._run === run && !run.signal.aborted
   }
 
   public abort() {

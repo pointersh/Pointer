@@ -156,8 +156,9 @@ export const describeError = (error: unknown) => {
   const unreachable =
     (error instanceof TypeError && /fetch failed/.test(message)) ||
     code === "ECONNREFUSED" ||
-    code === "ENOTFOUND" ||
-    (error instanceof Error && error.name === "TimeoutError")
+    code === "ENOTFOUND"
+  // A slow TrueForge is not a dead one: it must not stop the fallback to the next model.
+  if (error instanceof Error && error.name === "TimeoutError") return "TrueForge did not answer in time."
   if (unreachable) {
     return `Pointer can't reach TrueForge at ${trueforgeUrl()}. Start it with \`npx @truefoundry/trueforge@latest\`.`
   }

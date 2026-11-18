@@ -84,7 +84,8 @@ const tests = {
   async "cancel mid-stream leaves the file as it was"() {
     const original = fs.readFileSync(helpers(), "utf8")
     const running = inlineEdit()
-    await sleep(700)
+    const streaming = () => vscode.workspace.textDocuments.find((d) => d.fileName === helpers())?.isDirty
+    for (let waited = 0; !streaming() && waited < 10000; waited += 20) await sleep(20)
     await vscode.commands.executeCommand("pointer.stopGeneration")
     const { doc } = await running
     await sleep(300)

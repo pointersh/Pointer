@@ -119,9 +119,11 @@ const diffWords = (
 export const layoutDiff = (
   original: string,
   edited: string,
-  streaming = false
+  streaming = false,
+  realLines = false
 ): DiffLayout => {
-  const oldLines = original ? original.split("\n") : []
+  // realLines: the original is whole document lines, so "" is one blank line, not zero lines.
+  const oldLines = original || realLines ? original.split("\n") : []
   const newLines = edited ? edited.split("\n") : []
   const partial = streaming ? newLines.pop() || undefined : undefined
   let tail = ""

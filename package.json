@@ -257,7 +257,7 @@
     "lint": "eslint src crates/pointer-highlight/js",
     "lint:fix": "eslint src crates/pointer-highlight/js --fix",
     "vscode:package": "npm exec vsce package -- --no-rewrite-relative-links",
-    "vscode:prepublish": "npm run build",
+    "vscode:prepublish": "node scripts/prepublish.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p . --noEmit",
     "check:mcp": "node scripts/checkMcp.mjs",

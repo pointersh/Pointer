@@ -19,6 +19,7 @@ const streamOn = async function* (model: string, messages: ChatCompletionMessage
   let wake: (() => void) | undefined
   let finished = false
   let sent = 0
+  let ok = false
   const done = runTurn(sessionId, input, {
     onText: (text) => {
       if (text.length <= sent) return
@@ -37,11 +38,13 @@ const streamOn = async function* (model: string, messages: ChatCompletionMessage
       await new Promise<void>((resolve) => (wake = resolve))
     }
     const result = await done
+    ok = result.status === "done"
     if (result.status === "error") throw new Error(result.error ?? "The model failed.")
   } finally {
     signal.removeEventListener("abort", onAbort)
     // The consumer stopped early (the file changed under the edit): stop the turn too.
-    if (!finished) {
+    // A stalled or errored turn keeps running server-side too: stop it before the next model starts.
+    if (!ok) {
       void cancelSession(sessionId)
       done.catch(() => undefined)
     }

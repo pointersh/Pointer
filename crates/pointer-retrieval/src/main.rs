@@ -18,6 +18,20 @@ use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 
 const MAX_FILE_BYTES: u64 = 1_000_000;
+const MAX_FILES: usize = 20_000;
+const MAX_TOTAL_BYTES: u64 = 200_000_000;
+// Dependency and build output: never useful context, and the usual cause of a runaway index.
+const SKIP_DIRS: &[&str] = &[
+    "node_modules",
+    "venv",
+    "__pycache__",
+    "target",
+    "dist",
+    "build",
+    "vendor",
+];
+// Secret-bearing names that are not dotfiles; .env, .npmrc and friends are already hidden.
+const SECRET_EXTS: &[&str] = &["pem", "key", "p12", "pfx", "tfstate", "env", "crt", "jks"];
 const LOCKFILES: &[&str] = &[
     "package-lock.json",
     "yarn.lock",
@@ -48,7 +62,14 @@ impl Store {
     fn read(&self, path: &Path) -> Option<(String, FileData)> {
         let rel = self.relative(path)?;
         let name = path.file_name()?.to_string_lossy();
-        if LOCKFILES.contains(&name.as_ref()) || rel.split('/').any(|p| p.starts_with('.')) {
+        if LOCKFILES.contains(&name.as_ref())
+            || is_secret(&name)
+            || name.ends_with(".min.js")
+            || name.ends_with(".map")
+            || rel
+                .split('/')
+                .any(|p| p.starts_with('.') || SKIP_DIRS.contains(&p))
+        {
             return None;
         }
         let meta = std::fs::symlink_metadata(path).ok()?;
@@ -58,8 +79,16 @@ impl Store {
         if !path.canonicalize().ok()?.starts_with(&self.root) {
             return None;
         }
-        let bytes = std::fs::read(path).ok()?;
-        if bytes.iter().take(8192).any(|&b| b == 0) {
+        // ponytail: a swap to a symlink between the checks above and this open is not caught (needs
+        // O_NOFOLLOW via libc); the read itself is capped so a grown file cannot blow the limit.
+        use std::io::Read;
+        let mut bytes = Vec::new();
+        std::fs::File::open(path)
+            .ok()?
+            .take(MAX_FILE_BYTES + 1)
+            .read_to_end(&mut bytes)
+            .ok()?;
+        if bytes.len() as u64 > MAX_FILE_BYTES || bytes.iter().take(8192).any(|&b| b == 0) {
             return None;
         }
         let src = String::from_utf8(bytes).ok()?;
@@ -75,41 +104,69 @@ impl Store {
     }
 
     fn index_all(&self) {
+        // Bounded walk: skip dependency dirs outright, stop at the file and byte caps.
+        let mut total = 0u64;
         let paths: Vec<PathBuf> = ignore::WalkBuilder::new(&self.root)
             .hidden(true)
             .require_git(false)
+            .filter_entry(|e| !SKIP_DIRS.iter().any(|d| e.file_name() == *d))
             .build()
             .filter_map(Result::ok)
             .filter(|e| e.file_type().is_some_and(|t| t.is_file()))
-            .map(|e| e.into_path())
+            .map_while(|e| {
+                total += e.metadata().map_or(0, |m| m.len());
+                (total <= MAX_TOTAL_BYTES).then(|| e.into_path())
+            })
+            .take(MAX_FILES)
             .collect();
+        if paths.len() >= MAX_FILES || total > MAX_TOTAL_BYTES {
+            eprintln!(
+                "pointer-retrieval: index capped at {} files, {} MB",
+                paths.len(),
+                MAX_TOTAL_BYTES / 1_000_000
+            );
+        }
         let files: HashMap<String, FileData> =
             paths.par_iter().filter_map(|p| self.read(p)).collect();
         *self.files.lock().unwrap() = files;
         self.rebuild();
     }
 
-    // Every .gitignore from the root down to the path, plus .git/info/exclude, read fresh each time,
-    // so nested and edited ignore files apply to watched changes the same way they do at startup.
+    // Ignore files from the path's directory up to the root, plus .git/info/exclude, read fresh each time.
+    // The closest file with an opinion wins, so a nested `!keep.log` beats a parent's `*.log`.
+    // ponytail: the global gitignore (core.excludesFile) and ignore files above the root are not
+    // read here, unlike the startup walk; upgrade by building the matcher once from WalkBuilder's rules.
     fn ignored(&self, path: &Path) -> bool {
         let is_dir = path.is_dir();
-        let (exclude, _) = ignore::gitignore::Gitignore::new(self.root.join(".git/info/exclude"));
-        if exclude
-            .matched_path_or_any_parents(path, is_dir)
-            .is_ignore()
-        {
-            return true;
-        }
-        path.ancestors()
+        for dir in path
+            .ancestors()
             .skip(1)
             .take_while(|dir| dir.starts_with(&self.root))
-            .any(|dir| {
-                let (rules, _) = ignore::gitignore::Gitignore::new(dir.join(".gitignore"));
-                rules.matched_path_or_any_parents(path, is_dir).is_ignore()
-            })
+        {
+            for name in [".ignore", ".rgignore", ".gitignore"] {
+                let (rules, _) = ignore::gitignore::Gitignore::new(dir.join(name));
+                let m = rules.matched_path_or_any_parents(path, is_dir);
+                if !m.is_none() {
+                    return m.is_ignore();
+                }
+            }
+        }
+        let (exclude, _) = ignore::gitignore::Gitignore::new(self.root.join(".git/info/exclude"));
+        exclude
+            .matched_path_or_any_parents(path, is_dir)
+            .is_ignore()
     }
 
     fn update(&self, changed: &[PathBuf]) {
+        // An edited ignore file can hide or admit any file: re-walk everything under the current rules.
+        if changed.iter().any(|p| {
+            matches!(
+                p.file_name().and_then(|n| n.to_str()),
+                Some(".gitignore" | ".ignore" | ".rgignore" | "exclude")
+            )
+        }) {
+            return self.index_all();
+        }
         let mut files = self.files.lock().unwrap();
         let before = files.len();
         let mut dirty = false;
@@ -117,6 +174,10 @@ impl Store {
             let Some(rel) = self.relative(path) else {
                 continue;
             };
+            // Hidden paths (.git, .venv) are never indexed: skip before any ignore read or walk.
+            if rel.split('/').any(|p| p.starts_with('.')) {
+                continue;
+            }
             let prefix = format!("{rel}/");
             // A deleted, renamed or newly ignored directory takes every file under it along.
             let drop_under = |files: &mut HashMap<String, FileData>| {
@@ -173,6 +234,21 @@ impl Store {
     fn current(&self) -> Arc<Index> {
         self.index.read().unwrap().clone()
     }
+}
+
+fn is_secret(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    let ext = n.rsplit_once('.').map_or("", |(_, e)| e);
+    SECRET_EXTS.contains(&ext)
+        || n.starts_with("id_rsa")
+        || n.starts_with("id_ed25519")
+        || n.starts_with("id_ecdsa")
+        || n.starts_with("id_dsa")
+        || ((n.contains("credential") || n.contains("secret"))
+            && matches!(
+                ext,
+                "" | "json" | "yml" | "yaml" | "toml" | "ini" | "txt" | "cfg"
+            ))
 }
 
 #[derive(Deserialize, JsonSchema)]
@@ -243,12 +319,13 @@ impl Retrieval {
         };
         let out = index.search_text(
             &args.query,
-            args.budget_tokens.unwrap_or(3000).min(5000),
+            args.budget_tokens.unwrap_or(3000).clamp(500, 5000),
             &extra,
         );
         eprintln!(
-            "pointer-retrieval: search {:?} in {:?}",
-            args.query,
+            "pointer-retrieval: search {:?} ({} chars) in {:?}",
+            args.query.chars().take(120).collect::<String>(),
+            args.query.chars().count(),
             started.elapsed()
         );
         out
@@ -269,7 +346,7 @@ impl Retrieval {
     fn repo_map(&self, Parameters(args): Parameters<MapArgs>) -> String {
         self.store
             .current()
-            .repo_map(args.budget_tokens.unwrap_or(2000).min(5000))
+            .repo_map(args.budget_tokens.unwrap_or(2000).clamp(500, 5000))
     }
 
     #[tool(
@@ -437,3 +514,58 @@ async fn main() -> anyhow::Result<()> {
 }
 
 use axum::response::IntoResponse;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn store(tag: &str) -> Store {
+        let root = std::env::temp_dir().join(format!("pr-test-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        let root = root.canonicalize().unwrap();
+        Store {
+            root,
+            files: Mutex::new(HashMap::new()),
+            index: RwLock::new(Arc::new(Index::build(&HashMap::new()))),
+        }
+    }
+
+    #[test]
+    fn gitignore_edit_evicts_and_secrets_are_refused() {
+        let s = store("ign");
+        let w = |n: &str, c: &str| std::fs::write(s.root.join(n), c).unwrap();
+        w("a.py", "def a():\n    pass\n");
+        w("notes.txt", "hello");
+        w("id_rsa", "key");
+        w("prod.env", "K=1");
+        std::fs::create_dir(s.root.join("sub")).unwrap();
+        w("sub/b.txt", "bee");
+        w(".ignore", "sub/\n");
+        s.index_all();
+        {
+            let f = s.files.lock().unwrap();
+            assert!(f.contains_key("notes.txt") && f.contains_key("a.py"));
+            assert!(!f.contains_key("id_rsa") && !f.contains_key("prod.env"));
+            assert!(!f.contains_key("sub/b.txt"));
+        }
+        // the watcher agrees with the walk about .ignore
+        s.update(&[s.root.join("sub/b.txt")]);
+        assert!(!s.files.lock().unwrap().contains_key("sub/b.txt"));
+        w(".gitignore", "notes.txt\n");
+        s.update(&[s.root.join(".gitignore")]);
+        assert!(!s.files.lock().unwrap().contains_key("notes.txt"));
+        let _ = std::fs::remove_dir_all(&s.root);
+    }
+
+    #[test]
+    fn file_cap_stops_indexing() {
+        let s = store("cap");
+        for i in 0..MAX_FILES + 5 {
+            std::fs::write(s.root.join(format!("f{i}.txt")), "x").unwrap();
+        }
+        s.index_all();
+        assert_eq!(s.files.lock().unwrap().len(), MAX_FILES);
+        let _ = std::fs::remove_dir_all(&s.root);
+    }
+}

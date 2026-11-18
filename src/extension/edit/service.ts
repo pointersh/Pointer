@@ -231,6 +231,7 @@ export class InlineEditService {
     let range: vscode.Range
     let text: string
     let how: string
+    let real = true // whole document lines; false only for the zero-width insertion below
     if (!editor.selection.isEmpty) {
       range = this.wholeLines(document, editor.selection)
       text = matchIndentation(snippet, document.getText(range))
@@ -253,12 +254,13 @@ export class InlineEditService {
         const line = editor.selection.active.line
         range = new vscode.Range(line, 0, line, 0)
         text = snippet + "\n"
+        real = false
         how = `at line ${line + 1}`
       }
     }
 
     const region = new DiffRegion(editor, range)
-    const layout = layoutDiff(document.getText(range), text)
+    const layout = layoutDiff(document.getText(range), text, false, real)
     if (!layout.removed.length && !layout.added.length) {
       vscode.window.setStatusBarMessage("Pointer: the file already has that code", 4000)
       return
@@ -310,9 +312,13 @@ export class InlineEditService {
         : `lines ${proposal.startLine + 1}-${proposal.endLine + 1}`
 
     const editor = await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true })
+    // The file may have changed during the await above; check again with no await before the region exists.
+    if (document.getText(range).replace(/\r\n/g, "\n") !== proposal.original) {
+      return { ok: false, message: "Not changed: the file changed while you were working. Read it again and retry." }
+    }
     const region = new DiffRegion(editor, range)
     this._pending = region
-    if (!(await region.render(layoutDiff(current, proposal.text)))) {
+    if (!(await region.render(layoutDiff(current, proposal.text, false, true)))) {
       this.clearPending()
       return { ok: false, message: `Not changed: the editor refused the edit to ${relative} (is it read-only?).` }
     }
@@ -402,6 +408,10 @@ export class InlineEditService {
   private async resolve(verdict: "accept" | "reject", hunk?: number) {
     const pending = this._pending
     if (!pending || this.running) return
+    if (hunk !== undefined && !pending.hunks.some((h) => h.line === hunk)) {
+      vscode.window.setStatusBarMessage("Pointer: that hunk is no longer pending", 3000)
+      return
+    }
     const ok = await pending.settle(verdict, hunk)
     if (!ok) {
       this.clearPending()
@@ -693,6 +703,12 @@ export class InlineEditService {
     const undo =
       event.reason === vscode.TextDocumentChangeReason.Undo ||
       event.reason === vscode.TextDocumentChangeReason.Redo
+    // Undo of a pure insertion leaves stale diff lines that Reject or a save would delete as real code.
+    if (undo && !this.running && event.contentChanges.some((c) => c.range.end.line >= pending.range.start.line && c.range.start.line <= pending.range.end.line)) {
+      pending.broken = true
+      this.clearPending()
+      return
+    }
     if (!pending.track(event.contentChanges, this.running)) return
     if (!pending.broken) {
       this.decorate()

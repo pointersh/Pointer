@@ -37,7 +37,8 @@ type Token = { kind: "at" | "slash"; query: string; start: number }
 
 const tokenAt = (text: string, caret: number): Token | null => {
   const before = text.slice(0, caret)
-  const match = /(^|\s)([@/])([^\s@/]*)$/.exec(before)
+  // '@' queries may hold '/' (paths like src/ext); a slash command may not.
+  const match = /(^|\s)(@)([^\s@]*)$/.exec(before) ?? /(^|\s)(\/)([^\s@/]*)$/.exec(before)
   if (!match) return null
   if (match[2] === "/" && before.trim() !== `/${match[3]}`) return null
   return { kind: match[2] === "@" ? "at" : "slash", query: match[3].toLowerCase(), start: caret - match[3].length - 1 }
@@ -190,6 +191,7 @@ export function PromptBar({
           }}
           onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
           onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return
             if (menuOpen && rows.length > 0) {
               if (e.key === "ArrowDown" || e.key === "ArrowUp") {
                 e.preventDefault()
@@ -216,7 +218,7 @@ export function PromptBar({
               }
               return
             }
-            if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault()
               submit()
             }
@@ -334,6 +336,7 @@ function ModelMenu({ models, current, onPick }: { models: PromptModel[]; current
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         onKeyDown={(e) => {
+          if (e.nativeEvent.isComposing) return
           if (e.key === "ArrowDown") {
             e.preventDefault()
             setActive((i) => Math.min(i + 1, shown.length - 1))

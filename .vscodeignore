@@ -13,3 +13,4 @@
 !assets/codicon.ttf
 !agent/pointer.agent.json
 !target/release/pointer-retrieval
+!target/release/pointer-retrieval.exe

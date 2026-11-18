@@ -13,9 +13,7 @@ interface ConfirmCardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export function ConfirmCard({ question, target, mono = true, confirmLabel, onConfirm, onSkip, onAlways, className, ...props }: ConfirmCardProps) {
-  const primary = React.useRef<HTMLButtonElement>(null)
-  React.useEffect(() => primary.current?.focus({ preventScroll: true }), [])
-
+  // No autofocus: the user may be typing, and a stray Space or Enter must never approve. Enter and Esc are handled by the panel.
   return (
     <div
       role="alertdialog"
@@ -54,7 +52,6 @@ export function ConfirmCard({ question, target, mono = true, confirmLabel, onCon
           </button>
         )}
         <button
-          ref={primary}
           type="button"
           onClick={onConfirm}
           className="h-7 rounded-full bg-accent px-3.5 text-[12.5px] font-medium text-[var(--vscode-button-foreground)] transition-[filter,transform] duration-150 hover:brightness-110 active:scale-[0.96]"

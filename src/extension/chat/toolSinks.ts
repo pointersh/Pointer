@@ -37,7 +37,9 @@ const workspaceVenv = (cwd: string): NodeJS.ProcessEnv => {
   for (const name of [".venv", "venv", "env"]) {
     const dir = path.join(cwd, name)
     if (!existsSync(path.join(dir, bin, process.platform === "win32" ? "python.exe" : "python"))) continue
-    return { VIRTUAL_ENV: dir, PATH: `${path.join(dir, bin)}${path.delimiter}${process.env.PATH ?? ""}` }
+    // Windows spells it "Path"; reuse that key so the child sees one entry, and no trailing delimiter (it would put the cwd on PATH).
+    const key = Object.keys(process.env).find((name) => name.toLowerCase() === "path") ?? "PATH"
+    return { VIRTUAL_ENV: dir, [key]: [path.join(dir, bin), process.env[key]].filter(Boolean).join(path.delimiter) }
   }
   return {}
 }
@@ -270,6 +272,13 @@ const killTree = (child: ChildProcess, group: boolean, signal: NodeJS.Signals = 
   }
 }
 
+// Child env: no secret-named variables, and git never waits on a prompt or an editor.
+const commandEnv = (cwd: string): NodeJS.ProcessEnv => {
+  const env: NodeJS.ProcessEnv = {}
+  for (const [name, value] of Object.entries(process.env)) if (!/KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL/i.test(name)) env[name] = value
+  return { ...env, ...workspaceVenv(cwd), PAGER: "cat", GIT_PAGER: "cat", NO_COLOR: "1", GIT_TERMINAL_PROMPT: "0", GIT_EDITOR: "true" }
+}
+
 const runInBackground = (
   command: string,
   cwd: string,
@@ -283,7 +292,7 @@ const runInBackground = (
       detached: group,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, ...workspaceVenv(cwd), PAGER: "cat", GIT_PAGER: "cat", NO_COLOR: "1" }
+      env: commandEnv(cwd)
     })
     let output = ""
     let ended: "stopped" | undefined
@@ -338,9 +347,12 @@ const runInBackground = (
 export const terminalCommands = (cwd: string): CommandSink => ({
   async run(command, signal) {
     if (signal?.aborted) return { ran: false, output: "" }
-    if (!(await allowTool("run_command", `run: ${command}`))) return { ran: false, output: "The user did not allow this command." }
+    if (!(await allowTool("run_command", `run: ${command}`, command))) return { ran: false, output: "The user did not allow this command." }
+    // Stop during the modal or the save must not spawn anything.
+    if (signal?.aborted) return { ran: false, output: "" }
     logger.info(`Chat command: ${command}`)
     await commands.executeCommand(POINTER_COMMAND_NAME.saveAgentEdits)
+    if (signal?.aborted) return { ran: false, output: "" }
     return runInBackground(command, cwd, signal)
   }
 })

@@ -37,6 +37,8 @@ export function activate(context: ExtensionContext) {
   context.subscriptions.push(
     statusBar,
     inlineEdit,
+    // Reload or disable cancels the running turn and tears down the panel listeners.
+    { dispose: () => sidebarProvider.dispose() },
     terminalHistory,
     generations.onDidChange(({ stoppable }) => {
       void commands.executeCommand("setContext", EXTENSION_CONTEXT_NAME.pointerGeneratingText, stoppable)

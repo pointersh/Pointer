@@ -94,9 +94,13 @@ interface EditPair {
   replace: string
 }
 
+// The host caps each arg and appends this marker; counts from a capped arg are a lower bound, never exact.
+const CUT = /\n… \(\d+ more characters\)$/
+const isCut = (step: ToolStepView) => Object.values(step.args ?? {}).some((v) => CUT.test(String(v)))
+
 const editPairs = (step: ToolStepView): EditPair[] => {
   const a = step.args ?? {}
-  if (step.name === "create_file") return [{ find: "", replace: a.content ?? "" }]
+  if (step.name === "create_file") return [{ find: "", replace: (a.content ?? "").replace(CUT, "") }]
   if (a.edits) {
     try {
       const parsed = JSON.parse(a.edits) as { find?: string; replace?: string }[]
@@ -143,7 +147,7 @@ export const diffsOf = (steps: ToolStepView[], open: (path: string) => void): To
     if (!WRITES.has(step.name) || step.status !== "done" || !step.args?.path) continue
     const pairs = editPairs(step)
     const path = step.args.path
-    const current = byFile.get(path) ?? { file: path.split("/").pop() ?? path, add: 0, del: 0, lines: [], onOpen: () => open(path) }
+    const current = byFile.get(path) ?? { id: path, file: path.split("/").pop() ?? path, add: 0, del: 0, lines: [], onOpen: () => open(path) }
     current.add += pairs.reduce((n, p) => n + changed(p).added.length, 0)
     current.del += pairs.reduce((n, p) => n + changed(p).removed.length, 0)
     current.lines = [...(current.lines ?? []), ...diffLines(pairs)].slice(0, 12)
@@ -179,6 +183,7 @@ export const runningLabel = (steps: ToolStepView[]) => {
 }
 
 export const changeSummary = (step: ToolStepView) => {
+  if (isCut(step)) return `${step.args?.path ?? step.name} · large change`
   const pairs = editPairs(step)
   const add = pairs.reduce((n, p) => n + changed(p).added.length, 0)
   const del = pairs.reduce((n, p) => n + changed(p).removed.length, 0)

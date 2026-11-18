@@ -206,6 +206,8 @@ const grep = (view: WorkspaceView): Tool => ({
   async run({ pattern, path: dir }, context) {
     if (!pattern) throw new ToolInputError("grep needs a pattern.")
     const scope = dir ? view.relative(view.resolve(dir, "any")) : "."
+    // The first tree walk is not part of the search budget; ponytail: walk has no cap or abort, add an entry limit if a huge repo stalls it.
+    await view.files()
     const started = Date.now()
     const search = async (regex: RegExp) => {
       const shownFiles: { file: string; lines: string[]; hits: number[]; count: number }[] = []
@@ -324,8 +326,9 @@ const findSymbol = (view: WorkspaceView): Tool => ({
     if (!wanted) throw new ToolInputError("find_symbol needs a name.")
     const regex = definitionPattern(wanted)
     const found: string[] = []
+    const files = await view.files()
     const started = Date.now()
-    for await (const [file, text] of view.texts(await view.files())) {
+    for await (const [file, text] of view.texts(files)) {
       if (found.length >= MAX_SYMBOL_MATCHES) break
       if (context?.signal?.aborted || Date.now() - started > SEARCH_BUDGET_MS) break
       if (!text?.includes(wanted)) continue

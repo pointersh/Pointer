@@ -73,10 +73,14 @@ export class WorkspaceView {
     const parts = relative.split(/[\\/]+/).filter(Boolean)
     if (!parts.length || parts[0] === "..") return false
     const whole = parts.join("/") + (isDirectory ? "/" : "")
-    if (this._base.ignores(whole) || this._blocked?.ignores(whole)) return true
-    for (let depth = 0; depth < parts.length; depth++) {
-      const rules = this.gitignoreOf(path.join(this.root, ...parts.slice(0, depth)))
-      if (rules?.ignores(parts.slice(depth).join("/") + (isDirectory ? "/" : ""))) return true
+    try {
+      if (this._base.ignores(whole) || this._blocked?.ignores(whole)) return true
+      for (let depth = 0; depth < parts.length; depth++) {
+        const rules = this.gitignoreOf(path.join(this.root, ...parts.slice(0, depth)))
+        if (rules?.ignores(parts.slice(depth).join("/") + (isDirectory ? "/" : ""))) return true
+      }
+    } catch {
+      return true // `ignore` throws on paths like "..."; hide them (fail closed) rather than break every search
     }
     return false
   }

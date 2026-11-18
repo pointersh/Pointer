@@ -44,7 +44,10 @@ the editor for you to accept it, hunk by hunk.
 ```sh
 # TrueForge must be allowed to reach loopback (Pointer's tools) and your model host
 OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","your.model.host"]' \
-  npx @truefoundry/trueforge@latest --port 8790   # then register a model provider
+  npx @truefoundry/trueforge@latest --port 8790
+# register two model providers (pointer, pointer-backup): copy agent/modelProviders*.example.json,
+# fill in, PUT each to localhost:8790/api/v1/settings/model-providers
+# (docs/setup.md#2-register-two-model-providers); Pointer loads agent/pointer.agent.json on activation
 git clone https://github.com/pointersh/Pointer.git && cd Pointer
 rustup target add wasm32-unknown-unknown         # once: the highlighter builds to WebAssembly
 npm ci && npm run build && cargo build --release

@@ -52,6 +52,7 @@ export interface ToolRow {
 }
 
 export interface ToolDiff {
+  id: string
   file: string
   add: number
   del: number
@@ -71,7 +72,7 @@ export function ToolChips({ rows, diffs = [], header, maxDiffs = 4, defaultOpen 
   const [open, setOpen] = React.useState(defaultOpen)
   const [openRows, setOpenRows] = React.useState<Set<string>>(new Set())
   const [allDiffs, setAllDiffs] = React.useState(false)
-  const [preview, setPreview] = React.useState<{ file: string; x: number; top?: number; bottom?: number } | null>(null)
+  const [preview, setPreview] = React.useState<{ id: string; x: number; top?: number; bottom?: number } | null>(null)
 
   const toggleRow = (id: string) =>
     setOpenRows((current) => {
@@ -87,15 +88,15 @@ export function ToolChips({ rows, diffs = [], header, maxDiffs = 4, defaultOpen 
     const height = 38 + diff.lines.length * 19
     const below = rect.bottom + 6 + height <= window.innerHeight - 12
     setPreview({
-      file: diff.file,
+      id: diff.id,
       x: Math.max(8, Math.min(rect.left, window.innerWidth - 296)),
       ...(below ? { top: rect.bottom + 6 } : { bottom: window.innerHeight - rect.top + 6 })
     })
   }
-  const closePreview = (file: string) => () => setPreview((current) => (current?.file === file ? null : current))
+  const closePreview = (id: string) => () => setPreview((current) => (current?.id === id ? null : current))
 
   const shownDiffs = allDiffs ? diffs : diffs.slice(0, maxDiffs)
-  const previewed = preview ? diffs.find((d) => d.file === preview.file) : undefined
+  const previewed = preview ? diffs.find((d) => d.id === preview.id) : undefined
 
   return (
     <div className={cn("w-full pb-1", className)} {...props}>
@@ -212,12 +213,12 @@ export function ToolChips({ rows, diffs = [], header, maxDiffs = 4, defaultOpen 
           {diffs.length > 0 && (
             <div className="mt-2.5 flex max-w-full flex-wrap gap-1.5 border-t border-line pt-2.5">
               {shownDiffs.map((d, i) => (
-                <span key={d.file} className="relative max-w-full" onMouseEnter={openPreview(d)} onMouseLeave={closePreview(d.file)}>
+                <span key={d.id} className="relative max-w-full" onMouseEnter={openPreview(d)} onMouseLeave={closePreview(d.id)}>
                   <button
                     type="button"
                     aria-label={`Open ${d.file}`}
                     onFocus={openPreview(d)}
-                    onBlur={closePreview(d.file)}
+                    onBlur={closePreview(d.id)}
                     onClick={d.onOpen}
                     className="inline-flex h-7 max-w-full items-center gap-2 rounded-chip bg-surface px-2 font-mono text-[11.5px] text-ink shadow-btn transition-colors duration-100 hover:bg-hover"
                     style={{ animation: `pop-in 250ms var(--ease-out-strong) ${i * 80}ms both` }}

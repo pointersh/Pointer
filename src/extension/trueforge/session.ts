@@ -209,7 +209,7 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
     while (!stop.aborted) {
       await new Promise((resolve) => setTimeout(resolve, SETTLE_POLL_MS))
       if (stop.aborted) return undefined
-      const turn = await client.sessions.getTurn(sessionId, turnId!).catch(() => undefined)
+      const turn = await client.sessions.getTurn(sessionId, turnId!, { abortSignal: AbortSignal.any([stop, AbortSignal.timeout(5_000)]) }).catch(() => undefined)
       const state = turn?.data.state
       if (state && state.status !== "running" && state.status !== "paused") return state
     }
@@ -230,10 +230,19 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
       watch?.abort()
     }, limit)
   }
-  let stream = await client.sessions.createTurnStream(sessionId, { input: [{ type: "user.message", content: input }] }, { abortSignal: watch.signal })
   let settled: Awaited<ReturnType<typeof settledTurn>>
   let fallback = ""
   signal.addEventListener("abort", () => watch?.abort(), { once: true })
+  // Stop pressed while the turn was being created: the listener above would never fire, so abort here.
+  if (signal.aborted) watch.abort()
+  let stream: Awaited<ReturnType<typeof client.sessions.createTurnStream>>
+  try {
+    stream = await client.sessions.createTurnStream(sessionId, { input: [{ type: "user.message", content: input }] }, { abortSignal: AbortSignal.any([watch.signal, signal]) })
+  } catch (error) {
+    if (signal.aborted) return { ...result, status: "cancelled", text: "" }
+    throw error
+  }
+  let barrenSince = Date.now()
   for (;;) {
     let finished = false
     let events = 0
@@ -242,6 +251,7 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
       for await (const event of stream) {
         events++
         const delta = isEventDelta(event)
+        if (!delta) reconnects = 0
         if (!delta) quiet()
         const next = await handle(event)
         const replied = delta && !!(messages.get(event.id) as TrueForgeApi.ModelMessageEvent | undefined)?.finishReason
@@ -280,7 +290,13 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
       break
     }
     if (finished || !turnId || signal.aborted) break
-    // A subscription that ends at once with nothing must not turn into a tight resubscribe loop.
+    // A subscription that ends at once with nothing must not turn into a tight resubscribe loop,
+    // nor one that never ends: no events for a whole stall window fails the turn.
+    if (events) barrenSince = Date.now()
+    else if (Date.now() - barrenSince > STALL_MS) {
+      flushText()
+      return { ...result, status: "error", error: `TrueForge sent no events for ${STALL_MS / 1000} s.`, text: mainText() }
+    }
     if (!events) await pause(500, signal)
     if (signal.aborted) break
     const current = new AbortController()
@@ -293,9 +309,12 @@ export const runTurn = async (sessionId: string, input: string, handlers: TurnHa
     })
   }
   flushText()
+  if (result.status === "error" && !result.error) result.error = "TrueForge closed the stream before the turn started."
   result.text = mainText() || fallback
   if (signal.aborted && result.status !== "done") result.status = "cancelled"
   return result
 }
 
-export const cancelSession = (sessionId: string) => trueforge().sessions.cancel(sessionId).catch(() => undefined)
+// A 5 s deadline: the next request waits on this, and the SDK default is 900 s.
+export const cancelSession = (sessionId: string) =>
+  trueforge().sessions.cancel(sessionId, undefined, { abortSignal: AbortSignal.timeout(5_000) }).catch(() => undefined)

@@ -19,6 +19,12 @@ crates/pointer-highlight/highlight.wasm
 
 .env
 .env.*
+.npmrc
+*.pem
+*.key
+my-provider*.json
+agent/modelProviders*.json
+!agent/modelProviders*.example.json
 *.log
 .DS_Store
 

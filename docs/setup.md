@@ -25,9 +25,10 @@ Pointer tries `pointer/primary` first and switches to `pointer-backup/primary`
 automatically when a turn fails. Give each provider its own endpoint or key,
 so that when one breaks, the other still answers.
 
-Fill in [`agent/modelProviders.example.json`](../agent/modelProviders.example.json)
-and [`agent/modelProviders.backup.example.json`](../agent/modelProviders.backup.example.json),
-then register each:
+Copy [`agent/modelProviders.example.json`](../agent/modelProviders.example.json)
+and [`agent/modelProviders.backup.example.json`](../agent/modelProviders.backup.example.json)
+to `my-provider.json` and `my-provider-backup.json` (git ignores both), fill them in,
+then register each (run the command once per file):
 
 ```sh
 curl -X PUT localhost:8790/api/v1/settings/model-providers \
@@ -65,10 +66,10 @@ open the repository you want to work on. On activation, Pointer:
 |---|---|---|
 | `pointer.trueforgeUrl` | `http://localhost:8790` | Where TrueForge runs |
 | `pointer.trueforgeStartCommand` | `""` (loopback only) | What the **Start TrueForge** button runs, in the background, when TrueForge is not running; add your model host to `OUTBOUND_URL_ALLOWED_HOSTS` |
-| `pointer.models` | `["pointer/primary", "pointer-backup/primary"]` | Model chain, tried in order |
+| `pointer.models` | `[]` (uses `pointer/primary`, then `pointer-backup/primary`) | Model chain, tried in order |
 | `pointer.inlineModels` | `[]` (uses `pointer.models`) | Model chain for inline edits; a fast model here (e.g. Groq) speeds up Ctrl+I |
 | `pointer.reasoningEffort` | `{}` | Per-model `reasoning_effort`, e.g. `{"pointer/primary": "none"}`. Built-in defaults: DeepSeek (`pointer`) `none`, GLM (`pointer-backup`) `low`, Groq `low`, Gemini `medium` (through TrueForge Gemini otherwise does no reasoning) |
-| `pointer.retrievalPath` | `target/release/pointer-retrieval` | Retrieval engine binary |
+| `pointer.retrievalPath` | `""` (uses `target/release/pointer-retrieval`) | Retrieval engine binary |
 | `pointer.semanticSearch` | `false` | Add local embeddings (bge-small) to retrieval. Downloads the model once (~133 MB) and builds in the background (about 30 s for Flask); the index lives in `.pointer/`, which ignores itself |
 | `pointer.embeddingIgnoredGlobs` | `[]` | Extra globs to keep out of the semantic index |
 | `pointer.enableLogging` | `true` | Log to the "Pointer" output channel |

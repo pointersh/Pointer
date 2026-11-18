@@ -198,6 +198,25 @@ impl Chunker<'_> {
             return;
         }
         let (start, end) = (first as u32 + 1, last as u32 + 1);
+        // A minified or generated single line would be one chunk too big to ever be returned: window it.
+        if first == last && tokens_of(body) > MAX_TOKENS {
+            let mut rest = body.trim_end();
+            while !rest.is_empty() {
+                let mut cut = (MAX_TOKENS * 4).min(rest.len());
+                while !rest.is_char_boundary(cut) {
+                    cut -= 1;
+                }
+                self.out.push(Chunk {
+                    start,
+                    end,
+                    text: rest[..cut].into(),
+                    symbols: Vec::new(),
+                    section: None,
+                });
+                rest = &rest[cut..];
+            }
+            return;
+        }
         let symbols = self
             .defs
             .iter()
@@ -425,6 +444,10 @@ fn chunk_prose(src: &str) -> Vec<Chunk> {
 }
 
 pub fn parse(path: &str, src: &str) -> Parsed {
+    parse_within(path, src, std::time::Duration::from_secs(2))
+}
+
+fn parse_within(path: &str, src: &str, limit: std::time::Duration) -> Parsed {
     if is_prose(path) {
         return Parsed {
             idents: HashMap::new(),
@@ -437,7 +460,15 @@ pub fn parse(path: &str, src: &str) -> Parsed {
         .and_then(|lang| {
             let mut parser = Parser::new();
             parser.set_language(&lang).ok()?;
-            parser.parse(src, None)
+            // A pathological file must not stall a worker: past the deadline the parse is cancelled
+            // and the file falls back to plain line chunks.
+            let deadline = std::time::Instant::now() + limit;
+            let mut cancel = |_: &tree_sitter::ParseState| std::time::Instant::now() > deadline;
+            parser.parse_with_options(
+                &mut |i, _| &src.as_bytes()[i..],
+                None,
+                Some(tree_sitter::ParseOptions::new().progress_callback(&mut cancel)),
+            )
         })
         .filter(|tree| shallow(tree.root_node()));
     if let Some(tree) = &tree {
@@ -497,6 +528,24 @@ mod tests {
             .collect();
         assert!(sizes.iter().all(|s| s.2 <= MAX_TOKENS + 20), "{sizes:?}");
         assert!(sizes.windows(2).all(|w| w[0].1 < w[1].0), "{sizes:?}");
+    }
+
+    #[test]
+    fn one_huge_line_is_windowed() {
+        let parsed = parse("a.js", &"var a=1;".repeat(100_000));
+        assert!(parsed.chunks.len() > 1);
+        assert!(parsed
+            .chunks
+            .iter()
+            .all(|c| tokens_of(&c.text) <= MAX_TOKENS + 1));
+    }
+
+    #[test]
+    fn parse_deadline_falls_back_to_lines() {
+        let src = "def f():\n    pass\n".repeat(2000);
+        let parsed = parse_within("a.py", &src, std::time::Duration::ZERO);
+        assert!(parsed.defs.is_empty());
+        assert!(!parsed.chunks.is_empty());
     }
 
     #[test]

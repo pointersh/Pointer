@@ -109,8 +109,8 @@ limit at every size.
 
 | | At the start | Now |
 |---|---|---|
-| TypeScript, non-blank lines | 95,327 | 8,708 |
-| Runtime dependencies | 40 | 11 |
+| TypeScript, non-blank lines (`git ls-files src/*.ts src/*.tsx`) | 95,327 | 9,071 |
+| Runtime dependencies | 40 | 10 |
 | Dev dependencies | 28 | 14 |
 
 ## Findings

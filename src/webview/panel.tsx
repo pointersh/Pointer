@@ -1,5 +1,5 @@
 import * as React from "react"
-import ReactMarkdown from "react-markdown"
+import ReactMarkdown, { type Components } from "react-markdown"
 import remarkGfm from "remark-gfm"
 
 import { EVENT_NAME, USER } from "../common/constants"
@@ -49,10 +49,35 @@ const FILE_ICON = (
 const openFile = (path: string, start?: number, end?: number) =>
   emit(EVENT_NAME.pointerOpenFile, { path, ...(start !== undefined ? { startLine: start - 1, endLine: (end ?? start) - 1 } : {}) })
 
-const mentionsIn = (text: string): MentionType[] =>
-  [...new Set([...text.matchAll(/(?:^|\s)@([\w./-]+)/g)].map((m) => m[1]))].map((path) => ({ name: path.split("/").pop() ?? path, path }))
+// A mention is a workspace file (any characters, so [id].tsx counts) or a bare identifier (@symbol).
+const mentionsIn = (text: string, files: string[]): MentionType[] =>
+  [...new Set([...text.matchAll(/(?:^|\s)@(\S+)/g)].map((m) => m[1]))]
+    .filter((path) => files.includes(path) || /^[A-Za-z_]\w*$/.test(path))
+    .map((path) => ({ name: path.split("/").pop() ?? path, path }))
+
+const NO_STEPS: ToolStepView[] = []
 
 const seconds = (ms: number) => (ms < 10_000 ? `${(ms / 1000).toFixed(1)}s` : `${Math.round(ms / 1000)}s`)
+
+// A render error in one turn must not blank the panel: the composer and Stop stay mounted.
+export class ErrorBoundary extends React.Component<{ children: React.ReactNode; label: string }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+  render() {
+    return this.state.failed ? (
+      <div className="flex items-center gap-2 text-[12.5px] text-ink-2">
+        <span>Could not display {this.props.label}.</span>
+        <button type="button" onClick={() => this.setState({ failed: false })} className="h-6 rounded-full px-2.5 text-ink shadow-btn hover:bg-hover">
+          Try again
+        </button>
+      </div>
+    ) : (
+      this.props.children
+    )
+  }
+}
 
 export function Panel() {
   const [messages, setMessages] = React.useState<ChatCompletionMessage[]>([])
@@ -66,7 +91,7 @@ export function Panel() {
   const { scroller, content: scrolled, pin } = useFollowScroll()
   const stopTimer = React.useRef<ReturnType<typeof setTimeout>>()
   const selection = useSelection()
-  const { filePaths } = useFilePaths()
+  const { filePaths, refetch: refetchFiles } = useFilePaths()
   const { contextItems, removeContextItem } = useWorkspaceContext()
 
   const [model, setModel] = React.useState<string>()
@@ -100,6 +125,8 @@ export function Panel() {
     const { start, end } = thoughtAt.current
     const thought = start ? Math.max(1, Math.round(((end ?? Date.now()) - start) / 1000)) : undefined
     clearTimeout(stopTimer.current)
+    // The agent may have created files; refresh the @ list.
+    if (incoming.toolSteps?.some((s) => s.name === "create_file" || s.name === "move_file")) refetchFiles()
     setMessages((current) => [...current, { ...incoming, meta: { ...incoming.meta, ...(thought ? { thoughtSeconds: thought } : {}) } }])
     setStreaming(null)
     setSteps([])
@@ -137,7 +164,7 @@ export function Panel() {
         const digest = role === USER ? "" : stepsDigest(toolSteps)
         return { role, content: digest ? `${String(content ?? "")}\n\n${digest}` : content }
       }),
-      mentions: mentionsIn(text),
+      mentions: mentionsIn(text, filePaths),
       conversationId: conversation.current
     })
   }
@@ -152,7 +179,14 @@ export function Panel() {
 
   React.useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.isComposing) return
+      if (event.isComposing) return
+      // Enter approves only when nothing is being typed and focus is not on a button (which would double-fire).
+      if (event.key === "Enter" && waiting && !draft.trim() && !event.repeat && !(event.target instanceof HTMLButtonElement)) {
+        event.preventDefault()
+        answer(true)
+        return
+      }
+      if (event.key !== "Escape") return
       if (waiting) {
         event.preventDefault()
         answer(false)
@@ -202,18 +236,21 @@ export function Panel() {
                   message.role === USER ? (
                     <UserMessage key={i} text={String(message.content)} />
                   ) : (
-                    <AssistantTurn
-                      key={i}
-                      content={String(message.content)}
-                      steps={message.toolSteps ?? []}
-                      thoughtSeconds={message.meta?.thoughtSeconds}
-                      footer={message.meta}
-                      onFollowUp={setDraft}
-                    />
+                    <ErrorBoundary key={i} label="this reply">
+                      <AssistantTurn
+                        content={String(message.content)}
+                        steps={message.toolSteps ?? NO_STEPS}
+                        thoughtSeconds={message.meta?.thoughtSeconds}
+                        footer={message.meta}
+                        onFollowUp={setDraft}
+                      />
+                    </ErrorBoundary>
                   )
                 ),
                 streaming !== null && (
-                  <AssistantTurn key={messages.length} live content={streaming} steps={steps} thinkingSince={thoughtAt.current.start} />
+                  <ErrorBoundary key={messages.length} label="this reply">
+                    <AssistantTurn live content={streaming} steps={steps} thinkingSince={thoughtAt.current.start} />
+                  </ErrorBoundary>
                 )
               ]}
             </div>
@@ -307,7 +344,7 @@ function EmptyState({ onPick }: { onPick: (text: string) => void }) {
   )
 }
 
-function UserMessage({ text }: { text: string }) {
+const UserMessage = React.memo(function UserMessage({ text }: { text: string }) {
   return (
     <div className="flex justify-end" style={{ animation: "fade-up 250ms var(--ease-out-strong) both" }}>
       <div className="max-w-[88%] rounded-[12px] rounded-br-[4px] bg-hover px-3 py-2 text-[13px] leading-relaxed whitespace-pre-wrap text-ink [overflow-wrap:anywhere]">
@@ -315,7 +352,7 @@ function UserMessage({ text }: { text: string }) {
       </div>
     </div>
   )
-}
+})
 
 interface TurnProps {
   content: string
@@ -327,7 +364,7 @@ interface TurnProps {
   onFollowUp?: (text: string) => void
 }
 
-function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, footer, onFollowUp }: TurnProps) {
+const AssistantTurn = React.memo(function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, footer, onFollowUp }: TurnProps) {
   const { thinking, message } = getThinkingMessage(content)
   const visible = steps.filter((s) => !s.said)
   const pointed = pointedFiles(visible)
@@ -388,46 +425,50 @@ function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, fo
       )}
     </div>
   )
+})
+
+// Module-level so ReactMarkdown sees stable component types and does not remount the reply on every render.
+const REMARK = [remarkGfm]
+const MARKDOWN: Components = {
+  p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
+  ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
+  ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
+  a: ({ href, children }) => (
+    <a href={href} className="text-accent-ink underline decoration-transparent underline-offset-2 hover:decoration-current">
+      {children}
+    </a>
+  ),
+  strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
+  h1: ({ children }) => <h3 className="mt-3 mb-1.5 text-[14px] font-semibold">{children}</h3>,
+  h2: ({ children }) => <h3 className="mt-3 mb-1.5 text-[13.5px] font-semibold">{children}</h3>,
+  h3: ({ children }) => <h4 className="mt-3 mb-1 text-[13px] font-semibold">{children}</h4>,
+  code: ({ className, children }) => {
+    const language = /language-(\w+)/.exec(className ?? "")?.[1]
+    const code = String(children)
+    if (!language && !code.includes("\n")) {
+      return <code className="rounded-[4px] bg-inset px-1 py-px font-mono text-[12px] text-ink shadow-hairline">{code}</code>
+    }
+    return <CodeBlock className="my-2" code={code} language={language} />
+  },
+  pre: ({ children }) => <>{children}</>
 }
 
 // Only the reply re-renders each animation frame while text is revealed; the steps and diffs above it don't.
-function Reply({ text: full, live }: { text: string; live?: boolean }) {
+const Reply = React.memo(function Reply({ text: full, live }: { text: string; live?: boolean }) {
   const text = useSmoothText(full, !!live)
   return (
     <div className={cn("reply text-[13px] leading-relaxed text-ink", live && "after:ml-0.5 after:inline-block after:h-3.5 after:w-0.5 after:translate-y-0.5 after:animate-pulse after:rounded-full after:bg-ink after:content-['']")}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={REMARK}
         // A model-written image URL would load on render and could carry file contents out; show none.
         disallowedElements={["img"]}
-        components={{
-          p: ({ children }) => <p className="my-2 first:mt-0 last:mb-0">{children}</p>,
-          ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>,
-          ol: ({ children }) => <ol className="my-2 list-decimal space-y-1 pl-5">{children}</ol>,
-          a: ({ href, children }) => (
-            <a href={href} className="text-accent-ink underline decoration-transparent underline-offset-2 hover:decoration-current">
-              {children}
-            </a>
-          ),
-          strong: ({ children }) => <strong className="font-semibold text-ink">{children}</strong>,
-          h1: ({ children }) => <h3 className="mt-3 mb-1.5 text-[14px] font-semibold">{children}</h3>,
-          h2: ({ children }) => <h3 className="mt-3 mb-1.5 text-[13.5px] font-semibold">{children}</h3>,
-          h3: ({ children }) => <h4 className="mt-3 mb-1 text-[13px] font-semibold">{children}</h4>,
-          code: ({ className, children }) => {
-            const language = /language-(\w+)/.exec(className ?? "")?.[1]
-            const code = String(children)
-            if (!language && !code.includes("\n")) {
-              return <code className="rounded-[4px] bg-inset px-1 py-px font-mono text-[12px] text-ink shadow-hairline">{code}</code>
-            }
-            return <CodeBlock className="my-2" code={code} language={language} />
-          },
-          pre: ({ children }) => <>{children}</>
-        }}
+        components={MARKDOWN}
       >
         {text}
       </ReactMarkdown>
     </div>
   )
-}
+})
 
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = React.useState(false)

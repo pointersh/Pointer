@@ -60,7 +60,7 @@ Checks
 - npm run build && cargo build --release
 - cargo test --release
 - npm run check:mcp, npm run check:trueforge (needs TrueForge)
-- benchmarks/editor.sh.. review engine in a real VS Code (11 tests)
+- benchmarks/editor.sh.. review engine in a real VS Code (12 tests)
 - benchmarks/editor.sh benchmarks/live.test.cjs ~/flask.. activation, Task A, Stop, Task C live (5 tests)
 - node benchmarks/abc.mjs <flask> [runs].. A/B/C live, MODELS= INLINE_MODELS= TASKS= CANCEL=1 EDITS=1
 - benchmarks/tasks.sh setup|a|b|c|reset <flask>.. Flask 3.1.3 with a venv, scores each task

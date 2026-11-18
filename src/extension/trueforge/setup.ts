@@ -40,6 +40,10 @@ const startServers = async (context: vscode.ExtensionContext): Promise<Servers> 
   const retrieval = await startRetrieval(context, root, () => {
     markServerDead("pointer-retrieval")
     logger.warn("pointer-retrieval stopped; new sessions use the editor's search tools.")
+  }).catch(async (error) => {
+    // The retry starts both servers again: don't leave this window's editor server running with no owner.
+    await editorStarting.then((editor) => editor.dispose(), () => undefined)
+    throw error
   })
   if (retrieval) context.subscriptions.push(retrieval)
   return { editor: await editorStarting, retrieval }
@@ -47,7 +51,11 @@ const startServers = async (context: vscode.ExtensionContext): Promise<Servers> 
 
 const register = async (context: vscode.ExtensionContext) => {
   servers ??= startServers(context)
-  const { editor, retrieval } = await servers
+  // A failed start is retried on the next request, not cached.
+  const { editor, retrieval } = await servers.catch((error) => {
+    servers = undefined
+    throw error
+  })
   if (editor) {
     await registerMcpServer(serverName("pointer-editor"), editor.url, editor.token, "Pointer's VS Code workspace: read, search, edit with review, run commands.")
     markServerLive("pointer-editor")
