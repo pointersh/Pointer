@@ -14,6 +14,7 @@ interface CodeBlockProps extends React.HTMLAttributes<HTMLDivElement> {
 // distinct line once. Bounded, oldest first out.
 const TOKENS = new Map<string, ReturnType<typeof tokenize>>();
 const tokens = (line: string, language?: string) => {
+  if (line.length > 400) return tokenize(line, language);
   const key = `${language ?? ""}\u0000${line}`;
   let hit = TOKENS.get(key);
   if (!hit) {

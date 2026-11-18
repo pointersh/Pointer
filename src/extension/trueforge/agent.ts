@@ -71,16 +71,18 @@ export class TrueForgeAgent implements Agent {
     if (!last) return
     const input = withMentions(plainText(String(last.content ?? "")), mentions)
     const history = messages.slice(0, messages.lastIndexOf(last))
-    // A previous reply still winding down (after Stop or New chat) must not touch this one's steps or UI,
-    // and its turn must be stopped before this one starts in the same session.
-    if (this._run) {
-      this._run.abort()
-      if (this._sessionId) await cancelSession(this._sessionId)
-    }
+    // Claim the slot before waiting on anything: a previous reply still winding down (after Stop or New chat)
+    // then sees it is no longer current and emits nothing into this one. Its turn is stopped before this one
+    // starts in the same session.
+    const previous = this._run
     const run = this._generations.start("chat")
     this._run = run
     this._discarded = false
     this._steps.reset()
+    if (previous) {
+      previous.abort()
+      if (this._sessionId) await cancelSession(this._sessionId)
+    }
     const started = Date.now()
     const chain = modelChain()
     if (chain[0] !== this._head) {
@@ -124,7 +126,7 @@ export class TrueForgeAgent implements Agent {
     }
 
     try {
-      while (!unready && this._model < chain.length) {
+      while (!unready && !run.signal.aborted && this._model < chain.length) {
         try {
           if (this._sessionModel !== chain[this._model]) this._sessionId = undefined
           this._sessionId ??= await this.openSession(chain, history)
@@ -145,7 +147,7 @@ export class TrueForgeAgent implements Agent {
           result = run.signal.aborted ? { status: "cancelled", text: "" } : { status: "error", text: "", error: describeError(error) }
         }
         if (result.status !== "error" || run.signal.aborted) break
-        failure = result.error
+        failure = describeError(result.error)
         logger.warn(`TrueForge turn failed on ${chain[this._model]}: ${failure}`)
         if (/reach TrueForge/.test(failure ?? "")) break
         // The failed turn may still be running server-side; stop it before another model takes the task.
@@ -174,6 +176,8 @@ export class TrueForgeAgent implements Agent {
     } finally {
       run.finish()
     }
+    // Stopped before any turn started (during setup or the automatic search): a stopped reply, not an error.
+    if (run.signal.aborted && !result) result = { status: "cancelled", text: "" }
     if (this._run !== run) return
     this._run = undefined
     this._steps.settle()

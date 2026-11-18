@@ -224,7 +224,7 @@
             "type": "string"
           },
           "default": {},
-          "markdownDescription": "Reasoning effort per model, sent to TrueForge as `reasoning_effort`. Defaults: `pointer/primary` → `low`, `pointer-backup/primary` → `none`. Values are provider-specific: on Makora, GLM-5.3-Flash reasons fully unless set to `low`, and DeepSeek-V4.1-Flash unless set to `none`. Measured with `benchmarks/models.mjs`: first answer token falls from 20 s to 1.3 s."
+          "markdownDescription": "Reasoning effort per model, sent to TrueForge as `reasoning_effort`. Defaults: `pointer/primary` (DeepSeek) → `none`, `pointer-backup/primary` (GLM) → `low`, Groq → `low`, Gemini → `medium`. Values are provider-specific: on Makora, GLM-5.3-Flash reasons fully unless set to `low`, and DeepSeek-V4.1-Flash unless set to `none`. Measured with `benchmarks/models.mjs`: first answer token falls from 20 s to 1.3 s."
         },
         "pointer.retrievalPath": {
           "scope": "machine",

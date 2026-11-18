@@ -32,10 +32,12 @@ export const useSmoothText = (text: string, live: boolean): string => {
   }, [])
 
   let cut = Math.min(shown, text.length)
-  // Never end inside a tag such as <think>: the half tag would flash on screen as text.
+  if (cut >= text.length) return text
+  // While revealing, never stop inside an HTML-like tag (a half "<details" would flash as text). Finished text
+  // is always returned whole, so "a < b" at the end of a reply is never cut.
   const open = text.lastIndexOf("<", cut)
-  if (open > text.lastIndexOf(">", cut - 1) && cut - open < 12) cut = open
-  return cut >= text.length ? text : text.slice(0, cut)
+  if (open > text.lastIndexOf(">", cut - 1) && cut - open < 12 && /^<\/?[a-z]/i.test(text.slice(open, open + 2))) cut = open
+  return text.slice(0, cut)
 }
 
 // Keeps a scroll container at the bottom while it is pinned there, easing toward new content each frame

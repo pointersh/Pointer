@@ -201,6 +201,7 @@ export class BaseProvider {
   }
 
   public newConversation = () => {
+    void vscode.commands.executeCommand(POINTER_COMMAND_NAME.forgetAgentEdits)
     this.agent?.resetConversation()
     this.bridge?.emit(EVENT_NAME.pointerNewConversation)
     this.agent?.discardReply()

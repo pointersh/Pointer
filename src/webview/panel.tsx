@@ -149,7 +149,7 @@ export function Panel() {
 
   React.useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return
+      if (event.key !== "Escape" || event.isComposing) return
       if (waiting) {
         event.preventDefault()
         answer(false)
@@ -262,6 +262,7 @@ export function Panel() {
           onSubmit={send}
           onStop={stop}
           onModelChange={pickModel}
+          onModelMenu={() => void bridge.request(EVENT_NAME.pointerModels, {}).then(applyModels, () => undefined)}
           onRecall={lastPrompt}
         />
       </div>
@@ -323,8 +324,7 @@ interface TurnProps {
   onFollowUp?: (text: string) => void
 }
 
-function AssistantTurn({ content: full, steps, live, thinkingSince, thoughtSeconds, footer, onFollowUp }: TurnProps) {
-  const content = useSmoothText(full, !!live)
+function AssistantTurn({ content, steps, live, thinkingSince, thoughtSeconds, footer, onFollowUp }: TurnProps) {
   const { thinking, message } = getThinkingMessage(content)
   const visible = steps.filter((s) => !s.said)
   const pointed = pointedFiles(visible)
@@ -387,7 +387,9 @@ function AssistantTurn({ content: full, steps, live, thinkingSince, thoughtSecon
   )
 }
 
-function Reply({ text, live }: { text: string; live?: boolean }) {
+// Only the reply re-renders each animation frame while text is revealed; the steps and diffs above it don't.
+function Reply({ text: full, live }: { text: string; live?: boolean }) {
+  const text = useSmoothText(full, !!live)
   return (
     <div className={cn("reply text-[13px] leading-relaxed text-ink", live && "after:ml-0.5 after:inline-block after:h-3.5 after:w-0.5 after:translate-y-0.5 after:animate-pulse after:rounded-full after:bg-ink after:content-['']")}>
       <ReactMarkdown

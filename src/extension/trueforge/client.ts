@@ -65,7 +65,8 @@ export const modelChain = (): string[] => {
 // Inline edits are one short call: a fast model can serve them while agent mode keeps a stronger chain.
 export const inlineModelChain = (): string[] => {
   const configured = settings().get<string[]>("inlineModels") ?? []
-  return configured.length ? configured : modelChain()
+  // The agent chain stays behind the inline models as their fallback.
+  return [...configured, ...modelChain().filter((model) => !configured.includes(model))]
 }
 
 type ProviderEntry = { name?: string; type?: string; base_url?: string; models?: { name: string; model_id?: string }[] }
@@ -119,7 +120,8 @@ const api = async <T = unknown>(method: string, path: string, body?: unknown): P
   const response = await fetch(`${trueforgeUrl()}${path}`, {
     method,
     headers: { "content-type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body)
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000)
   })
   const text = await response.text()
   if (!response.ok) throw new Error(`TrueForge ${method} ${path} failed (${response.status}): ${text.slice(0, 300)}`)
@@ -135,7 +137,8 @@ export const registerMcpServer = (name: string, url: string, token: string, desc
 // the first model of the user's chain rather than a fixed provider.
 export const upsertAgent = async () => {
   const manifest = { ...agentManifest(), model: modelSpec(modelChain()[0]) }
-  for await (const agent of await trueforge().agents.list()) {
+  const listed = await api<{ data?: { id: string; name: string }[] } | { id: string; name: string }[]>("GET", "/api/v1/agents?limit=25")
+  for (const agent of Array.isArray(listed) ? listed : (listed?.data ?? [])) {
     if (agent.name === AGENT_NAME) {
       return api("PUT", `/api/v1/agents/${agent.id}`, { description: AGENT_DESCRIPTION, manifest })
     }
@@ -147,7 +150,15 @@ const AGENT_DESCRIPTION = "Pointer: editor-native coding agent for VS Code."
 
 export const describeError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
-  if (/ECONNREFUSED|fetch failed|ENOTFOUND/.test(message)) {
+  // Only Pointer's own failed request means TrueForge is unreachable. A TrueForge error that mentions a refused
+  // connection (to a model or a tool server) is TrueForge reporting, not TrueForge being down.
+  const code = (error as { cause?: { code?: string } } | undefined)?.cause?.code
+  const unreachable =
+    (error instanceof TypeError && /fetch failed/.test(message)) ||
+    code === "ECONNREFUSED" ||
+    code === "ENOTFOUND" ||
+    (error instanceof Error && error.name === "TimeoutError")
+  if (unreachable) {
     return `Pointer can't reach TrueForge at ${trueforgeUrl()}. Start it with \`npx @truefoundry/trueforge@latest\`.`
   }
   // TrueForge's outbound allowlist: without loopback it refuses Pointer's own tool servers; without the

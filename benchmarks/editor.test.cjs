@@ -46,6 +46,16 @@ const tests = {
     await reject()
   },
 
+  async "a new file the agent created is saved to its path before an agent command"() {
+    const target = path.join(root(), "new_module.py")
+    if (fs.existsSync(target)) fs.unlinkSync(target)
+    const made = await vscode.commands.executeCommand("pointer.chatFileCreate", target, "x = 1\n")
+    assert.strictEqual(made.ok, true, JSON.stringify(made))
+    await accept()
+    await vscode.commands.executeCommand("pointer.saveAgentEdits")
+    assert.strictEqual(fs.existsSync(target) && disk(target), "x = 1\n", "the created file is on disk")
+  },
+
   async "saving while a review is pending writes only the original to disk"() {
     const f = file("b.py", "alpha\nbeta\n")
     assert.strictEqual((await propose(f, 0, 0, "alpha", "ALPHA")).ok, true)

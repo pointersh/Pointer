@@ -13,7 +13,7 @@ const PREFETCH_TIMEOUT_MS = 5000
 // questions start at 0.052. Below it the search is noise, so nothing is shown or sent.
 const RELEVANT_SCORE = 0.048
 const relevant = (text: string) => {
-  const top = /^\S+:\d+-\d+ · ([\d.]+) · /m.exec(text)
+  const top = /^.+?:\d+-\d+ · ([\d.]+) · /m.exec(text)
   return !!top && Number(top[1]) >= RELEVANT_SCORE
 }
 

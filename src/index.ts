@@ -61,6 +61,7 @@ export function activate(context: ExtensionContext) {
       inlineEdit.chatCreate(file, content, ticket)
     ),
     commands.registerCommand(POINTER_COMMAND_NAME.saveAgentEdits, () => inlineEdit.saveAgentEdits()),
+    commands.registerCommand(POINTER_COMMAND_NAME.forgetAgentEdits, () => inlineEdit.forgetAgentEdits()),
     commands.registerCommand(POINTER_COMMAND_NAME.stopGeneration, () => generations.stopAll()),
     commands.registerCommand(POINTER_COMMAND_NAME.settings, () =>
       commands.executeCommand("workbench.action.openSettings", EXTENSION_NAME)

@@ -130,19 +130,26 @@ const startTrueForge = (context: vscode.ExtensionContext) => {
   const child = spawn(command, { shell: true, cwd: homedir(), detached: group, stdio: ["ignore", "pipe", "pipe"] })
   trueforge = child
   logger.info(`Starting TrueForge: ${command}`)
+  // Its normal log is noisy; keep the last lines so a failed start ("npx: command not found") is explained.
+  const tail: string[] = []
   const log = (chunk: Buffer) => {
-    for (const line of String(chunk).split("\n")) if (/error|warn|listen|ready|fail/i.test(line)) logger.info(`[trueforge] ${line.trim().slice(0, 300)}`)
+    for (const line of String(chunk).split("\n")) {
+      if (!line.trim()) continue
+      tail.push(line.trim().slice(0, 300))
+      if (tail.length > 20) tail.shift()
+      if (/error|warn|listen|ready|fail/i.test(line)) logger.info(`[trueforge] ${line.trim().slice(0, 300)}`)
+    }
   }
   child.stdout?.on("data", log)
   child.stderr?.on("data", log)
   child.on("error", (error) => logger.error(`TrueForge did not start: ${error.message}`))
-  child.on("exit", (code) => {
-    logger.warn(`TrueForge exited (code ${code ?? "none"})`)
+  child.on("exit", (code, signal) => {
+    logger.warn(`TrueForge exited (${signal ?? `code ${code}`})${tail.length ? `; last output:\n${tail.join("\n")}` : ""}`)
     if (trueforge === child) trueforge = undefined
   })
   context.subscriptions.push({
     dispose: () => {
-      if (child.exitCode !== null || !child.pid) return
+      if (child.exitCode !== null || child.signalCode !== null || !child.pid) return
       try {
         if (group) process.kill(-child.pid, "SIGTERM")
         else child.kill()
@@ -155,7 +162,8 @@ const startTrueForge = (context: vscode.ExtensionContext) => {
     { location: vscode.ProgressLocation.Notification, title: "Starting TrueForge…" },
     async () => {
       const until = Date.now() + START_TIMEOUT_MS
-      while (Date.now() < until && child.exitCode === null) {
+      // A non-zero exit or a signal ends the wait; a command that starts TrueForge and returns (exit 0) does not.
+      while (Date.now() < until && !(child.signalCode !== null || (child.exitCode !== null && child.exitCode !== 0))) {
         if (await trueforgeUp()) {
           await registerAgent(context).then(
             () => vscode.window.setStatusBarMessage("Pointer is connected to TrueForge", 5_000),

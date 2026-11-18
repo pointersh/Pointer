@@ -29,6 +29,7 @@ interface PromptBarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "onS
   onSubmit?: (value: string) => void
   onStop?: () => void
   onModelChange?: (id: string) => void
+  onModelMenu?: () => void
   onRecall?: () => string | undefined
 }
 
@@ -55,6 +56,7 @@ export function PromptBar({
   onSubmit,
   onStop,
   onModelChange,
+  onModelMenu,
   onRecall,
   className,
   ...props
@@ -68,6 +70,12 @@ export function PromptBar({
   const [modelOpen, setModelOpen] = React.useState(false)
   const modelMenu = React.useRef<HTMLDivElement>(null)
   // The menu sits over the prompt: Escape or a click anywhere else closes it without picking.
+  const wasOpen = React.useRef(false)
+  React.useEffect(() => {
+    // Closing the menu unmounts its focused search box: hand focus back to the prompt.
+    if (wasOpen.current && !modelOpen) textareaRef.current?.focus()
+    wasOpen.current = modelOpen
+  }, [modelOpen])
   React.useEffect(() => {
     if (!modelOpen) return
     const close = (e: Event) => {
@@ -242,7 +250,10 @@ export function PromptBar({
                 type="button"
                 aria-expanded={modelOpen}
                 aria-label="Choose model"
-                onClick={() => setModelOpen((o) => !o)}
+                onClick={() => {
+                  if (!modelOpen) onModelMenu?.()
+                  setModelOpen((o) => !o)
+                }}
                 className="flex h-7 shrink-0 items-center gap-1 rounded-[8px] px-1.5 text-[12px] font-medium text-ink-2 transition-colors duration-150 hover:bg-hover hover:text-ink"
               >
                 {current.name}
@@ -307,6 +318,10 @@ function ModelMenu({ models, current, onPick }: { models: PromptModel[]; current
       words.every((w) => `${m.name} ${m.group ?? ""}`.toLowerCase().includes(w))
   )
   React.useEffect(() => setActive(0), [query, tab])
+  const list = React.useRef<HTMLDivElement>(null)
+  React.useEffect(() => {
+    list.current?.querySelectorAll("[role=menuitemradio]")[active]?.scrollIntoView({ block: "nearest" })
+  }, [active])
 
   return (
     <div
@@ -352,7 +367,7 @@ function ModelMenu({ models, current, onPick }: { models: PromptModel[]; current
           ))}
         </div>
       )}
-      <div className="max-h-64 overflow-y-auto">
+      <div ref={list} className="max-h-64 overflow-y-auto">
         {shown.map((m, i) => (
           <button
             key={m.id}

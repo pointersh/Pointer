@@ -99,6 +99,7 @@ export class InlineEditService {
     context.subscriptions.push(
       vscode.workspace.onDidChangeTextDocument((event) => this.onChange(event)),
       vscode.workspace.onDidCloseTextDocument((document) => {
+        this._agentDocs.delete(document)
         if (this._pending?.document === document) this.clearPending()
       }),
       vscode.window.onDidChangeVisibleTextEditors(() => this.decorate()),
@@ -350,6 +351,7 @@ export class InlineEditService {
       if (document.getText()) {
         return { ok: false, message: `Not created: an unsaved ${relative} is already open in the editor. Ask the user to save or close it.` }
       }
+      this._agentDocs.add(document)
       const editor = await vscode.window.showTextDocument(document, { preview: false, preserveFocus: true })
       const region = new DiffRegion(editor, new vscode.Range(0, 0, 0, 0))
       this._pending = region
@@ -377,8 +379,16 @@ export class InlineEditService {
   public async saveAgentEdits() {
     for (const document of [...this._agentDocs]) {
       if (document.isClosed) this._agentDocs.delete(document)
-      else if (document !== this._pending?.document && !document.isUntitled && document.isDirty) await document.save()
+      else if (document !== this._pending?.document && document.isDirty) {
+        // A new file is an untitled buffer bound to its path; give its save a deadline in case VS Code asks where.
+        await Promise.race([document.save(), new Promise((resolve) => setTimeout(resolve, 3_000))])
+      }
     }
+  }
+
+  // A new conversation starts clean: earlier agent edits are no longer saved for it.
+  public forgetAgentEdits() {
+    this._agentDocs.clear()
   }
 
   public accept(hunk?: number) {

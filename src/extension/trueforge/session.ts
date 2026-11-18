@@ -86,6 +86,8 @@ export const retryDelay = (error: string, attempt: number) =>
   Math.min(20, Number(/retry (?:in|after) (\d+)/i.exec(error)?.[1]) || 2 * 2 ** attempt)
 
 export const runTurn = async (sessionId: string, input: string, handlers: TurnHandlers, signal: AbortSignal): Promise<TurnResult> => {
+  // An abort listener added to an already-aborted signal never fires: a turn stopped before it began must not start.
+  if (signal.aborted) return { status: "cancelled", text: "" }
   const client = trueforge()
   const messages = new Map<string, Event>()
   const calls = new Map<string, TrueForgeApi.ToolCall>()
