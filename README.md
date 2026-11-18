@@ -46,6 +46,13 @@ npm ci && npm run build && cargo build --release
 Open the folder in VS Code and press <kbd>F5</kbd>. Full steps:
 **[docs/setup.md](docs/setup.md)**.
 
+## Starting point
+
+Forked from [twinny](https://github.com/twinnydotdev/twinny) at `48e5ee5`
+(v4.3.21). About 98% of it was removed; Pointer keeps only the editor core
+(inline diff, per-hunk review, the panel and workspace tools) and replaces the
+agent loop with TrueForge.
+
 ## Docs
 
 - [Setup and settings](docs/setup.md)
@@ -59,4 +66,4 @@ Open the folder in VS Code and press <kbd>F5</kbd>. Full steps:
 
 ## License
 
-MIT © 2026 Ayush Yadav
+MIT © 2026 Ayush Yadav. Includes code from twinny © 2023 Richard Macarthy.
