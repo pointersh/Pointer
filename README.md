@@ -22,23 +22,27 @@ the editor for you to accept it, hunk by hunk.
 
 - **[Points at the right code](docs/architecture.md#how-context-is-selected).**
   BM25, symbols, file names and a PageRank repo map, fused in Rust. Each hit
-  shows its reason. [Ranks better than BM25 or grep](benchmarks/README.md),
-  in 1.6 ms.
+  shows its reason. [Puts the right file first 8 times in 10, against 3 for BM25](benchmarks/README.md),
+  in 1.5 ms.
 - **Inline edit.**
   Select, press <kbd>⌘I</kbd>, describe the change; the diff streams into the
   editor.
 - **[Agent mode](docs/architecture.md#architecture-on-trueforge).** One request,
-  several files, no need to say which.
+  several files, no need to say which. Passed the fixed multi-file task on
+  Flask 18 times out of 18, in a median 26 s.
 - **Per-hunk review.** Nothing touches disk until you accept it, and
   <kbd>⌘Z</kbd> undoes it.
 - **Stop at any time.** Cancelling leaves the workspace clean.
-- **Two models, one switch.** If the primary model fails, the backup picks up
-  the conversation.
+- **Any model, automatic fallback.** If the primary model fails or stalls, the
+  backup picks up the conversation. Inline edits can use their own, faster
+  model.
 
 ## Quick start
 
 ```sh
-npx @truefoundry/trueforge@latest --port 8790   # register a model provider first
+# TrueForge must be allowed to reach loopback (Pointer's tools) and your model host
+OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","inference.makora.com"]' \
+  npx @truefoundry/trueforge@latest --port 8790   # then register a model provider
 git clone https://github.com/pointersh/Pointer.git && cd Pointer
 npm ci && npm run build && cargo build --release
 ```

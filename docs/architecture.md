@@ -46,9 +46,21 @@ VS Code ── panel / Ctrl+I ──► Agent / TextModel seams ──► TrueFo
   3. On allow, it answers `user.tool_approval` and resubscribes to the turn.
   4. The edit opens inline as per-hunk review. Nothing is written silently.
   5. Accepted hunks are applied through `WorkspaceEdit`, so Ctrl+Z undoes them.
+  6. Edits to several files queue and open one at a time. Before the agent runs
+     a command (tests, say), Pointer saves the files whose edits were accepted,
+     so the command sees them; a file still under review is never saved.
 - **Cancellation.** Stop aborts the stream and calls `sessions.cancel`. Pending
   approvals are denied, and proposed hunks that were never accepted leave the
-  workspace untouched.
+  workspace untouched. Measured over 7 random points of the Flask multi-file
+  task: idle in 1–7 ms, with no tool writes after Stop.
+- **Resilience, in the client:**
+  - a rate limit is retried on the same model (twice, with backoff) before
+    falling back;
+  - a model that makes no progress for 60 s fails over to the next model
+    (150 s while a tool is running, which covers the 120 s command timeout;
+    waiting for the user's approval never counts);
+  - a dropped turn stream is resubscribed from the last event, up to 3 times;
+  - after a fallback the primary is tried again 60 s later.
 - **Harness features used:**
   - dynamic sub-agents: a request that asks for code, tests and docs starts
     with `create_sub_agent` surveying where the closest example is implemented,
@@ -66,18 +78,26 @@ VS Code ── panel / Ctrl+I ──► Agent / TextModel seams ──► TrueFo
 
 1. **Explicit:** `@file` and `@symbol` mentions are passed to the agent as files
    to read first.
-2. **Automatic: `pointer-retrieval`**, a Rust MCP server:
+2. **Automatic, before every agent turn:** Pointer itself calls
+   `search_codebase` on the request (a follow-up is searched together with the
+   request before it), shows the result as "Pointing at", and hands the chunks
+   to the model. When nothing in the repository matches ("say hi"), nothing is
+   shown or sent: the top fused score must clear 0.048, which on Flask
+   separates small talk (at most 0.044) from real questions (0.052 and up).
+3. **Ranking: `pointer-retrieval`**, a Rust MCP server:
    - code-aware chunks along tree-sitter boundaries;
    - BM25 over identifier-split tokens and paths;
    - a symbol-match boost;
    - a PageRank prior over the definition/reference graph (an Aider-style repo
      map);
-   - reciprocal rank fusion of these signals.
-3. **Budget:** `search_codebase(query, budget_tokens)` packs the top chunks
+   - reciprocal rank fusion of these signals;
+   - test files ranked at half weight unless the request mentions tests (they
+     mention everything they test): right file first went from 6/10 to 8/10.
+4. **Budget:** `search_codebase(query, budget_tokens)` packs the top chunks
    within the budget and reports what it dropped.
-4. **Visible reasons:** every chosen chunk carries a computed reason (definition,
+5. **Visible reasons:** every chosen chunk carries a computed reason (definition,
    reference count, BM25 terms). The panel shows them as "Pointing at…".
-5. **Semantic search (optional, setting `pointer.semanticSearch`):** local
+6. **Semantic search (optional, setting `pointer.semanticSearch`):** local
    `bge-small-en-v1.5` through `fastembed`, run in-process on the CPU with no
    API calls. Each passage carries its path and symbol names. Vectors build in
    the background, stored as int8 and persisted in `.pointer/index`, which
@@ -92,8 +112,8 @@ VS Code ── panel / Ctrl+I ──► Agent / TextModel seams ──► TrueFo
   **1.5 ms** over MCP.
 - With `--semantic`, 1,275 chunks embed in 22–31 s the first time, then are
   reused from disk. A query takes 7–10 ms, or about 2 ms when repeated. On 22
-  paraphrased questions that avoid identifiers, MRR rises from 0.46 (lexical
-  only) to 0.62. See [benchmarks](../benchmarks/README.md).
+  paraphrased questions that avoid identifiers, MRR rises from 0.61 (lexical
+  only) to 0.71. See [benchmarks](../benchmarks/README.md).
 - The default budget of 3,000 tokens (about 14k characters) keeps every
   response under TrueForge's 24k-character tool limit, and leaves room for two
   searches and a file read in one parallel step under its 40k combined limit.
@@ -134,11 +154,12 @@ but sometimes accepted a call and sent nothing, costing a fallback.
   names. No code changes are needed.
 - **Fallback:** if a turn ends in error, Pointer opens a session on the next
   model, carrying the conversation so far, and says so in the panel. Inline edit
-  falls back the same way. This was verified with an invalid primary key: the
-  backup answered in about 1.4 s.
+  falls back the same way. With an unreachable primary, the backup's edit
+  appeared in 0.7–1.1 s and `git status` stayed clean.
 - **Reasoning effort:** both models reason at length by default; on Makora a
   coding answer spent 2,000 tokens thinking (11–20 s) before writing anything.
   Pointer sends `reasoning_effort` per model (`none` for DeepSeek-V4.1-Flash,
-  `low` for GLM-5.3-Flash), which brings the first answer token to 0.5–1.3 s
+  `low` for GLM-5.3-Flash and Groq, `medium` for Gemini, which through TrueForge
+  otherwise does no reasoning at all), which brings the first answer token to 0.5–1.3 s
   and a full agent turn (read, approved edit) to about 3 s. Override with
   `pointer.reasoningEffort`; measure with `benchmarks/models.mjs`.

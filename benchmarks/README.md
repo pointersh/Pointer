@@ -1,8 +1,29 @@
 # Benchmarks
 
-Pointer's Rust retrieval engine against plain BM25 and grep. Measured 16 Nov
-2026 on an Apple M5 laptop (24 GB). Repositories: pallets/flask 3.1.3 (commit
+Pointer's Rust retrieval engine against plain BM25 and grep, and the three
+fixed tasks run live. Measured 16–18 Nov 2026 on an Apple M5 laptop (24 GB). Repositories: pallets/flask 3.1.3 (commit
 `22d92470`), django/django `main` (commit `f24f38c`), and Pointer itself.
+
+## Live tasks (Flask 3.1.3)
+
+Pointer's own agent, inline model and editor tools against live models through
+TrueForge (`abc.mjs`; edits accepted as proposed), each result scored by
+`tasks.sh`. Task A: make `get_debug_flag` treat `off` and `n` as false (11
+checks). Task B: add a `flask config` command with a test and docs, naming no
+files (6 checks). Task C: Task A with an unreachable primary model.
+
+| Task | Model | Runs | Result |
+|---|---|---|---|
+| A, inline edit | GPT-OSS 120B on Groq | 6 | 11/11 every run, 0.69–1.03 s, first token 0.48–0.78 s |
+| A, inline edit, in real VS Code | DeepSeek V4.1 Flash on Makora | 3 | 11/11 every run, 1.4–2.6 s |
+| B, agent mode | DeepSeek V4.1 Flash on Makora | 18 | 18/18 pass all 6 checks; median 26 s, 9–34 model calls |
+| B, through the real panel | DeepSeek V4.1 Flash | 1 | 6/6; the agent's own pytest run passed 59/59 |
+| B, agent mode | Gemini 3.5 Flash Lite (free tier) | 5 | 0/5: 3 out of time after 39–54 calls, 1 overloaded, 1 rate-limited |
+| C, fallback | unreachable → Groq or DeepSeek | 6 | backup's edit 11/11, 0.7–1.1 s, `git status` clean before accepting |
+| Stop during B | DeepSeek V4.1 Flash | 7 | cut at 1–31 s: idle in 1–7 ms, 0 tool writes after Stop |
+
+GLM-5.3 Flash (now the backup) passed Task B whenever it answered, but sometimes
+accepted a call and sent nothing; DeepSeek replaced it as the primary.
 
 ## Ranking quality (Flask)
 
@@ -88,9 +109,9 @@ limit at every size.
 
 | | At the start | Now |
 |---|---|---|
-| TypeScript, non-blank lines | 95,327 | 9,030 |
-| Runtime dependencies | 40 | 17 |
-| Dev dependencies | 28 | 12 |
+| TypeScript, non-blank lines | 95,327 | 8,708 |
+| Runtime dependencies | 40 | 11 |
+| Dev dependencies | 28 | 14 |
 
 ## Findings
 
@@ -106,7 +127,13 @@ limit at every size.
   - BM25 and file names weighted twice as much as the other signals.
 
   Now `cli.py` comes first for the CLI task, `test_cli.py` and `cli.rst` are 8th and
-  10th of the 17 chunks returned, and all three arrive in one call.
+  10th of the 12 chunks returned, and all three arrive in one call.
+- **Tests outranked the code they test.** A test file mentions every name it
+  exercises, so "where is the 404 handler registered" found tests first.
+  Ranking test files at half weight unless the request mentions tests raised
+  MRR from 0.72 to 0.84 (right file first 6/10 → 8/10) and, on the paraphrased
+  set it was not tuned on, from 0.45 to 0.61. Weights from 0.6 down gave the
+  same result; spreading a file's score across its chunks made things worse.
 - **Indexing was single-threaded.** On Django, 1.66 s of the 3.15 s start-up
   went to tokenizing 40,177 chunks one at a time. Tokenizing them across all
   cores cut start-up to 1.74 s and Flask from 91 ms to 51 ms, with identical
@@ -164,3 +191,9 @@ in Pointer's response. Set `RG` to point at a different ripgrep binary.
 | `placement.mjs` | Where the CLI task's three files land |
 | `semantic.mjs` | Scores lexical and semantic search on each query file, with build time and latency |
 | `scale.mjs` | Start-up, query time and peak memory across repositories |
+| `abc.mjs` | Tasks A, B and C live through Pointer's agent (see [setup](../docs/setup.md#checks) for its options) |
+| `tasks.sh` | Sets up Flask 3.1.3 with a venv and scores each task |
+| `editor.sh` | Runs a test file inside a real VS Code window |
+| `editor.test.cjs` | The review engine: pending diffs never reach disk, queueing, per-hunk accept, CRLF, undo, save before agent commands |
+| `live.test.cjs` | Activation, Task A, Stop and Task C in a real VS Code, against live models |
+| `models.mjs` | Latency per model and reasoning effort on Makora (`MAKORA_API_KEY=… node benchmarks/models.mjs`) |

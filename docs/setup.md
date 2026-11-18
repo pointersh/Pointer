@@ -66,8 +66,11 @@ open the repository you want to work on. On activation, Pointer:
 | `pointer.trueforgeUrl` | `http://localhost:8790` | Where TrueForge runs |
 | `pointer.models` | `["pointer/primary", "pointer-backup/primary"]` | Model chain, tried in order |
 | `pointer.inlineModels` | `[]` (uses `pointer.models`) | Model chain for inline edits; a fast model here (e.g. Groq) speeds up Ctrl+I |
+| `pointer.reasoningEffort` | `{}` | Per-model `reasoning_effort`, e.g. `{"pointer/primary": "none"}`. Built-in defaults: DeepSeek (`pointer`) `none`, GLM (`pointer-backup`) `low`, Groq `low`, Gemini `medium` (through TrueForge Gemini otherwise does no reasoning) |
 | `pointer.retrievalPath` | `target/release/pointer-retrieval` | Retrieval engine binary |
 | `pointer.semanticSearch` | `false` | Add local embeddings (bge-small) to retrieval. Downloads the model once (~133 MB) and builds in the background (about 30 s for Flask); the index lives in `.pointer/`, which ignores itself |
+| `pointer.embeddingIgnoredGlobs` | `[]` | Extra globs to keep out of the semantic index |
+| `pointer.enableLogging` | `true` | Log to the "Pointer" output channel |
 
 ## Checks
 
@@ -79,6 +82,8 @@ open the repository you want to work on. On activation, Pointer:
 | `npm run check:trueforge` | One full live turn (read, then an approved edit) against your TrueForge |
 | `cargo test --release` | Retrieval engine and highlighter |
 | `benchmarks/editor.sh` | The review engine inside a real VS Code (opens a throwaway window): pending diffs never reach disk, one proposal at a time, per-hunk accept and reject, CRLF, undo |
+| `benchmarks/editor.sh benchmarks/live.test.cjs <flask-dir>` | Live in a real VS Code, against your TrueForge: activation registers both MCP servers, Task A through Ctrl+I, Stop mid-stream, Task C fallback, every model unreachable |
+| `node benchmarks/abc.mjs <flask-dir> [runs]` | Tasks A, B and C live through Pointer's own agent, without the UI (edits accepted as proposed), each scored by `tasks.sh`. `MODELS=` and `INLINE_MODELS=` pick models, `TASKS=ab` picks tasks, `CANCEL=1` stops Task B at random points instead, `EDITS=1` lists each edit |
 | `benchmarks/tasks.sh setup\|a\|b\|c\|reset [flask-dir]` | The three fixed tasks on Flask 3.1.3: `setup` clones it with a venv, `a`/`b`/`c` verify a task after you run it in the editor, `reset` discards changes between takes |
 
 ## Repository layout
@@ -91,5 +96,5 @@ src/webview/               React agent panel
 agent/                     TrueForge agent definition and example provider config
 crates/pointer-retrieval/  Rust retrieval engine, served as an MCP server
 crates/pointer-highlight/  @pointersh/highlight: Rust tokenizer compiled to WebAssembly
-benchmarks/                retrieval benchmark against BM25 and grep
+benchmarks/                retrieval benchmarks, the live A/B/C harness and the VS Code checks
 ```
