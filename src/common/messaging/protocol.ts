@@ -46,7 +46,7 @@ interface ClientEvents {
   [EVENT_NAME.pointerRemoveContextItem]: Channel<string>
   [EVENT_NAME.pointerRunInTerminal]: Channel<string>
   [EVENT_NAME.pointerInsertAtCursor]: Channel<string>
-  [EVENT_NAME.pointerModels]: Channel<{ pick?: string }, string[]>
+  [EVENT_NAME.pointerModels]: Channel<{ pick?: string }, { chain: string[]; models: ModelOption[] }>
   [EVENT_NAME.pointerSendTheme]: Channel<void, ThemeType>
   [EVENT_NAME.pointerSessionContext]: Channel<{ key: string }, ContextValue>
   [EVENT_NAME.pointerSetGlobalContext]: Channel<ContextValue>
@@ -88,3 +88,10 @@ export type RequestableEvent = {
 export type VoidPayloadEvent = {
   [K in ClientEventName]: [PayloadOf<K>] extends [void] ? K : never
 }[ClientEventName]
+
+// A model the picker can offer: a TrueForge `provider/model` name, its display name, and the provider tab it sits in.
+export interface ModelOption {
+  id: string
+  name: string
+  group: string
+}

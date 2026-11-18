@@ -3,6 +3,7 @@ import ReactMarkdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
 import { EVENT_NAME, USER } from "../common/constants"
+import type { ModelOption } from "../common/messaging/protocol"
 import { ChatCompletionMessage, MentionType, ToolStepView } from "../common/types"
 
 import { useFilePaths } from "./hooks/useFilePaths"
@@ -21,12 +22,8 @@ import { bridge, emit, useServerEvent } from "./messaging"
 import { changeSummary, diffsOf, pointedFiles, runningLabel, toRow } from "./turn"
 import { getThinkingMessage } from "./utils"
 
-const MODEL_NAMES: Record<string, Omit<PromptModel, "id">> = {
-  "pointer/primary": { name: "DeepSeek V4.1 Flash", tag: "Flagship" },
-  "pointer-backup/primary": { name: "GLM-5.3 Flash", tag: "Backup" },
-  "pointer-groq/primary": { name: "GPT-OSS 120B (Groq)", tag: "Fast" }
-}
-const FLAGSHIP = "pointer/primary"
+// Display names for model ids, filled from TrueForge's model list; reply footers read it too.
+const modelNames = new Map<string, string>()
 
 const COMMANDS: PromptOption[] = [
   { key: "explain", name: "/explain", desc: "Explain how something works", insert: "Explain how " },
@@ -72,8 +69,16 @@ export function Panel() {
   const { filePaths } = useFilePaths()
   const { contextItems, removeContextItem } = useWorkspaceContext()
 
-  const applyModels = (chain: string[] | undefined) =>
-    setModels((chain ?? []).map((id) => ({ id, ...(MODEL_NAMES[id] ?? { name: id }) })))
+  const [model, setModel] = React.useState<string>()
+  const applyModels = (result: { chain: string[]; models: ModelOption[] } | undefined) => {
+    if (!result) return
+    const list = [...result.models]
+    // The chain's head is the model in use; keep it pickable even if TrueForge no longer lists it.
+    if (result.chain[0] && !list.some((m) => m.id === result.chain[0])) list.unshift({ id: result.chain[0], name: result.chain[0], group: "Other" })
+    for (const m of list) modelNames.set(m.id, m.name)
+    setModels(list)
+    setModel(result.chain[0])
+  }
 
   React.useEffect(() => {
     void bridge.request(EVENT_NAME.pointerModels, {}).then(applyModels, () => undefined)
@@ -251,8 +256,7 @@ export function Panel() {
           onValueChange={setDraft}
           busy={busy}
           models={models}
-          model={models[0]?.id}
-          flagship={FLAGSHIP}
+          model={model}
           commands={COMMANDS}
           mentions={mentions}
           onSubmit={send}
@@ -359,7 +363,7 @@ function AssistantTurn({ content: full, steps, live, thinkingSince, thoughtSecon
       {message.trim() && <Reply text={message} live={live} />}
       {!live && footer && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-ink-3">
-          {footer.model && <span>{MODEL_NAMES[footer.model]?.name ?? footer.model}</span>}
+          {footer.model && <span>{modelNames.get(footer.model) ?? footer.model}</span>}
           {footer.durationMs !== undefined && <span className="tabular-nums">· {seconds(footer.durationMs)}</span>}
           {footer.stopped && <span>· stopped</span>}
           <CopyButton text={message} />

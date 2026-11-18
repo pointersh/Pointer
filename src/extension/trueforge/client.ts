@@ -3,6 +3,7 @@ import { createHash } from "crypto"
 import * as vscode from "vscode"
 
 import agentDefinition from "../../../agent/pointer.agent.json"
+import type { ModelOption } from "../../common/messaging/protocol"
 
 export const AGENT_NAME = agentDefinition.name
 export const AGENT_MANIFEST = agentDefinition.manifest
@@ -65,6 +66,46 @@ export const modelChain = (): string[] => {
 export const inlineModelChain = (): string[] => {
   const configured = settings().get<string[]>("inlineModels") ?? []
   return configured.length ? configured : modelChain()
+}
+
+type ProviderEntry = { name?: string; type?: string; base_url?: string; models?: { name: string; model_id?: string }[] }
+const GROUPS: [RegExp, string][] = [
+  [/makora/, "Makora"],
+  [/groq/, "Groq"],
+  [/openrouter/, "OpenRouter"],
+  [/googleapis|gemini/, "Gemini"]
+]
+
+// Every model registered in TrueForge, grouped by where it runs. The same model registered twice (Pointer's
+// `pointer` alias and the full `makora` list) shows once, under the name the current chain uses.
+export const listModels = async (): Promise<ModelOption[]> => {
+  const chain = new Set(modelChain())
+  const response = await fetch(`${trueforgeUrl()}/api/v1/settings/model-providers`, { signal: AbortSignal.timeout(5_000) })
+  if (!response.ok) return []
+  const body = (await response.json()) as { data?: { manifest?: ProviderEntry }[] } | { manifest?: ProviderEntry }[]
+  const providers = (Array.isArray(body) ? body : (body.data ?? [])).map((p) => p.manifest ?? (p as ProviderEntry))
+  const seen = new Map<string, ModelOption>()
+  for (const provider of providers) {
+    const name = provider.name ?? provider.type ?? ""
+    if (!name || name === "pointer-broken") continue
+    const where = `${provider.base_url ?? ""} ${provider.type ?? ""} ${name}`
+    const group = GROUPS.find(([pattern]) => pattern.test(where))?.[1] ?? name
+    for (const model of provider.models ?? []) {
+      const option = {
+        id: `${name}/${model.name}`,
+        name: model.model_id === "openrouter/free" ? "Auto (free)" : String(model.model_id ?? model.name).split("/").pop()!.replace(/:free$/, ""),
+        group
+      }
+      const key = `${group}:${model.model_id ?? model.name}`
+      const previous = seen.get(key)
+      const better =
+        !previous ||
+        (chain.has(option.id) && !chain.has(previous.id)) ||
+        (!chain.has(previous.id) && previous.id.startsWith("pointer") && !option.id.startsWith("pointer"))
+      if (better) seen.set(key, option)
+    }
+  }
+  return [...seen.values()]
 }
 
 export const chooseModel = async (name: string) => {

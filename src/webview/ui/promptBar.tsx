@@ -1,14 +1,11 @@
 import * as React from "react"
-import { accentChain, ACCENTS, createShader, playSweep } from "glimm"
 
 import { cn } from "./cn"
-
-const RAINBOW = accentChain([ACCENTS.red, ACCENTS.orange, ACCENTS.yellow, ACCENTS.green, ACCENTS.cyan, ACCENTS.blue, ACCENTS.purple])
 
 export interface PromptModel {
   id: string
   name: string
-  tag?: string
+  group?: string
 }
 
 export interface PromptOption {
@@ -25,7 +22,6 @@ interface PromptBarProps extends Omit<React.HTMLAttributes<HTMLDivElement>, "onS
   onValueChange?: (value: string) => void
   models?: PromptModel[]
   model?: string
-  flagship?: string
   busy?: boolean
   maxRows?: number
   commands?: PromptOption[]
@@ -52,7 +48,6 @@ export function PromptBar({
   onValueChange,
   models = [],
   model,
-  flagship,
   busy = false,
   maxRows = 10,
   commands = [],
@@ -90,9 +85,6 @@ export function PromptBar({
     }
   }, [modelOpen])
   const textareaRef = React.useRef<HTMLTextAreaElement>(null)
-  const glimmRef = React.useRef<HTMLCanvasElement>(null)
-  const shaderRef = React.useRef<ReturnType<typeof createShader> | null>(null)
-  const sweepingRef = React.useRef(false)
 
   useAutoGrow(textareaRef, value, maxRows)
 
@@ -107,54 +99,10 @@ export function PromptBar({
 
   React.useEffect(() => setActive(0), [token?.kind, token?.query])
 
-  const makeShader = () => {
-    const canvas = glimmRef.current
-    if (!canvas) return null
-    const random = Math.random
-    Math.random = () => 0
-    try {
-      return createShader({ canvas, palette: RAINBOW, direction: "ltr", bandTight: 10, swellAmount: 0.85 })
-    } finally {
-      Math.random = random
-    }
-  }
-
-  React.useEffect(
-    () => () => {
-      shaderRef.current?.destroy()
-      shaderRef.current = null
-    },
-    []
-  )
-
-  const celebrate = () => {
-    if (sweepingRef.current || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
-    shaderRef.current?.destroy()
-    const shader = makeShader()
-    shaderRef.current = shader
-    if (!shader) return
-    sweepingRef.current = true
-    playSweep(shader, {
-      palette: RAINBOW,
-      direction: "ltr",
-      sweepMs: 570,
-      outroMs: 80,
-      peakAlpha: 1.3,
-      bandTight: 10,
-      brightness: 1.4,
-      swellAmount: 1,
-      waveSpeed: 1.8,
-      easing: "easeOutExpo"
-    }).done.finally(() => {
-      sweepingRef.current = false
-    })
-  }
-
   const pickModel = (id: string) => {
     setModelOpen(false)
     if (id === model) return
     onModelChange?.(id)
-    if (id === flagship) celebrate()
     textareaRef.current?.focus()
   }
 
@@ -221,12 +169,6 @@ export function PromptBar({
       )}
 
       <div className="relative isolate flex flex-col gap-1.5 rounded-[14px] border border-line bg-surface p-1.5 shadow-card transition-[border-color] duration-150 focus-within:border-line-strong">
-        <canvas
-          ref={glimmRef}
-          aria-hidden="true"
-          className="pointer-events-none absolute inset-0 -z-10 h-full w-full"
-          style={{ borderRadius: "inherit" }}
-        />
         <textarea
           ref={textareaRef}
           rows={2}
@@ -310,29 +252,7 @@ export function PromptBar({
               </button>
             )}
             {modelOpen && models.length > 0 && (
-              <div
-                role="menu"
-                className="absolute right-0 bottom-full z-30 mb-1.5 w-max max-w-[min(20rem,calc(100vw-2rem))] min-w-56 rounded-[10px] bg-surface p-1 shadow-raised"
-                style={{ animation: "bui-pop-in 180ms var(--ease-out-strong) both", transformOrigin: "bottom right" }}
-              >
-                {models.map((m) => (
-                  <button
-                    key={m.id}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={m.id === current?.id}
-                    onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => pickModel(m.id)}
-                    className="flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left transition-colors duration-100 hover:bg-hover"
-                  >
-                    <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{m.name}</span>
-                    {m.tag && <span className="shrink-0 text-[11px] text-ink-3">{m.tag}</span>}
-                    <span className={cn("shrink-0 text-ink", m.id !== current?.id && "invisible")}>
-                      <Icon path="M20 6L9 17l-5-5" size={13} width={2.5} />
-                    </span>
-                  </button>
-                ))}
-              </div>
+              <ModelMenu models={models} current={current?.id} onPick={pickModel} />
             )}
           </div>
 
@@ -369,4 +289,90 @@ function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: st
     el.style.height = `${Math.min(el.scrollHeight, max)}px`
     el.style.overflowY = el.scrollHeight > max ? "auto" : "hidden"
   }, [ref, value, maxRows])
+}
+
+// Every model TrueForge offers: provider tabs, a search box, and the list. Arrow keys move, Enter picks.
+function ModelMenu({ models, current, onPick }: { models: PromptModel[]; current?: string; onPick: (id: string) => void }) {
+  const groups = [...new Set(models.map((m) => m.group ?? "Other"))]
+  const [tab, setTab] = React.useState(() => models.find((m) => m.id === current)?.group ?? "All")
+  const [query, setQuery] = React.useState("")
+  const [active, setActive] = React.useState(0)
+  const search = React.useRef<HTMLInputElement>(null)
+  React.useEffect(() => search.current?.focus(), [])
+
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean)
+  const shown = models.filter(
+    (m) =>
+      (query || tab === "All" || (m.group ?? "Other") === tab) &&
+      words.every((w) => `${m.name} ${m.group ?? ""}`.toLowerCase().includes(w))
+  )
+  React.useEffect(() => setActive(0), [query, tab])
+
+  return (
+    <div
+      role="menu"
+      className="absolute right-0 bottom-full z-30 mb-1.5 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col rounded-[10px] bg-surface p-1 shadow-raised"
+      style={{ animation: "bui-pop-in 180ms var(--ease-out-strong) both", transformOrigin: "bottom right" }}
+    >
+      <input
+        ref={search}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault()
+            setActive((i) => Math.min(i + 1, shown.length - 1))
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault()
+            setActive((i) => Math.max(i - 1, 0))
+          } else if (e.key === "Enter" && shown[active]) {
+            e.preventDefault()
+            onPick(shown[active].id)
+          }
+        }}
+        placeholder="Search models"
+        aria-label="Search models"
+        className="mb-1 h-7 w-full rounded-[6px] bg-inset px-2 text-[12.5px] text-ink outline-none placeholder:text-ink-3"
+      />
+      {!query && groups.length > 1 && (
+        <div className="mb-1 flex gap-0.5 overflow-x-auto pb-0.5">
+          {["All", ...groups].map((g) => (
+            <button
+              key={g}
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setTab(g)}
+              className={cn(
+                "h-6 shrink-0 rounded-[6px] px-2 text-[11.5px] transition-colors duration-100",
+                tab === g ? "bg-hover-2 font-medium text-ink" : "text-ink-3 hover:bg-hover hover:text-ink-2"
+              )}
+            >
+              {g}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="max-h-64 overflow-y-auto">
+        {shown.map((m, i) => (
+          <button
+            key={m.id}
+            type="button"
+            role="menuitemradio"
+            aria-checked={m.id === current}
+            onMouseDown={(e) => e.preventDefault()}
+            onMouseEnter={() => setActive(i)}
+            onClick={() => onPick(m.id)}
+            className={cn("flex h-7.5 w-full items-center gap-2 rounded-[6px] px-2 text-left transition-colors duration-100", i === active && "bg-hover")}
+          >
+            <span className="min-w-0 flex-1 truncate text-[12.5px] font-medium text-ink">{m.name}</span>
+            {(query || tab === "All") && <span className="shrink-0 text-[11px] text-ink-3">{m.group}</span>}
+            <span className={cn("shrink-0 text-ink", m.id !== current && "invisible")}>
+              <Icon path="M20 6L9 17l-5-5" size={13} width={2.5} />
+            </span>
+          </button>
+        ))}
+        {shown.length === 0 && <div className="flex h-8 items-center px-2 text-[12px] text-ink-3">No models match “{query}”</div>}
+      </div>
+    </div>
+  )
 }
