@@ -73,6 +73,7 @@ export class SidebarProvider extends BaseProvider {
     )
 
     const codiconCssWebviewUri = webview.asWebviewUri(codiconCssUri)
+    const logo = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, "assets", "icon.png"))
 
     const nonce = getNonce()
 
@@ -92,13 +93,13 @@ export class SidebarProvider extends BaseProvider {
             style-src ${webview.cspSource} 'unsafe-inline';"
           >
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>pointer</title>
+          <title>Pointer</title>
           <style>
             body { padding: 0 }
           </style>
       </head>
       <body>
-          <div id="root"></div>
+          <div id="root" data-logo="${logo}"></div>
           <script type="module" nonce="${nonce}" src="${scriptUri}"></script>
       </body>
     </html>`

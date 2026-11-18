@@ -265,10 +265,14 @@ export function Panel() {
   )
 }
 
+// The extension host passes the logo's webview URI on the root element (see sidebar.ts).
+const LOGO = document.getElementById("root")?.dataset.logo
+
 function EmptyState({ onPick }: { onPick: (text: string) => void }) {
   return (
     <div className="flex h-full flex-col justify-end gap-5 px-1 pb-4" style={{ animation: "fade-up 400ms var(--ease-out-strong) both" }}>
       <div>
+        {LOGO && <img src={LOGO} alt="" className="mb-3 size-10 rounded-[10px]" />}
         <p className="text-[18px] font-medium text-ink-3">Pointer</p>
         <p className="mt-0.5 text-[18px] leading-snug font-medium text-ink">What should we build?</p>
         <p className="mt-2 text-[12.5px] leading-relaxed text-ink-2">
