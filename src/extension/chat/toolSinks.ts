@@ -1,5 +1,6 @@
 import { ChildProcess, execFile, spawn } from "child_process"
 import { existsSync } from "fs"
+import * as path from "path"
 import {
 commands,
 Diagnostic,
@@ -28,6 +29,18 @@ import { allowTool } from "./approvals"
 import { release, ticketFor } from "./tickets"
 
 const COMMAND_TIMEOUT_MS = 120_000
+
+// VS Code started from the Dock has no virtualenv on PATH (often not even `python`), so the agent's
+// `python -m pytest` fails. Like the Python extension, use the workspace's own .venv / venv / env.
+const workspaceVenv = (cwd: string): NodeJS.ProcessEnv => {
+  const bin = process.platform === "win32" ? "Scripts" : "bin"
+  for (const name of [".venv", "venv", "env"]) {
+    const dir = path.join(cwd, name)
+    if (!existsSync(path.join(dir, bin, process.platform === "win32" ? "python.exe" : "python"))) continue
+    return { VIRTUAL_ENV: dir, PATH: `${path.join(dir, bin)}${path.delimiter}${process.env.PATH ?? ""}` }
+  }
+  return {}
+}
 const OUTPUT_TAIL = { maxChars: 4000, maxLines: 80 }
 const MAX_CAPTURE_CHARS = 200_000
 
@@ -270,7 +283,7 @@ const runInBackground = (
       detached: group,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, PAGER: "cat", GIT_PAGER: "cat", NO_COLOR: "1" }
+      env: { ...process.env, ...workspaceVenv(cwd), PAGER: "cat", GIT_PAGER: "cat", NO_COLOR: "1" }
     })
     let output = ""
     let ended: "stopped" | undefined
