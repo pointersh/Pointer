@@ -24,7 +24,8 @@ const VERBS: Record<string, [string, ToolIcon]> = {
   move_file: ["Moved", "write"],
   delete_file: ["Deleted", "write"],
   run_command: ["Ran", "run"],
-  git: ["Git", "run"]
+  git: ["Git", "run"],
+  create_sub_agent: ["Sub-agent surveyed", "point"]
 }
 
 const RUNNING: Record<string, string> = {
@@ -35,7 +36,8 @@ const RUNNING: Record<string, string> = {
   find_symbol: "Looking up",
   edit_file: "Editing",
   create_file: "Creating",
-  run_command: "Running"
+  run_command: "Running",
+  create_sub_agent: "Sub-agent surveying"
 }
 
 const status = (step: ToolStepView): ToolRowStatus =>
@@ -65,6 +67,8 @@ const chipOf = (step: ToolStepView) => {
       return a.args ?? a.command
     case "move_file":
       return a.from && a.to ? `${a.from} → ${a.to}` : a.path
+    case "create_sub_agent":
+      return short(String(a.task ?? a.prompt ?? a.description ?? a.name ?? Object.values(a)[0] ?? ""), 60)
     default:
       return a.path ?? Object.values(a)[0]
   }

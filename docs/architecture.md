@@ -50,7 +50,10 @@ VS Code ── panel / Ctrl+I ──► Agent / TextModel seams ──► TrueFo
   approvals are denied, and proposed hunks that were never accepted leave the
   workspace untouched.
 - **Harness features used:**
-  - dynamic subagents, for scouting files;
+  - dynamic sub-agents: a request that asks for code, tests and docs starts
+    with `create_sub_agent` surveying where the closest example is implemented,
+    tested and documented (path:line findings). It ran in 3/3 Task B runs and
+    cut the edits to review from 6–12 to 3–4;
   - deferred tool loading, where the agent calls `call_tool` and Pointer
     unwraps the real tool name;
   - context compaction;
@@ -123,7 +126,7 @@ takes under 1 ms.
 | Fallback (`pointer-backup/primary`) | zai-org/GLM-5.3-Flash | Makora, separate TrueForge provider entry | $0.14 / $0.24 |
 | Inline edits, optional (`pointer.inlineModels`) | openai/gpt-oss-120b | Groq, TrueForge `custom` provider | free tier |
 
-DeepSeek leads because it passed Task B 8/8 in a median 26 s; GLM is cheaper
+DeepSeek leads because it passed Task B 16/16 in a median 25 s; GLM is cheaper
 but sometimes accepted a call and sent nothing, costing a fallback.
 
 - **Switching models:** register any TrueForge provider as `pointer` or
