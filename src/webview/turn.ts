@@ -75,6 +75,9 @@ const chipOf = (step: ToolStepView) => {
       return a.command
     case "git":
       return a.args ?? a.command
+    case "repo_map":
+    case "index_status":
+      return undefined
     case "move_file":
       return a.from && a.to ? `${a.from} → ${a.to}` : a.path
     case "create_sub_agent":

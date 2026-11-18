@@ -257,7 +257,8 @@ fn name_tokens(path: &str) -> Vec<String> {
     let name = path.rsplit('/').next().unwrap_or(path);
     tokenize(name.split('.').next().unwrap_or(name))
         .into_iter()
-        .filter(|t| t != "test" && t != "init")
+        // Words too common in requests to mean a file: "keep the change minimal" is not about CHANGES.rst.
+        .filter(|t| !matches!(t.as_str(), "test" | "init" | "change"))
         .collect()
 }
 
@@ -874,6 +875,7 @@ mod tests {
     fn name_tokens_skip_test_prefix() {
         assert_eq!(name_tokens("tests/test_cli.py"), ["cli"]);
         assert_eq!(name_tokens("docs/cli.rst"), ["cli"]);
+        assert!(name_tokens("CHANGES.rst").is_empty());
     }
 
     #[test]

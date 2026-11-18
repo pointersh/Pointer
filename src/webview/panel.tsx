@@ -324,7 +324,8 @@ function AssistantTurn({ content: full, steps, live, thinkingSince, thoughtSecon
   const { thinking, message } = getThinkingMessage(content)
   const visible = steps.filter((s) => !s.said)
   const pointed = pointedFiles(visible)
-  const rows = visible.map(toRow)
+  // The automatic search is shown as the Pointing-at card, not again as a step row.
+  const rows = visible.filter((s) => s.id !== "pointer-prefetch").map(toRow)
   const diffs = diffsOf(visible, (path) => openFile(path))
   const waiting = visible.find((s) => s.status === "waiting")
   const thinkingNow = live && !!thinking && !message.trim()
@@ -346,7 +347,7 @@ function AssistantTurn({ content: full, steps, live, thinkingSince, thoughtSecon
           steps={[{ kind: "reasoning", label: "Reasoning", detail: thinking }]}
         />
       )}
-      {pointed && <PointingAt chunks={pointed.chunks} dropped={pointed.dropped} onOpen={(c) => openFile(c.path, c.start, c.end)} />}
+      {pointed && <PointingAt live={live} chunks={pointed.chunks} dropped={pointed.dropped} onOpen={(c) => openFile(c.path, c.start, c.end)} />}
       {rows.length > 0 && (
         <ToolChips
           rows={rows}
