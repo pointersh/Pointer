@@ -58,8 +58,11 @@ const register = async (context: vscode.ExtensionContext) => {
     setRetrievalEndpoint(retrieval)
     logger.info(`Retrieval MCP server at ${retrieval.url}`)
   }
-  await upsertAgent()
-  logger.info(`TrueForge agent registered at ${trueforgeUrl()}`)
+  // Sessions carry their own spec, so a failed registration (say, an unknown model) must not take the tools down.
+  await upsertAgent().then(
+    () => logger.info(`TrueForge agent registered at ${trueforgeUrl()}`),
+    (error) => logger.warn(`Pointer agent not registered in TrueForge: ${describeError(error)}`)
+  )
 }
 
 // Retried on the next request after a failure, so starting TrueForge after VS Code needs no reload.

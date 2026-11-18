@@ -4,7 +4,12 @@ import fs from "node:fs"
 import esbuild from "esbuild"
 
 (async () => {
-  execSync("cargo build -p pointer-highlight --profile wasm --target wasm32-unknown-unknown", { stdio: "inherit" })
+  try {
+    execSync("cargo build -p pointer-highlight --profile wasm --target wasm32-unknown-unknown", { stdio: "inherit" })
+  } catch {
+    console.error("\nBuilding the highlighter needs Rust's WebAssembly target. Run:\n  rustup target add wasm32-unknown-unknown\nthen npm run build again.\n")
+    process.exit(1)
+  }
   fs.copyFileSync("target/wasm32-unknown-unknown/wasm/pointer_highlight.wasm", "crates/pointer-highlight/highlight.wasm")
   execSync("npx @tailwindcss/cli -i src/webview/styles/app.css -o src/webview/styles/generated.css --minify", { stdio: "inherit" })
 

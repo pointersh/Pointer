@@ -90,13 +90,16 @@ export const registerMcpServer = (name: string, url: string, token: string, desc
     manifest: { type: "remote", name, url, description, auth: { type: "header", headers: { Authorization: `Bearer ${token}` } } }
   })
 
+// The registered agent is the definition people see in TrueForge; sessions use an inline spec, so it names
+// the first model of the user's chain rather than a fixed provider.
 export const upsertAgent = async () => {
+  const manifest = { ...agentManifest(), model: modelSpec(modelChain()[0]) }
   for await (const agent of await trueforge().agents.list()) {
     if (agent.name === AGENT_NAME) {
-      return api("PUT", `/api/v1/agents/${agent.id}`, { description: AGENT_DESCRIPTION, manifest: agentManifest() })
+      return api("PUT", `/api/v1/agents/${agent.id}`, { description: AGENT_DESCRIPTION, manifest })
     }
   }
-  return api("POST", "/api/v1/agents", { name: AGENT_NAME, description: AGENT_DESCRIPTION, manifest: agentManifest() })
+  return api("POST", "/api/v1/agents", { name: AGENT_NAME, description: AGENT_DESCRIPTION, manifest })
 }
 
 const AGENT_DESCRIPTION = "Pointer: editor-native coding agent for VS Code."
@@ -105,6 +108,16 @@ export const describeError = (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)
   if (/ECONNREFUSED|fetch failed|ENOTFOUND/.test(message)) {
     return `Pointer can't reach TrueForge at ${trueforgeUrl()}. Start it with \`npx @truefoundry/trueforge@latest\`.`
+  }
+  // TrueForge's outbound allowlist: without loopback it refuses Pointer's own tool servers; without the
+  // provider's host it refuses the model.
+  const blocked = /Outbound URL blocked for host \\?"([^"\\]+)/.exec(message)
+  if (blocked) {
+    return `TrueForge is blocking ${blocked[1]}. Restart it with that host allowed: OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","your.model.host"]' npx @truefoundry/trueforge@latest --port 8790 (see docs/setup.md).`
+  }
+  const unknownModel = /Unknown model \\?"([^"\\]+)/.exec(message)
+  if (unknownModel) {
+    return `TrueForge has no model "${unknownModel[1]}". Register a provider for it (docs/setup.md, step 2), or set pointer.models to models you have.`
   }
   return message
 }

@@ -46,6 +46,7 @@ the editor for you to accept it, hunk by hunk.
 OUTBOUND_URL_ALLOWED_HOSTS='["127.0.0.1","localhost","your.model.host"]' \
   npx @truefoundry/trueforge@latest --port 8790   # then register a model provider
 git clone https://github.com/pointersh/Pointer.git && cd Pointer
+rustup target add wasm32-unknown-unknown         # once: the highlighter builds to WebAssembly
 npm ci && npm run build && cargo build --release
 ```
 
