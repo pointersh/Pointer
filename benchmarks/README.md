@@ -16,7 +16,8 @@ files (6 checks). Task C: Task A with an unreachable primary model.
 |---|---|---|---|
 | A, inline edit | GPT-OSS 120B | 6 | 11/11 every run, 0.69–1.03 s, first token 0.48–0.78 s |
 | A, inline edit, in real VS Code | DeepSeek V4.1 Flash | 3 | 11/11 every run, 1.4–2.6 s |
-| B, agent mode | DeepSeek V4.1 Flash | 18 | 18/18 pass all 6 checks; median 26 s, 9–34 model calls |
+| B, agent mode, as it ships (survey optional) | DeepSeek V4.1 Flash | 6 | 6/6 pass all 6 checks; 16–35 s, median 27 s, 11–19 model calls |
+| B, agent mode, survey forced (16–18 Nov) | DeepSeek V4.1 Flash | 18 | 18/18 pass all 6 checks; median 26 s, 9–34 model calls |
 | B, through the real panel | DeepSeek V4.1 Flash | 1 | 6/6; the agent's own pytest run passed 59/59 |
 | B, agent mode | Gemini 3.5 Flash Lite (free tier) | 5 | 0/5: 3 out of time after 39–54 calls, 1 overloaded, 1 rate-limited |
 | C, fallback | unreachable → Groq or DeepSeek | 6 | backup's edit 11/11, 0.7–1.1 s, `git status` clean before accepting |
@@ -24,6 +25,26 @@ files (6 checks). Task C: Task A with an unreachable primary model.
 
 GLM-5.3 Flash (now the backup) passed Task B whenever it answered, but sometimes
 accepted a call and sent nothing; DeepSeek replaced it as the primary.
+
+## Task B without the forced survey: before and after
+
+Pointer used to tell the agent to start every request that asks for tests or docs
+with a sub-agent survey (where the closest example is implemented, tested and
+documented). Automatic context already hands it `cli.py`, `test_cli.py` and
+`cli.rst`, so the survey now runs only when the agent decides the retrieved code
+does not cover it. Sub-agents stay enabled. `abc.mjs`, DeepSeek V4.1 Flash,
+19 Nov 2026, the two arms minutes apart on the same network.
+
+| Task B | Runs | Pass | Time | Median | Model calls | Longest silence |
+|---|---|---|---|---|---|---|
+| Before: survey forced | 4 | 4/4 | 45–69 s | 54 s | 18–26 | 29–39 s |
+| After: survey optional | 6 | 6/6 | 16–35 s | 27 s | 11–19 | 3–5 s |
+
+About twice as fast, with no loss of checks. The long silence was the
+sub-agent's survey, which does not stream. Two more "before" runs failed when
+DNS could not resolve the model host and are left out. 3 of the "after" runs had sub-agents
+disabled entirely (20–32 s); the other 3 are the shipped setup (16–35 s), in which the
+agent chose not to start one.
 
 ## Syntax gate for inline edits: before and after
 

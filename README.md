@@ -32,7 +32,7 @@ the editor for you to accept it, hunk by hunk.
   and the next model writes it again.
 - **Agent mode.** One request,
   several files, no need to say which. Passed the fixed multi-file task on
-  Flask 18 times out of 18, in a median 26 s.
+  Flask in all 28 runs; [median 27 s](benchmarks/README.md#task-b-without-the-forced-survey-before-and-after) as it ships now.
 - **Per-hunk review.** Nothing touches disk until you accept it, and
   <kbd>⌘Z</kbd> undoes it.
 - **Stop at any time.** Cancelling leaves the workspace clean.

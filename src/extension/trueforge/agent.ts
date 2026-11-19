@@ -12,9 +12,6 @@ import { prefetchContext } from "./prefetch"
 import { cancelSession, createSession, pause, RATE_LIMIT_RETRIES, RATE_LIMITED, retryDelay, runTurn, TurnResult } from "./session"
 
 // ponytail: fixed 60 s before retrying the primary; a real circuit breaker with probes if this flaps.
-const SURVEY_REQUEST = /\b(tests?|tested|covered by a test|docs?|documented|documentation)\b/i
-const SURVEY_HINT =
-  "This request touches code, tests and docs: start with create_sub_agent for the survey (where the closest existing example is implemented, tested and documented, as path:line findings)."
 const PRIMARY_RETRY_MS = 60_000
 const PREFETCH_STEP = "pointer-prefetch"
 const COMPACTION_STEP = "pointer-compaction"
@@ -123,7 +120,6 @@ export class TrueForgeAgent implements Agent {
         turnInput = `${input}\n\nPointer already searched the codebase for this request (BM25, symbols, repo map; reasons per chunk). Start from these, and search again if they are not enough:\n\n${context}`
       }
       // Code plus tests plus docs: the survey of existing examples goes to a TrueForge sub-agent first.
-      if (SURVEY_REQUEST.test(plainText(String(last.content ?? "")))) turnInput += `\n\n${SURVEY_HINT}`
     }
 
     try {
