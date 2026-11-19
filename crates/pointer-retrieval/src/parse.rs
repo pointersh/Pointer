@@ -46,6 +46,29 @@ fn language(path: &str) -> Option<Language> {
     })
 }
 
+// The inline-edit syntax gate: None when the language has no parser here, otherwise the 1-based line of the
+// first ERROR or MISSING node (Some(None) when the text parses cleanly).
+pub fn syntax_error(path: &str, src: &str) -> Option<Option<usize>> {
+    let mut parser = Parser::new();
+    parser.set_language(&language(path)?).ok()?;
+    let tree = parser.parse(src, None)?;
+    let root = tree.root_node();
+    if !root.has_error() {
+        return Some(None);
+    }
+    let mut cursor = root.walk();
+    let mut node = root;
+    loop {
+        if node.is_error() || node.is_missing() {
+            return Some(Some(node.start_position().row + 1));
+        }
+        match node.children(&mut cursor).find(|c| c.has_error()) {
+            Some(child) => node = child,
+            None => return Some(Some(node.start_position().row + 1)),
+        }
+    }
+}
+
 fn def_kind(kind: &str) -> Option<&'static str> {
     Some(match kind {
         "function_definition"
@@ -499,6 +522,15 @@ fn parse_within(path: &str, src: &str, limit: std::time::Duration) -> Parsed {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn syntax_gate_finds_the_broken_line() {
+        let ok = "def f(x):\n    return x\n";
+        assert_eq!(syntax_error("a.py", ok), Some(None));
+        assert_eq!(syntax_error("a.py", "def f(x):\n    return (x\n\ndef g():\n    pass\n").and_then(|l| l).map(|l| l <= 2), Some(true));
+        assert!(matches!(syntax_error("a.ts", "const a = {;\n"), Some(Some(_))));
+        assert_eq!(syntax_error("a.rb", "def x"), None);
+    }
 
     #[test]
     fn python_defs_and_chunks() {

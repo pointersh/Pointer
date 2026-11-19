@@ -55,10 +55,13 @@ export const trueforgeTextModel = (): TextModel => ({
   get name() {
     return inlineModelChain()[0]
   },
-  async *stream(messages, signal) {
+  get models() {
+    return inlineModelChain()
+  },
+  async *stream(messages, signal, from = 0) {
     const chain = inlineModelChain()
     let retries = 0
-    for (let i = 0; i < chain.length; i++) {
+    for (let i = from; i < chain.length; i++) {
       let produced = false
       try {
         for await (const chunk of streamOn(chain[i], messages, signal)) {

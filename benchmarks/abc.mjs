@@ -36,6 +36,7 @@ await esbuild.build({
 export { markServerLive, registerMcpServer, serverName, setRetrievalEndpoint, trueforgeUrl } from "./src/extension/trueforge/client"
 export { TrueForgeAgent } from "./src/extension/trueforge/agent"
 export { trueforgeTextModel } from "./src/extension/trueforge/inline"
+export { syntaxBreak } from "./src/extension/trueforge/prefetch"
 export { GenerationTracker } from "./src/extension/generations"
 export { buildEditMessages, clampContext, EDIT_CONTEXT_LINES, finalizeEdit } from "./src/extension/edit/prompt"`,
     resolveDir: repo,
@@ -101,10 +102,18 @@ const inlineEdit = async () => {
     first ||= Date.now() - started
     reply += chunk
   }
+  // The editor's syntax gate on the whole file after the edit, timed inside the total as the editor runs it.
+  const before = lines.join("\n")
+  const after = [...lines.slice(0, start), ...m.finalizeEdit(reply, code).split("\n"), ...lines.slice(end)].join("\n")
+  const gateStarted = Date.now()
+  const broke = await m.syntaxBreak(file, before, after, new AbortController().signal)
+  const gate = Date.now() - gateStarted
   const total = Date.now() - started
   return {
     first,
     total,
+    gate,
+    broke,
     apply: () => {
       lines.splice(start, end - start, ...m.finalizeEdit(reply, code).split("\n"))
       fs.writeFileSync(file, lines.join("\n"))
@@ -275,7 +284,7 @@ try {
     else {
       a.apply()
       const checkA = tasks("a")
-      Object.assign(row, { A: `${checkA.pass}/${checkA.pass + checkA.fail.length}`, "A first token": `${a.first} ms`, "A total": `${a.total} ms` })
+      Object.assign(row, { A: `${checkA.pass}/${checkA.pass + checkA.fail.length}`, "A first token": `${a.first} ms`, "A total": `${a.total} ms`, "A syntax gate": `${a.gate} ms${a.broke ? `, broke line ${a.broke}` : ", parses"}` })
     }
 
     reset()

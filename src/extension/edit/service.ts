@@ -7,6 +7,7 @@ import { ChatCompletionMessage } from "../../common/types"
 import { cancelled } from "../chat/tickets"
 import { GenerationRun, GenerationTracker } from "../generations"
 import { TextModel, textModel } from "../model"
+import { syntaxBreak } from "../trueforge/prefetch"
 
 import { DiffLayout, layoutDiff, locateSnippet } from "./diff"
 import {
@@ -581,6 +582,8 @@ export class InlineEditService {
     const { region, messages, what } = generation
     const { baseline, proposed } = region.sides()
     const snapshot = region.snapshot()
+    const text = region.document.getText()
+    const fileBefore = { path: region.document.fileName, text, head: region.document.offsetAt(region.range.start), tail: region.document.offsetAt(region.range.end) }
 
     if (this._pending && this._pending !== region) return
     this._pending = region
@@ -592,17 +595,35 @@ export class InlineEditService {
         `Inline ${what} request (${model.name}): ${generation.describe}`
       )
 
-      try {
-        for await (const chunk of model.stream(messages, run.signal)) {
-          if (region.broken) break
-          reply += chunk
-          await region.render(
-            layoutDiff(baseline, generation.preview(reply), true)
-          )
-          this.decorate()
+      const models = model.models ?? [model.name]
+      for (let from = 0; ; from++) {
+        try {
+          for await (const chunk of model.stream(messages, run.signal, from)) {
+            if (region.broken) break
+            reply += chunk
+            await region.render(
+              layoutDiff(baseline, generation.preview(reply), true)
+            )
+            this.decorate()
+          }
+        } catch (error) {
+          if (!run.signal.aborted) throw error
         }
-      } catch (error) {
-        if (!run.signal.aborted) throw error
+        if (region.broken || run.signal.aborted) break
+        // Syntax gate: an edit that breaks a file which parsed before never stays for review; the next model
+        // in the chain writes it again. ponytail: names models[from], not the model the chain fell back to.
+        const gateStarted = Date.now()
+        const line = await syntaxBreak(fileBefore.path, fileBefore.text, fileBefore.text.slice(0, fileBefore.head) + generation.finalize(reply) + fileBefore.text.slice(fileBefore.tail), run.signal)
+        logger.info(`Inline ${what} syntax gate: ${line === undefined ? "passes" : `breaks line ${line}`} in ${Date.now() - gateStarted} ms`)
+        if (line === undefined) break
+        if (from + 1 >= models.length) {
+          await this.rewind(region, snapshot)
+          vscode.window.showWarningMessage(`Pointer: the ${what} from ${models[from]} would break the syntax at line ${line}, so nothing was changed.`)
+          return
+        }
+        logger.warn(`Inline ${what} from ${models[from]} breaks the syntax at line ${line}; retrying on ${models[from + 1]}`)
+        vscode.window.setStatusBarMessage(`Pointer: ${models[from]} broke the syntax at line ${line}; retrying on ${models[from + 1]}`, 6000)
+        reply = ""
       }
 
       if (region.broken) {

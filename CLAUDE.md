@@ -65,6 +65,7 @@ Checks
 - node benchmarks/abc.mjs <flask> [runs].. A/B/C live, MODELS= INLINE_MODELS= TASKS= CANCEL=1 EDITS=1
 - benchmarks/tasks.sh setup|a|b|c|reset <flask>.. Flask 3.1.3 with a venv, scores each task
 - node benchmarks/bench.mjs <flask> target/release/pointer-retrieval [paraphrase.json].. ranking vs BM25 and grep
+- node benchmarks/syntax.mjs <flask> target/release/pointer-retrieval.. inline-edit syntax gate: blocked vs let through, check time
 
 Running things locally
 - one heavy thing at a time.. one VS Code test window, kill leftovers first (pgrep -f extensionDevelopmentPath)

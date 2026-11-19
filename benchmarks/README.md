@@ -25,6 +25,45 @@ files (6 checks). Task C: Task A with an unreachable primary model.
 GLM-5.3 Flash (now the backup) passed Task B whenever it answered, but sometimes
 accepted a call and sent nothing; DeepSeek replaced it as the primary.
 
+## Syntax gate for inline edits: before and after
+
+Before an inline edit is left for review, Pointer parses the whole file with it
+applied (tree-sitter in the Rust engine: Python, JavaScript, TypeScript, Rust, Go).
+If the edit breaks a file that parsed before, it is withdrawn and the next model
+in the chain writes it again; with no model left, nothing changes and Pointer says
+which line broke. Measured 19 Nov 2026.
+
+**Does it catch broken edits, and leave valid ones alone?** `syntax.mjs`: every
+top-level function in `helpers.py`, `cli.py`, `app.py` and `config.py`, edited the
+ways models break code, 3 runs (identical results).
+
+| Edit | Cases | Blocked |
+|---|---|---|
+| Valid: unchanged | 38 | 0 |
+| Valid: a body line added | 34 | 0 |
+| Valid: a return value wrapped in parentheses | 23 | 0 |
+| Broken: closing bracket dropped | 38 | 38 |
+| Broken: colon after `def` dropped | 34 | 34 |
+| Broken: quotes double-escaped (`\"`) | 31 | 31 |
+| Broken: reply cut off mid-function | 18 | 18 |
+| String quote dropped | 31 | 30 (the 31st was a `"` inside a `'…'` string, still valid Python) |
+
+0 of 95 valid edits blocked; every edit that broke the syntax caught. A check
+takes 3.7 ms median, 5.3–7.7 ms p95, for the whole file over MCP.
+
+**What it costs Task A.** `abc.mjs`, GPT-OSS 120B, 5 runs each; the gate runs
+inside the measured time.
+
+| | Result | Total | Median | Syntax gate |
+|---|---|---|---|---|
+| Before | 11/11 every run | 831–3,241 ms | 978 ms | none |
+| After | 11/11 every run | 828–1,324 ms | 888 ms | 5–8 ms (26 ms on the first call) |
+
+The spread in totals is the model's; the gate adds about 7 ms. In a real VS Code
+window (DeepSeek V4.1 Flash, 4 runs) Task A stayed 11/11 at 1.8–2.5 s and the
+gate logged 7–16 ms. The retry path itself (a broken edit replaced by the next
+model's) is not yet exercised by a live test: no live model breaks Task A on demand.
+
 ## Ranking quality (Flask)
 
 10 questions, each with known answer files (`queries.json`). The first is the
@@ -176,6 +215,7 @@ node benchmarks/bench.mjs /tmp/flask target/release/pointer-retrieval paraphrase
 node benchmarks/placement.mjs target/release/pointer-retrieval /tmp/flask
 node benchmarks/semantic.mjs target/release/pointer-retrieval /tmp/flask queries.json paraphrase.json
 node benchmarks/scale.mjs target/release/pointer-retrieval /tmp/flask /tmp/django .
+node benchmarks/syntax.mjs /tmp/flask target/release/pointer-retrieval
 ```
 
 `bench.mjs` prints the table. `placement.mjs` shows where the three CLI-task files land
@@ -191,6 +231,7 @@ in Pointer's response. Set `RG` to point at a different ripgrep binary.
 | `placement.mjs` | Where the CLI task's three files land |
 | `semantic.mjs` | Scores lexical and semantic search on each query file, with build time and latency |
 | `scale.mjs` | Start-up, query time and peak memory across repositories |
+| `syntax.mjs` | The inline-edit syntax gate on edited Flask functions: what it blocks, what it lets through, how long a check takes |
 | `abc.mjs` | Tasks A, B and C live through Pointer's agent (see [setup](../docs/setup.md#checks) for its options) |
 | `tasks.sh` | Sets up Flask 3.1.3 with a venv and scores each task |
 | `editor.sh` | Runs a test file inside a real VS Code window |

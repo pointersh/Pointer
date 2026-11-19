@@ -263,6 +263,12 @@ struct SymbolArgs {
 }
 
 #[derive(Deserialize, JsonSchema)]
+struct SyntaxArgs {
+    path: String,
+    text: String,
+}
+
+#[derive(Deserialize, JsonSchema)]
 struct MapArgs {
     budget_tokens: Option<usize>,
 }
@@ -337,6 +343,18 @@ impl Retrieval {
     )]
     fn find_symbol(&self, Parameters(args): Parameters<SymbolArgs>) -> String {
         self.store.current().find_symbol(&args.name)
+    }
+
+    #[tool(
+        description = "Check whether a file's full text parses (tree-sitter: Python, JS, TS, Rust, Go). Answers ok, error at line N, or unsupported.",
+        annotations(read_only_hint = true)
+    )]
+    fn check_syntax(&self, Parameters(args): Parameters<SyntaxArgs>) -> String {
+        match parse::syntax_error(&args.path, &args.text) {
+            None => "unsupported".into(),
+            Some(None) => "ok".into(),
+            Some(Some(line)) => format!("error at line {line}"),
+        }
     }
 
     #[tool(

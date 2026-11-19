@@ -28,7 +28,8 @@ the editor for you to accept it, hunk by hunk.
   in 1.5 ms.
 - **Inline edit.**
   Select, press <kbd>⌘I</kbd>, describe the change; the diff streams into the
-  editor.
+  editor. [An edit that would break the file's syntax is withdrawn](benchmarks/README.md#syntax-gate-for-inline-edits-before-and-after)
+  and the next model writes it again.
 - **Agent mode.** One request,
   several files, no need to say which. Passed the fixed multi-file task on
   Flask 18 times out of 18, in a median 26 s.
